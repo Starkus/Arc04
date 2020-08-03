@@ -1,0 +1,123 @@
+#once
+
+// Paths
+
+.VSBasePath = '$VSInstallPath$\VC\Tools\MSVC\$VCVersion$'
+.VSBinPath = '$VSBasePath$\bin\Hostx64\x64'
+.VSIncludePath = '$VSBasePath$\include'
+.VSLibPath = '$VSBasePath$\lib\x64'
+
+.WindowsSDKIncludePath = '$WindowsSDKBasePath$\Include\$WindowsSDKVersion$'
+.WindowsSDKLibPath = '$WindowsSDKBasePath$\Lib\$WindowsSDKVersion$'
+
+// Settings
+
+Settings
+{
+	.Environment = {
+		"Path=$VSBinPath$",
+		"TEMP=C:\Windows\Temp",
+		"SystemRoot=C:\Windows"
+	}
+}
+
+// x64 Compiler
+
+Compiler('Compiler_x64')
+{
+	.Executable = '$VSBinPath$\cl.exe'
+}
+
+// Linker
+
+.Linker_x64 = '$VSBinPath$\link.exe'
+
+// Paths
+
+.ExternalIncludePath = 'external\include'
+.ExternalLibrariesPath = 'external\lib'
+
+// Compiler options
+
+.CompilerWarningOptions = ' /WX /W4'
+						+ ' /wd4127' // conditional expression is constant
+						+ ' /wd4201' // nonstandard extension used : nameless struct/union
+						+ ' /wd4307' // 'operator' : integral constant overflow
+
+.CompilerIncludePaths = ' /I"$VSIncludePath$"'
+					+ ' /I"$WindowsSDKIncludePath$\ucrt"'
+					+ ' /I"$WindowsSDKIncludePath$\shared"'
+					+ ' /I"$WindowsSDKIncludePath$\um"'
+					+ ' /I"$WindowsSDKIncludePath$\winrt"'
+					+ ' /I"$WindowsSDKIncludePath$\cppwinrt"'
+					+ ' /I"$SourcePath$"'
+					+ ' /I"$ExternalIncludePath$"'
+
+.CommonCompilerOptions = '/c "%1" /Fo"%2" /nologo /FC /GF /Gm- /GR- /Oi /fp:fast /EHa- /EHs- /EHc-'
+					+ .CompilerWarningOptions
+					+ .CompilerIncludePaths
+
+// Library paths
+
+.LibraryPaths = ' /LIBPATH:"$VSLibPath$"'
+			+ ' /LIBPATH:"$WindowsSDKLibPath$\ucrt\x64"'
+			+ ' /LIBPATH:"$WindowsSDKLibPath$\um\x64"'
+			+ ' /LIBPATH:$ExternalLibrariesPath$'
+
+.SystemLibraries = ' Shell32.lib'
+
+// Linker options
+
+.LinkerWarningOptions = ' /WX /IGNORE:4099'
+.CommonLinkerOptions = '%1 /OUT:"%2" /NOLOGO /INCREMENTAL:NO'
+					+ .LinkerWarningOptions
+					+ .LibraryPaths
+					+ .SystemLibraries
+
+// Build types
+
+.DebugBuild =
+[
+	.BuildTypeName = 'Debug'
+	.BuildTypeSufix = '_debug'
+
+	.Compiler = 'Compiler_x64'
+	.ExeCompilerOptions = .CommonCompilerOptions + ' /MTd /Z7 /Od /DDEBUG_BUILD'
+
+	.Linker = .Linker_x64
+	.ExeLinkerOptions = .CommonLinkerOptions + ' /DEBUG:FULL /OPT:REF,NOICF /SUBSYSTEM:WINDOWS,5.02'
+]
+
+.TestBuild =
+[
+	.BuildTypeName = 'Test'
+	.BuildTypeSufix = '_test'
+
+	.Compiler = 'Compiler_x64'
+	.ExeCompilerOptions = .CommonCompilerOptions + ' /MTd /O2 /Ob2 /Ot /Gy /Z7 /Zo /DDEBUG_BUILD'
+
+	.Linker = .Linker_x64
+	.ExeLinkerOptions = .CommonLinkerOptions + ' /DEBUG:FASTLINK /OPT:REF,ICF /SUBSYSTEM:WINDOWS,5.02'
+]
+
+.ReleaseBuild =
+[
+	.BuildTypeName = 'Release'
+	.BuildTypeSufix = ''
+
+	.Compiler = 'Compiler_x64'
+	.ExeCompilerOptions = .CommonCompilerOptions + ' /MT /O2 /Ob2 /Ot /Gy'
+
+	.Linker = .Linker_x64
+	.ExeLinkerOptions = .CommonLinkerOptions + ' /OPT:REF,ICF /SUBSYSTEM:WINDOWS,5.02'
+]
+
+.BuildTypes = { .DebugBuild, .TestBuild, .ReleaseBuild }
+
+CopyDir('Copy_Libs')
+{
+	.SourcePaths = .ExternalLibrariesPath
+	.Dest = .BinPath
+	.SourcePathsPattern = '*.dll'
+	.SourcePathsRecurse = false
+}

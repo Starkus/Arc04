@@ -1,0 +1,97 @@
+// Project Config
+.GameName = 'game'
+.SourcePath = 'src'
+.OutputPath = 'build'
+.BinPath = 'bin'
+.SolutionPath = 'solution'
+
+// Includes
+#include "build/paths.bff"
+#include "compiler.bff"
+
+// Sources
+
+Unity('GameSource')
+{
+	.UnityInputPath = '$SourcePath$'
+	.UnityOutputPath = '$OutputPath$/Unity'
+	.UnityNumFiles = 1
+}
+
+// Build targets
+
+.AllTargets = {}
+
+ForEach(.BuildType in .BuildTypes)
+{
+	Using(.BuildType)
+
+	ObjectList('GameSource_$BuildTypeName$')
+	{
+		.CompilerOptions = '$ExeCompilerOptions$'
+		.CompilerInputUnity = 'GameSource'
+		.CompilerOutputPath = '$OutputPath$/$BuildTypeName$'
+	}
+
+	Executable('Game_$BuildTypeName$')
+	{
+		.LinkerOptions = .ExeLinkerOptions
+		.LinkerOutput = '$BinPath$/$GameName$$BuildTypeSufix$.exe'
+		.Libraries = {
+			'GameSource_$BuildTypeName$',
+			'$ExternalLibrariesPath$/SDL2.lib',
+			'$ExternalLibrariesPath$/SDL2main.lib',
+		}
+		.PreBuildDependencies = 'Copy_Libs'
+	}
+
+	// Add to all targets
+	^AllTargets + 'Game_$BuildTypeName$'
+}
+
+Alias('all') { .Targets = .AllTargets }
+
+// VS Solution
+
+VCXProject('Game_Project')
+{
+	.ProjectOutput = '$SolutionPath$/Game.vcxproj'
+
+	.ProjectInputPaths = '$SourcePath$/'
+	.ProjectBasePath = '$SourcePath$/'
+
+	.ProjectConfigs = {}
+	ForEach(.BuildType in .BuildTypes)
+	{
+		Using(.BuildType)
+		.Config = [
+			.Platform = 'X64'
+			.Config = .BuildTypeName
+			.Target = 'Game_$BuildTypeName$'
+		]
+		^ProjectConfigs + .Config
+	}
+
+	.ProjectBuildCommand = 'cd ^$(SolutionDir)\.. &amp; fbuild -ide Game_^$(Configuration)'
+	.ProjectRebuildCommand = 'cd ^$(SolutionDir)\.. &amp; fbuild -ide -clean Game_^$(Configuration)'
+}
+
+VSSolution('Game_Solution')
+{
+	.SolutionOutput = '$SolutionPath$/Game.sln'
+	.SolutionProjects = 'Game_Project'
+	.SolutionConfigs = {}
+
+	ForEach(.BuildType in .BuildTypes)
+	{
+		Using(.BuildType)
+		.Config = [
+			.Platform = 'X64'
+			.Config = .BuildTypeName
+		]
+		^SolutionConfigs + .Config
+	}
+
+	.SolutionVisualStudioVersion = .VSVersion
+	.SolutionBuildProject = 'Game_Project'
+}

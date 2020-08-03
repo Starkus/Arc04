@@ -1,5 +1,5 @@
-#include "../include/SDL/SDL.h"
-#include "../include/SDL/SDL_OpenGL.h"
+#include "SDL/SDL.h"
+#include "SDL/SDL_OpenGL.h"
 
 #include "General.h"
 
@@ -182,6 +182,7 @@ void StartGame()
 
 int main(int argc, char **argv)
 {
+	(void) argc, argv;
 	StartGame();
 	return 0;
 }
