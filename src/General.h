@@ -1,5 +1,9 @@
 #include <stdint.h>
 
+// I hate this programming language
+#undef near
+#undef far
+
 typedef int8_t  i8;
 typedef int16_t i16;
 typedef int32_t i32;

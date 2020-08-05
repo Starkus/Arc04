@@ -2,6 +2,7 @@
 #include "SDL/SDL_OpenGL.h"
 
 #include "General.h"
+#include "Math.h"
 
 namespace {
 #include "OpenGL.h"
@@ -9,12 +10,16 @@ namespace {
 const GLchar *vertexShaderSource = "\
 #version 330 core\n\
 layout (location = 0) in vec3 pos;\n\
+layout (location = 1) in vec3 col;\n\
+uniform mat4 model;\n\
+uniform mat4 view;\n\
+uniform mat4 projection;\n\
 out vec3 vertexColor;\n\
 \n\
 void main()\n\
 {\n\
-	gl_Position = vec4(pos, 1.0);\n\
-	vertexColor = pos;\n\
+	gl_Position = projection * view * model * vec4(pos, 1.0);\n\
+	vertexColor = col;\n\
 }\n\
 ";
 
@@ -25,9 +30,63 @@ out vec4 fragColor;\n\
 \n\
 void main()\n\
 {\n\
-	fragColor = vec4(vertexColor.x + 0.5, vertexColor.y + 0.5, 1.0, 1.0);\n\
+	fragColor = vec4(vertexColor, 1.0);\n\
 }\n\
 ";
+
+union v3
+{
+	struct
+	{
+		f32 x; f32 y; f32 z;
+	};
+	struct
+	{
+		f32 r; f32 g; f32 b;
+	};
+	f32 v[3];
+};
+
+union mat4
+{
+	struct
+	{
+		f32 m00; f32 m01; f32 m02; f32 m03;
+		f32 m10; f32 m11; f32 m12; f32 m13;
+		f32 m20; f32 m21; f32 m22; f32 m23;
+		f32 m30; f32 m31; f32 m32; f32 m33;
+	};
+	f32 m[16];
+};
+
+struct Vertex
+{
+	v3 pos;
+	v3 color;
+};
+
+GLuint LoadShader(const GLchar *shaderSource, GLuint shaderType)
+{
+	GLuint shader = glCreateShader(shaderType);
+	glShaderSource(shader, 1, &shaderSource, nullptr);
+	glCompileShader(shader);
+
+#if defined(DEBUG_BUILD)
+	{
+		GLint status;
+		glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
+		if (status != GL_TRUE)
+		{
+			char msg[256];
+			GLsizei len;
+			glGetShaderInfoLog(shader, sizeof(msg), &len, msg);
+			SDL_Log("Error compiling shader: %s", msg);
+		}
+	}
+#endif
+
+	return shader;
+}
 
 void StartGame()
 {
@@ -55,68 +114,99 @@ void StartGame()
 	LoadOpenGLProcs();
 
 	GLuint vao;
-	GLuint vertexBuffer;
+	union
 	{
-		f32 lovelyTriangle[] =
+		struct
 		{
-			-0.5f, -0.5f, 0.0f,
-			0.5f, -0.5f, 0.0f,
-			0.0f, 0.5f, 0.0f
+			GLuint vertexBuffer;
+			GLuint indexBuffer;
+		};
+		GLuint buffers[2];
+	};
+	GLuint program;
+	{
+		const Vertex lovelyVertices[] =
+		{
+			// Front
+			{ { -1.0f, -1.0f, -1.0f }, { 1.0f, 0.0f, 0.0f } },
+			{ { 1.0f, -1.0f, -1.0f }, { 1.0f, 0.0f, 0.0f } },
+			{ { 1.0f, 1.0f, -1.0f }, { 1.0f, 0.0f, 0.0f } },
+			{ { -1.0f, 1.0f, -1.0f }, { 1.0f, 0.0f, 0.0f } },
+
+			// Back
+			{ { 1.0f, -1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f } },
+			{ { -1.0f, -1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f } },
+			{ { -1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f } },
+			{ { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f } },
+
+			// Left
+			{ { -1.0f, -1.0f, 1.0f }, { 0.0f, 0.0f, 1.0f } },
+			{ { -1.0f, -1.0f, -1.0f }, { 0.0f, 0.0f, 1.0f } },
+			{ { -1.0f, 1.0f, -1.0f }, { 0.0f, 0.0f, 1.0f } },
+			{ { -1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f, 1.0f } },
+
+			// Right
+			{ { 1.0f, -1.0f, -1.0f }, { 1.0f, 1.0f, 0.0f } },
+			{ { 1.0f, -1.0f, 1.0f }, { 1.0f, 1.0f, 0.0f } },
+			{ { 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f, 0.0f } },
+			{ { 1.0f, 1.0f, -1.0f }, { 1.0f, 1.0f, 0.0f } },
+
+			// Bottom
+			{ { -1.0f, -1.0f, 1.0f }, { 1.0f, 0.0f, 1.0f } },
+			{ { 1.0f, -1.0f, 1.0f }, { 1.0f, 0.0f, 1.0f } },
+			{ { 1.0f, -1.0f, -1.0f }, { 1.0f, 0.0f, 1.0f } },
+			{ { -1.0f, -1.0f, -1.0f }, { 1.0f, 0.0f, 1.0f } },
+
+			// Top
+			{ { -1.0f, 1.0f, -1.0f }, { 0.0f, 1.0f, 1.0f } },
+			{ { 1.0f, 1.0f, -1.0f }, { 0.0f, 1.0f, 1.0f } },
+			{ { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f, 1.0f } },
+			{ { -1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f, 1.0f } },
+		};
+
+		u16 lovelyIndices[] =
+		{
+			// Front
+			0, 1, 2, 0, 2, 3,
+
+			// Back
+			4, 5, 6, 4, 6, 7,
+
+			// Left
+			8, 9, 10, 8, 10, 11,
+
+			// Right
+			12, 13, 14, 12, 14, 15,
+
+			// Bottom
+			16, 17, 18, 16, 18, 19,
+
+			// Top
+			20, 21, 22, 20, 22, 23,
 		};
 
 		glGenVertexArrays(1, &vao);
 		glBindVertexArray(vao);
 
-		glGenBuffers(1, &vertexBuffer);
+		glGenBuffers(2, buffers);
 		glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(lovelyTriangle), lovelyTriangle, GL_STATIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(lovelyVertices), lovelyVertices, GL_STATIC_DRAW);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(lovelyIndices), lovelyIndices, GL_STATIC_DRAW);
 
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(f32) * 3, 0);
-
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
 		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
+		glEnableVertexAttribArray(1);
 
-		// Shader
-		GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-		glShaderSource(vertexShader, 1, &vertexShaderSource, nullptr);
-		glCompileShader(vertexShader);
+		// Shaders
+		GLuint vertexShader = LoadShader(vertexShaderSource, GL_VERTEX_SHADER);
+		GLuint fragmentShader = LoadShader(fragShaderSource, GL_FRAGMENT_SHADER);
 
-#if defined(DEBUG_BUILD)
-		{
-			GLint status;
-			glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &status);
-			if (status != GL_TRUE)
-			{
-				char msg[256];
-				GLsizei len;
-				glGetShaderInfoLog(vertexShader, sizeof(msg), &len, msg);
-				SDL_Log("Error compiling shader: %s", msg);
-			}
-		}
-#endif
-
-		GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-		glShaderSource(fragmentShader, 1, &fragShaderSource, nullptr);
-		glCompileShader(fragmentShader);
-
-#if defined(DEBUG_BUILD)
-		{
-			GLint status;
-			glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &status);
-			if (status != GL_TRUE)
-			{
-				char msg[256];
-				GLsizei len;
-				glGetShaderInfoLog(fragmentShader, sizeof(msg), &len, msg);
-				SDL_Log("Error compiling shader: %s", msg);
-			}
-		}
-#endif
-
-		GLuint program = glCreateProgram();
+		program = glCreateProgram();
 		glAttachShader(program, vertexShader);
 		glAttachShader(program, fragmentShader);
 		glLinkProgram(program);
-
 #if defined(DEBUG_BUILD)
 		{
 			GLint status;
@@ -132,11 +222,40 @@ void StartGame()
 #endif
 
 		glUseProgram(program);
+
+		const f32 fov = HALFPI;
+		const f32 near = 0.01f;
+		const f32 far = 2000.0f;
+		const f32 aspectRatio = (16.0f / 9.0f);
+
+		const f32 top = Tan(HALFPI - fov / 2.0f);
+		const f32 right = top / aspectRatio;
+
+		mat4 view =
+		{
+			1.0f, 0.0f, 0.0f, 0.0f,
+			0.0f, 1.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 1.0f, 0.0f,
+			0.0f, 0.0f, -3.0f, 1.0f
+		};
+		mat4 proj =
+		{
+			right, 0.0f, 0.0f, 0.0f,
+			0.0f, top, 0.0f, 0.0f,
+			0.0f, 0.0f, -(far + near) / (far - near), -1.0f,
+			0.0f, 0.0f, -(2.0f * far * near) / (far - near), 0.0f
+		};
+
+		GLuint viewUniform = glGetUniformLocation(program, "view");
+		glUniformMatrix4fv(viewUniform, 1, false, view.m);
+		GLuint projUniform = glGetUniformLocation(program, "projection");
+		glUniformMatrix4fv(projUniform, 1, false, proj.m);
 	}
 
 	bool running = true;
 	while (running)
 	{
+		// Check events
 		SDL_Event evt;
 		while (SDL_PollEvent(&evt) != 0)
 		{
@@ -159,22 +278,46 @@ void StartGame()
 				} break;
 			}
 		}
+
+		// Draw
+		f32 time = (f32)SDL_GetPerformanceCounter() / (f32)SDL_GetPerformanceFrequency() * 3.0f;
+#if 0
+		mat4 model =
+		{
+			Cos(time),	Sin(time),	0.0f,	0.0f,
+			-Sin(time),	Cos(time),	0.0f,	0.0f,
+			0.0f,		0.0f,		1.0f,	0.0f,
+			0.0f,		0.0f,		0.0f,	1.0f
+		};
+#else
+		mat4 model =
+		{
+			Cos(time),	0.0f,	Sin(time),	0.0f,
+			0.0f,		1.0f,	0.0f,		0.0f,
+			-Sin(time),	0.0f,	Cos(time),	0.0f,
+			0.0f,		0.0f,	0.0f,		1.0f
+		};
+#endif
+		const GLuint modelUniform = glGetUniformLocation(program, "model");
+		glUniformMatrix4fv(modelUniform, 1, false, model.m);
+
 		glClearColor(0.95f, 0.88f, 0.05f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		glBindVertexArray(vao);
-		glDrawArrays(GL_TRIANGLES, 0, 3);
+		glDrawElements(GL_TRIANGLES, 12 * 6, GL_UNSIGNED_SHORT, NULL);
 		SDL_GL_SwapWindow(window);
 	}
 
+	// Cleanup
 	{
 		glDeleteBuffers(1, &vertexBuffer);
 		glDeleteVertexArrays(1, &vao);
-	}
 
-	SDL_GL_DeleteContext(glContext);
-	SDL_DestroyWindow(window);
-	SDL_Quit();
+		SDL_GL_DeleteContext(glContext);
+		SDL_DestroyWindow(window);
+		SDL_Quit();
+	}
 
 	return;
 }
