@@ -39,7 +39,7 @@ Compiler('Compiler_x64')
 
 // Compiler options
 
-.CompilerWarningOptions = ' /WX /W4'
+.CompilerWarningOptions = ' /W4'
 						+ ' /wd4127' // conditional expression is constant
 						+ ' /wd4201' // nonstandard extension used : nameless struct/union
 						+ ' /wd4307' // 'operator' : integral constant overflow
@@ -68,7 +68,7 @@ Compiler('Compiler_x64')
 
 // Linker options
 
-.LinkerWarningOptions = ' /WX /IGNORE:4099'
+.LinkerWarningOptions = ' /IGNORE:4099'
 .CommonLinkerOptions = '%1 /OUT:"%2" /NOLOGO /INCREMENTAL:NO'
 					+ .LinkerWarningOptions
 					+ .LibraryPaths

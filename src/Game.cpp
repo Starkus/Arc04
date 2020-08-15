@@ -34,35 +34,22 @@ void main()\n\
 }\n\
 ";
 
-union v3
-{
-	struct
-	{
-		f32 x; f32 y; f32 z;
-	};
-	struct
-	{
-		f32 r; f32 g; f32 b;
-	};
-	f32 v[3];
-};
-
-union mat4
-{
-	struct
-	{
-		f32 m00; f32 m01; f32 m02; f32 m03;
-		f32 m10; f32 m11; f32 m12; f32 m13;
-		f32 m20; f32 m21; f32 m22; f32 m23;
-		f32 m30; f32 m31; f32 m32; f32 m33;
-	};
-	f32 m[16];
-};
-
 struct Vertex
 {
 	v3 pos;
 	v3 color;
+};
+
+struct Controller
+{
+	bool up;
+	bool down;
+};
+
+struct GameState
+{
+	Controller controller;
+	v3 camPos;
 };
 
 GLuint LoadShader(const GLchar *shaderSource, GLuint shaderType)
@@ -223,6 +210,8 @@ void StartGame()
 
 		glUseProgram(program);
 
+		glEnable(GL_DEPTH_TEST);
+
 		const f32 fov = HALFPI;
 		const f32 near = 0.01f;
 		const f32 far = 2000.0f;
@@ -231,13 +220,6 @@ void StartGame()
 		const f32 top = Tan(HALFPI - fov / 2.0f);
 		const f32 right = top / aspectRatio;
 
-		mat4 view =
-		{
-			1.0f, 0.0f, 0.0f, 0.0f,
-			0.0f, 1.0f, 0.0f, 0.0f,
-			0.0f, 0.0f, 1.0f, 0.0f,
-			0.0f, 0.0f, -3.0f, 1.0f
-		};
 		mat4 proj =
 		{
 			right, 0.0f, 0.0f, 0.0f,
@@ -245,16 +227,20 @@ void StartGame()
 			0.0f, 0.0f, -(far + near) / (far - near), -1.0f,
 			0.0f, 0.0f, -(2.0f * far * near) / (far - near), 0.0f
 		};
-
-		GLuint viewUniform = glGetUniformLocation(program, "view");
-		glUniformMatrix4fv(viewUniform, 1, false, view.m);
 		GLuint projUniform = glGetUniformLocation(program, "projection");
 		glUniformMatrix4fv(projUniform, 1, false, proj.m);
 	}
 
+	GameState gameState = {};
+
+	u64 lastPerfCounter = SDL_GetPerformanceCounter();
 	bool running = true;
 	while (running)
 	{
+		const u64 newPerfCounter = SDL_GetPerformanceCounter();
+		const f32 time = (f32)newPerfCounter / (f32)SDL_GetPerformanceFrequency();
+		const f32 deltaTime = (f32)(newPerfCounter - lastPerfCounter) / (f32)SDL_GetPerformanceFrequency();
+
 		// Check events
 		SDL_Event evt;
 		while (SDL_PollEvent(&evt) != 0)
@@ -274,13 +260,36 @@ void StartGame()
 						case SDLK_q:
 							running = false;
 							break;
+						case SDLK_w:
+							gameState.controller.up = isDown;
+							break;
+						case SDLK_s:
+							gameState.controller.down = isDown;
+							break;
 					}
 				} break;
 			}
 		}
 
+		// Update
+		if (gameState.controller.up)
+			gameState.camPos.z += 1.0f * deltaTime;
+		else if (gameState.controller.down)
+			gameState.camPos.z -= 1.0f * deltaTime;
+
 		// Draw
-		f32 time = (f32)SDL_GetPerformanceCounter() / (f32)SDL_GetPerformanceFrequency() * 3.0f;
+		// View matrix
+		mat4 view =
+		{
+			1.0f, 0.0f, 0.0f, 0.0f,
+			0.0f, 1.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 1.0f, 0.0f,
+			-gameState.camPos.x, -gameState.camPos.y, -gameState.camPos.z, 1.0f
+		};
+		GLuint viewUniform = glGetUniformLocation(program, "view");
+		glUniformMatrix4fv(viewUniform, 1, false, view.m);
+
+		// Model matrix
 #if 0
 		mat4 model =
 		{
@@ -302,11 +311,13 @@ void StartGame()
 		glUniformMatrix4fv(modelUniform, 1, false, model.m);
 
 		glClearColor(0.95f, 0.88f, 0.05f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		glBindVertexArray(vao);
 		glDrawElements(GL_TRIANGLES, 12 * 6, GL_UNSIGNED_SHORT, NULL);
 		SDL_GL_SwapWindow(window);
+
+		lastPerfCounter = newPerfCounter;
 	}
 
 	// Cleanup
