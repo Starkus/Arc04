@@ -44,12 +44,22 @@ struct Controller
 {
 	bool up;
 	bool down;
+	bool left;
+	bool right;
+	bool camUp;
+	bool camDown;
+	bool camLeft;
+	bool camRight;
 };
 
 struct GameState
 {
 	Controller controller;
+	v3 playerPos;
+	f32 playerYaw;
 	v3 camPos;
+	f32 camYaw;
+	f32 camPitch;
 };
 
 GLuint LoadShader(const GLchar *shaderSource, GLuint shaderType)
@@ -83,9 +93,11 @@ void StartGame()
 	SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
 	SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+	// OpenGL versions
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+	// OpenGL no backwards comp and debug flag
 	i32 contextFlags = SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG;
 	DEBUG_ONLY(contextFlags |= SDL_GL_CONTEXT_DEBUG_FLAG);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, contextFlags);
@@ -100,27 +112,30 @@ void StartGame()
 
 	LoadOpenGLProcs();
 
-	GLuint vao;
-	union
+	struct
 	{
-		struct
+		GLuint vao;
+		union
 		{
-			GLuint vertexBuffer;
-			GLuint indexBuffer;
+			struct
+			{
+				GLuint vertexBuffer;
+				GLuint indexBuffer;
+			};
+			GLuint buffers[2];
 		};
-		GLuint buffers[2];
-	};
+	} cubeMesh, planeMesh;
 	GLuint program;
 	{
 		const Vertex lovelyVertices[] =
 		{
-			// Front
+			// Top
 			{ { -1.0f, -1.0f, -1.0f }, { 1.0f, 0.0f, 0.0f } },
 			{ { 1.0f, -1.0f, -1.0f }, { 1.0f, 0.0f, 0.0f } },
 			{ { 1.0f, 1.0f, -1.0f }, { 1.0f, 0.0f, 0.0f } },
 			{ { -1.0f, 1.0f, -1.0f }, { 1.0f, 0.0f, 0.0f } },
 
-			// Back
+			// Bottom
 			{ { 1.0f, -1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f } },
 			{ { -1.0f, -1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f } },
 			{ { -1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f } },
@@ -138,13 +153,13 @@ void StartGame()
 			{ { 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f, 0.0f } },
 			{ { 1.0f, 1.0f, -1.0f }, { 1.0f, 1.0f, 0.0f } },
 
-			// Bottom
+			// Back
 			{ { -1.0f, -1.0f, 1.0f }, { 1.0f, 0.0f, 1.0f } },
 			{ { 1.0f, -1.0f, 1.0f }, { 1.0f, 0.0f, 1.0f } },
 			{ { 1.0f, -1.0f, -1.0f }, { 1.0f, 0.0f, 1.0f } },
 			{ { -1.0f, -1.0f, -1.0f }, { 1.0f, 0.0f, 1.0f } },
 
-			// Top
+			// Front
 			{ { -1.0f, 1.0f, -1.0f }, { 0.0f, 1.0f, 1.0f } },
 			{ { 1.0f, 1.0f, -1.0f }, { 0.0f, 1.0f, 1.0f } },
 			{ { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f, 1.0f } },
@@ -172,19 +187,54 @@ void StartGame()
 			20, 21, 22, 20, 22, 23,
 		};
 
-		glGenVertexArrays(1, &vao);
-		glBindVertexArray(vao);
+		const Vertex planeVertices[] =
+		{
+			{ { -10.0f, -10.0f, 0.0f }, { 1.0f, 0.0f, 0.0f } },
+			{ { 10.0f, -10.0f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
+			{ { -10.0f, 10.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
+			{ { 10.0f, 10.0f, 0.0f }, { 1.0f, 0.0f, 1.0f } }
+		};
 
-		glGenBuffers(2, buffers);
-		glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(lovelyVertices), lovelyVertices, GL_STATIC_DRAW);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(lovelyIndices), lovelyIndices, GL_STATIC_DRAW);
+		const u16 planeIndices[] =
+		{
+			3, 0, 2, 3, 1, 0
+		};
 
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
-		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
-		glEnableVertexAttribArray(1);
+		// Player
+		{
+			glGenVertexArrays(1, &cubeMesh.vao);
+			glBindVertexArray(cubeMesh.vao);
+
+			glGenBuffers(2, cubeMesh.buffers);
+			glBindBuffer(GL_ARRAY_BUFFER, cubeMesh.vertexBuffer);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(lovelyVertices), lovelyVertices, GL_STATIC_DRAW);
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeMesh.indexBuffer);
+			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(lovelyIndices), lovelyIndices, GL_STATIC_DRAW);
+
+			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
+			glEnableVertexAttribArray(0);
+			GLintptr colorOffset = sizeof(v3);
+			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)colorOffset);
+			glEnableVertexAttribArray(1);
+		}
+
+		// Plane
+		{
+			glGenVertexArrays(1, &planeMesh.vao);
+			glBindVertexArray(planeMesh.vao);
+
+			glGenBuffers(2, planeMesh.buffers);
+			glBindBuffer(GL_ARRAY_BUFFER, planeMesh.vertexBuffer);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(planeVertices), planeVertices, GL_STATIC_DRAW);
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, planeMesh.indexBuffer);
+			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(planeIndices), planeIndices, GL_STATIC_DRAW);
+
+			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
+			glEnableVertexAttribArray(0);
+			GLintptr colorOffset = sizeof(v3);
+			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)colorOffset);
+			glEnableVertexAttribArray(1);
+		}
 
 		// Shaders
 		GLuint vertexShader = LoadShader(vertexShaderSource, GL_VERTEX_SHADER);
@@ -232,13 +282,14 @@ void StartGame()
 	}
 
 	GameState gameState = {};
+	gameState.camPitch = -PI * 0.35f;
 
 	u64 lastPerfCounter = SDL_GetPerformanceCounter();
 	bool running = true;
 	while (running)
 	{
 		const u64 newPerfCounter = SDL_GetPerformanceCounter();
-		const f32 time = (f32)newPerfCounter / (f32)SDL_GetPerformanceFrequency();
+		const f64 time = (f64)newPerfCounter / (f64)SDL_GetPerformanceFrequency();
 		const f32 deltaTime = (f32)(newPerfCounter - lastPerfCounter) / (f32)SDL_GetPerformanceFrequency();
 
 		// Check events
@@ -263,8 +314,27 @@ void StartGame()
 						case SDLK_w:
 							gameState.controller.up = isDown;
 							break;
+						case SDLK_a:
+							gameState.controller.left = isDown;
+							break;
 						case SDLK_s:
 							gameState.controller.down = isDown;
+							break;
+						case SDLK_d:
+							gameState.controller.right = isDown;
+							break;
+
+						case SDLK_UP:
+							gameState.controller.camUp = isDown;
+							break;
+						case SDLK_DOWN:
+							gameState.controller.camDown = isDown;
+							break;
+						case SDLK_LEFT:
+							gameState.controller.camLeft = isDown;
+							break;
+						case SDLK_RIGHT:
+							gameState.controller.camRight = isDown;
 							break;
 					}
 				} break;
@@ -272,58 +342,134 @@ void StartGame()
 		}
 
 		// Update
-		if (gameState.controller.up)
-			gameState.camPos.z += 1.0f * deltaTime;
-		else if (gameState.controller.down)
-			gameState.camPos.z -= 1.0f * deltaTime;
+		{
+			if (gameState.controller.camUp)
+				gameState.camPitch += 1.0f * deltaTime;
+			else if (gameState.controller.camDown)
+				gameState.camPitch -= 1.0f * deltaTime;
+
+			if (gameState.controller.camLeft)
+				gameState.camYaw += 1.0f * deltaTime;
+			else if (gameState.controller.camRight)
+				gameState.camYaw -= 1.0f * deltaTime;
+
+			v3 fw = {};
+			if (gameState.controller.up)
+				fw += { Sin(gameState.camYaw), Cos(gameState.camYaw) };
+			else if (gameState.controller.down)
+				fw += { -Sin(gameState.camYaw), -Cos(gameState.camYaw) };
+
+			if (gameState.controller.left)
+				fw += { -Cos(gameState.camYaw), Sin(gameState.camYaw) };
+			else if (gameState.controller.right)
+				fw += { Cos(gameState.camYaw), -Sin(gameState.camYaw) };
+
+			if (V3SqrLen(fw) > 1)
+				fw *= 0.7071f;
+
+			if (V3SqrLen(fw) > 0)
+			{
+				gameState.playerYaw = Atan2(fw.y, fw.x);
+
+				const f32 playerSpeed = 3.0f;
+				gameState.playerPos += fw * playerSpeed * deltaTime;
+				gameState.camPos = gameState.playerPos;
+			}
+		}
 
 		// Draw
-		// View matrix
-		mat4 view =
 		{
-			1.0f, 0.0f, 0.0f, 0.0f,
-			0.0f, 1.0f, 0.0f, 0.0f,
-			0.0f, 0.0f, 1.0f, 0.0f,
-			-gameState.camPos.x, -gameState.camPos.y, -gameState.camPos.z, 1.0f
-		};
-		GLuint viewUniform = glGetUniformLocation(program, "view");
-		glUniformMatrix4fv(viewUniform, 1, false, view.m);
+			// View matrix
+			{
+				mat4 view =
+				{
+					1.0f, 0.0f, 0.0f, 0.0f,
+					0.0f, 1.0f, 0.0f, 0.0f,
+					0.0f, 0.0f, 1.0f, 0.0f,
+					0.0f, 0.0f, -5.0f, 1.0f
+				};
+				const f32 pitch = gameState.camPitch;
+				mat4 pitchMatrix =
+				{
+					1.0f,	0.0f,			0.0f,		0.0f,
+					0.0f,	Cos(pitch),		Sin(pitch),	0.0f,
+					0.0f,	-Sin(pitch),	Cos(pitch),	0.0f,
+					0.0f,	0.0f,			0.0f,		1.0f
+				};
+				view = Mat4Multiply(pitchMatrix, view);
+				const f32 yaw = gameState.camYaw;
+				mat4 yawMatrix =
+				{
+					Cos(yaw),	Sin(yaw),	0.0f,	0.0f,
+					-Sin(yaw),	Cos(yaw),	0.0f,	0.0f,
+					0.0f,		0.0f,		1.0f,	0.0f,
+					0.0f,		0.0f,		0.0f,	1.0f
+				};
+				view = Mat4Multiply(yawMatrix, view);
+				const v3 pos = gameState.camPos;
+				mat4 camPosMatrix =
+				{
+					1.0f, 0.0f, 0.0f, 0.0f,
+					0.0f, 1.0f, 0.0f, 0.0f,
+					0.0f, 0.0f, 1.0f, 0.0f,
+					-pos.x, -pos.y, -pos.z, 1.0f
+				};
+				view = Mat4Multiply(camPosMatrix, view);
+				GLuint viewUniform = glGetUniformLocation(program, "view");
+				glUniformMatrix4fv(viewUniform, 1, false, view.m);
+			}
 
-		// Model matrix
-#if 0
-		mat4 model =
-		{
-			Cos(time),	Sin(time),	0.0f,	0.0f,
-			-Sin(time),	Cos(time),	0.0f,	0.0f,
-			0.0f,		0.0f,		1.0f,	0.0f,
-			0.0f,		0.0f,		0.0f,	1.0f
-		};
-#else
-		mat4 model =
-		{
-			Cos(time),	0.0f,	Sin(time),	0.0f,
-			0.0f,		1.0f,	0.0f,		0.0f,
-			-Sin(time),	0.0f,	Cos(time),	0.0f,
-			0.0f,		0.0f,	0.0f,		1.0f
-		};
-#endif
-		const GLuint modelUniform = glGetUniformLocation(program, "model");
-		glUniformMatrix4fv(modelUniform, 1, false, model.m);
+			glClearColor(0.95f, 0.88f, 0.05f, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		glClearColor(0.95f, 0.88f, 0.05f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			// Player
+			{
+				const v3 pos = gameState.playerPos;
+				const v3 fw = { Cos(gameState.playerYaw), Sin(gameState.playerYaw), 0 };
+				const v3 right = { fw.y, -fw.x, 0 };
+				const v3 up = { 0, 0, 1 };
+				// TODO double check axis system (left/right hand and so on)
+				// TODO pull out function?
+				const mat4 model =
+				{
+					right.x,	right.y,	right.z,	0.0f,
+					fw.x,		fw.y,		fw.z,		0.0f,
+					up.x,		up.y,		up.z,		0.0f,
+					pos.x,		pos.y,		pos.z,		1.0f
+				};
+				const GLuint modelUniform = glGetUniformLocation(program, "model");
+				glUniformMatrix4fv(modelUniform, 1, false, model.m);
 
-		glBindVertexArray(vao);
-		glDrawElements(GL_TRIANGLES, 12 * 6, GL_UNSIGNED_SHORT, NULL);
-		SDL_GL_SwapWindow(window);
+				glBindVertexArray(cubeMesh.vao);
+				glDrawElements(GL_TRIANGLES, 12 * 3, GL_UNSIGNED_SHORT, NULL);
+			}
+
+			// Plane
+			{
+				mat4 model =
+				{
+					1.0f,	0.0f,	0.0f,	0.0f,
+					0.0f,	1.0f,	0.0f,	0.0f,
+					0.0f,	0.0f,	1.0f,	0.0f,
+					0.0f,	0.0f,	-1.0f,	1.0f
+				};
+				const GLuint modelUniform = glGetUniformLocation(program, "model");
+				glUniformMatrix4fv(modelUniform, 1, false, model.m);
+
+				glBindVertexArray(planeMesh.vao);
+				glDrawElements(GL_TRIANGLES, 2 * 3, GL_UNSIGNED_SHORT, NULL);
+			}
+
+			SDL_GL_SwapWindow(window);
+		}
 
 		lastPerfCounter = newPerfCounter;
 	}
 
 	// Cleanup
 	{
-		glDeleteBuffers(1, &vertexBuffer);
-		glDeleteVertexArrays(1, &vao);
+		glDeleteBuffers(1, &cubeMesh.vertexBuffer);
+		glDeleteVertexArrays(1, &cubeMesh.vao);
 
 		SDL_GL_DeleteContext(glContext);
 		SDL_DestroyWindow(window);
