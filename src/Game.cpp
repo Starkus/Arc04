@@ -3,6 +3,9 @@
 
 #include "General.h"
 #include "Math.h"
+#include "Geometry.h"
+
+#include "Wavefront.h"
 
 namespace {
 #include "OpenGL.h"
@@ -30,15 +33,10 @@ out vec4 fragColor;\n\
 \n\
 void main()\n\
 {\n\
-	fragColor = vec4(vertexColor, 1.0);\n\
+	//fragColor = vec4(vertexColor, 1.0);\n\
+	fragColor = vec4(vertexColor.x * 0.5 + 0.5, vertexColor.y * 0.5 + 0.5, vertexColor.z * 0.5 + 0.5, 1.0);\n\
 }\n\
 ";
-
-struct Vertex
-{
-	v3 pos;
-	v3 color;
-};
 
 struct Controller
 {
@@ -124,46 +122,47 @@ void StartGame()
 			};
 			GLuint buffers[2];
 		};
+		u32 indexCount;
 	} cubeMesh, planeMesh;
 	GLuint program;
 	{
 		const Vertex lovelyVertices[] =
 		{
 			// Top
-			{ { -1.0f, -1.0f, -1.0f }, { 1.0f, 0.0f, 0.0f } },
-			{ { 1.0f, -1.0f, -1.0f }, { 1.0f, 0.0f, 0.0f } },
-			{ { 1.0f, 1.0f, -1.0f }, { 1.0f, 0.0f, 0.0f } },
-			{ { -1.0f, 1.0f, -1.0f }, { 1.0f, 0.0f, 0.0f } },
+			{ { -1.0f, -1.0f, -1.0f }, { 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f } },
+			{ { 1.0f, -1.0f, -1.0f }, { 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f } },
+			{ { 1.0f, 1.0f, -1.0f }, { 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f } },
+			{ { -1.0f, 1.0f, -1.0f }, { 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f } },
 
 			// Bottom
-			{ { 1.0f, -1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f } },
-			{ { -1.0f, -1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f } },
-			{ { -1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f } },
-			{ { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f, 0.0f } },
+			{ { 1.0f, -1.0f, 1.0f }, { 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
+			{ { -1.0f, -1.0f, 1.0f }, { 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
+			{ { -1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
+			{ { 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
 
 			// Left
-			{ { -1.0f, -1.0f, 1.0f }, { 0.0f, 0.0f, 1.0f } },
-			{ { -1.0f, -1.0f, -1.0f }, { 0.0f, 0.0f, 1.0f } },
-			{ { -1.0f, 1.0f, -1.0f }, { 0.0f, 0.0f, 1.0f } },
-			{ { -1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f, 1.0f } },
+			{ { -1.0f, -1.0f, 1.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
+			{ { -1.0f, -1.0f, -1.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
+			{ { -1.0f, 1.0f, -1.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
+			{ { -1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
 
 			// Right
-			{ { 1.0f, -1.0f, -1.0f }, { 1.0f, 1.0f, 0.0f } },
-			{ { 1.0f, -1.0f, 1.0f }, { 1.0f, 1.0f, 0.0f } },
-			{ { 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f, 0.0f } },
-			{ { 1.0f, 1.0f, -1.0f }, { 1.0f, 1.0f, 0.0f } },
+			{ { 1.0f, -1.0f, -1.0f }, { 0.0f, 0.0f }, { 1.0f, 1.0f, 0.0f } },
+			{ { 1.0f, -1.0f, 1.0f }, { 0.0f, 0.0f }, { 1.0f, 1.0f, 0.0f } },
+			{ { 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f }, { 1.0f, 1.0f, 0.0f } },
+			{ { 1.0f, 1.0f, -1.0f }, { 0.0f, 0.0f }, { 1.0f, 1.0f, 0.0f } },
 
 			// Back
-			{ { -1.0f, -1.0f, 1.0f }, { 1.0f, 0.0f, 1.0f } },
-			{ { 1.0f, -1.0f, 1.0f }, { 1.0f, 0.0f, 1.0f } },
-			{ { 1.0f, -1.0f, -1.0f }, { 1.0f, 0.0f, 1.0f } },
-			{ { -1.0f, -1.0f, -1.0f }, { 1.0f, 0.0f, 1.0f } },
+			{ { -1.0f, -1.0f, 1.0f }, { 0.0f, 0.0f }, { 1.0f, 0.0f, 1.0f } },
+			{ { 1.0f, -1.0f, 1.0f }, { 0.0f, 0.0f }, { 1.0f, 0.0f, 1.0f } },
+			{ { 1.0f, -1.0f, -1.0f }, { 0.0f, 0.0f }, { 1.0f, 0.0f, 1.0f } },
+			{ { -1.0f, -1.0f, -1.0f }, { 0.0f, 0.0f }, { 1.0f, 0.0f, 1.0f } },
 
 			// Front
-			{ { -1.0f, 1.0f, -1.0f }, { 0.0f, 1.0f, 1.0f } },
-			{ { 1.0f, 1.0f, -1.0f }, { 0.0f, 1.0f, 1.0f } },
-			{ { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f, 1.0f } },
-			{ { -1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f, 1.0f } },
+			{ { -1.0f, 1.0f, -1.0f }, { 0.0f, 0.0f }, { 0.0f, 1.0f, 1.0f } },
+			{ { 1.0f, 1.0f, -1.0f }, { 0.0f, 0.0f }, { 0.0f, 1.0f, 1.0f } },
+			{ { 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f }, { 0.0f, 1.0f, 1.0f } },
+			{ { -1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f }, { 0.0f, 1.0f, 1.0f } },
 		};
 
 		u16 lovelyIndices[] =
@@ -189,10 +188,10 @@ void StartGame()
 
 		const Vertex planeVertices[] =
 		{
-			{ { -10.0f, -10.0f, 0.0f }, { 1.0f, 0.0f, 0.0f } },
-			{ { 10.0f, -10.0f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
-			{ { -10.0f, 10.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
-			{ { 10.0f, 10.0f, 0.0f }, { 1.0f, 0.0f, 1.0f } }
+			{ { -10.0f, -10.0f, 0.0f }, { 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f } },
+			{ { 10.0f, -10.0f, 0.0f }, { 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
+			{ { -10.0f, 10.0f, 0.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
+			{ { 10.0f, 10.0f, 0.0f }, { 0.0f, 0.0f }, { 1.0f, 0.0f, 1.0f } }
 		};
 
 		const u16 planeIndices[] =
@@ -202,24 +201,31 @@ void StartGame()
 
 		// Player
 		{
+			OBJLoadResult obj = LoadOBJ("data/monkey.obj");
+			cubeMesh.indexCount = obj.indexCount;
+
 			glGenVertexArrays(1, &cubeMesh.vao);
 			glBindVertexArray(cubeMesh.vao);
 
 			glGenBuffers(2, cubeMesh.buffers);
 			glBindBuffer(GL_ARRAY_BUFFER, cubeMesh.vertexBuffer);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(lovelyVertices), lovelyVertices, GL_STATIC_DRAW);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(obj.vertices[0]) * obj.vertexCount, obj.vertices, GL_STATIC_DRAW);
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeMesh.indexBuffer);
-			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(lovelyIndices), lovelyIndices, GL_STATIC_DRAW);
+			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(obj.indices[0]) * obj.indexCount, obj.indices, GL_STATIC_DRAW);
 
 			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
 			glEnableVertexAttribArray(0);
-			GLintptr colorOffset = sizeof(v3);
-			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)colorOffset);
+			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, color));
 			glEnableVertexAttribArray(1);
+
+			free(obj.vertices);
+			free(obj.indices);
 		}
 
 		// Plane
 		{
+			planeMesh.indexCount = 2 * 3;
+
 			glGenVertexArrays(1, &planeMesh.vao);
 			glBindVertexArray(planeMesh.vao);
 
@@ -231,8 +237,7 @@ void StartGame()
 
 			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
 			glEnableVertexAttribArray(0);
-			GLintptr colorOffset = sizeof(v3);
-			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)colorOffset);
+			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, color));
 			glEnableVertexAttribArray(1);
 		}
 
@@ -441,7 +446,7 @@ void StartGame()
 				glUniformMatrix4fv(modelUniform, 1, false, model.m);
 
 				glBindVertexArray(cubeMesh.vao);
-				glDrawElements(GL_TRIANGLES, 12 * 3, GL_UNSIGNED_SHORT, NULL);
+				glDrawElements(GL_TRIANGLES, cubeMesh.indexCount, GL_UNSIGNED_SHORT, NULL);
 			}
 
 			// Plane
@@ -457,7 +462,7 @@ void StartGame()
 				glUniformMatrix4fv(modelUniform, 1, false, model.m);
 
 				glBindVertexArray(planeMesh.vao);
-				glDrawElements(GL_TRIANGLES, 2 * 3, GL_UNSIGNED_SHORT, NULL);
+				glDrawElements(GL_TRIANGLES, planeMesh.indexCount, GL_UNSIGNED_SHORT, NULL);
 			}
 
 			SDL_GL_SwapWindow(window);

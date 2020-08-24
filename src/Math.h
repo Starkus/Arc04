@@ -61,6 +61,15 @@ inline f32 Sqrt(f32 n)
 	return sqrtf(n);
 }
 
+union v2
+{
+	struct
+	{
+		f32 x; f32 y;
+	};
+	f32 v[2];
+};
+
 union v3
 {
 	struct
