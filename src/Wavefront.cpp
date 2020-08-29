@@ -35,22 +35,39 @@ int Atoi(const char *str)
 }
 #endif
 
+#define DECLARE_DYNAMIC_ARRAY(_TYPE, _STRUCTNAME) \
+struct _STRUCTNAME \
+{ \
+	_TYPE *data; \
+	u32 size; \
+	u32 capacity; \
+}; \
+\
+inline void ArrayAddOne(_STRUCTNAME *array) \
+{ \
+	if (array->size >= array->capacity) \
+	{ \
+		array->capacity *= 2; \
+		array->data = (_TYPE *)realloc(array->data, array->capacity * sizeof(_TYPE)); \
+	} \
+	array->size++; \
+}
+
+DECLARE_DYNAMIC_ARRAY(v2, DynamicArrayV2)
+DECLARE_DYNAMIC_ARRAY(v3, DynamicArrayV3)
+DECLARE_DYNAMIC_ARRAY(Vertex, DynamicArrayVertex)
+DECLARE_DYNAMIC_ARRAY(u16, DynamicArrayU16)
+
 // TODO support .objs that have attributes different than position/uv/normal
 OBJLoadResult LoadOBJ(const char *filename)
 {
-	OBJLoadResult result;
-	// TODO replace by dynamic arrays
 	// TODO allocate in frame allocator?
-	result.vertices = (Vertex *)malloc(sizeof(Vertex) * 4096);
-	result.vertexCount = 0;
-	result.indices = (u16 *)malloc(sizeof(u16) * 4096);
-	result.indexCount = 0;
+	DynamicArrayV3 vertices = { (v3 *)malloc(sizeof(v3) * 32), 0, 32 };
+	DynamicArrayV2 uvs = { (v2 *)malloc(sizeof(v2) * 32), 0, 32 };
+	DynamicArrayV3 normals = { (v3 *)malloc(sizeof(v3) * 32), 0, 32 };
 
-	v3 *vertexBuffer = (v3 *)malloc(sizeof(v3) * 2048);
-	v2 *uvBuffer = (v2 *)malloc(sizeof(v2) * 2048);
-	v3 *normalBuffer = (v3 *)malloc(sizeof(v3) * 2048);
-
-	u32 vertexCount = 0, uvCount = 0, normalCount = 0;
+	DynamicArrayVertex resultVertices = { (Vertex *)malloc(sizeof(Vertex) * 32), 0, 32 };
+	DynamicArrayU16 resultIndices = { (u16 *)malloc(sizeof(u16) * 32), 0, 32 };
 
 	SDL_RWops *file = SDL_RWFromFile(filename, "r");
 	const u64 fileSize = SDL_RWsize(file);
@@ -74,8 +91,9 @@ OBJLoadResult LoadOBJ(const char *filename)
 				{
 					case ' ':
 					{
-						// Read vertex
-						v3 *vertex = &vertexBuffer[vertexCount++];
+						// Get pointer to next vertex in array
+						ArrayAddOne(&vertices);
+						v3 *vertex = &vertices.data[vertices.size - 1];
 						for (int i = 0; i < 3; ++i)
 						{
 							++scan; // Skip space
@@ -91,8 +109,9 @@ OBJLoadResult LoadOBJ(const char *filename)
 					case 't':
 					{
 						++scan;
-						// Read UV
-						v2 *uv = &uvBuffer[uvCount++];
+						// Get pointer to next uv in array
+						ArrayAddOne(&uvs);
+						v2 *uv = &uvs.data[uvs.size - 1];
 						for (int i = 0; i < 2; ++i)
 						{
 							++scan; // Skip space
@@ -108,8 +127,9 @@ OBJLoadResult LoadOBJ(const char *filename)
 					case 'n':
 					{
 						++scan;
-						// Read normal
-						v3 *normal = &normalBuffer[normalCount++];
+						// Get pointer to next normal in array
+						ArrayAddOne(&normals);
+						v3 *normal = &normals.data[normals.size - 1];
 						for (int i = 0; i < 3; ++i)
 						{
 							++scan; // Skip space
@@ -143,14 +163,16 @@ OBJLoadResult LoadOBJ(const char *filename)
 						indices[j] = Atoi(numberBuffer) - 1;
 					}
 
-					Vertex *vertex = &result.vertices[result.vertexCount++];
-					vertex->pos = vertexBuffer[indices[0]];
-					vertex->uv = uvBuffer[indices[1]];
-					vertex->color = normalBuffer[indices[2]]; // FIXME saving color into normal
+					ArrayAddOne(&resultVertices);
+					Vertex *vertex = &((Vertex *)resultVertices.data)[resultVertices.size - 1];
+					vertex->pos = ((v3 *)vertices.data)[indices[0]];
+					vertex->uv = ((v2 *)uvs.data)[indices[1]];
+					vertex->color = ((v3 *)normals.data)[indices[2]]; // FIXME saving color into normal
 
 					// FIXME dumb linear indices, add actual duplicate removal
 					// TODO check index doesn't go out of u16 bounds
-					result.indices[result.indexCount] = (u16)result.indexCount++;
+					ArrayAddOne(&resultIndices);
+					((u16 *)resultIndices.data)[resultIndices.size - 1] = (u16)resultIndices.size - 1;
 				}
 			} break;
 		}
@@ -160,9 +182,15 @@ OBJLoadResult LoadOBJ(const char *filename)
 	}
 
 	// Free temp buffers
-	free(vertexBuffer);
-	free(uvBuffer);
-	free(normalBuffer);
+	free(vertices.data);
+	free(uvs.data);
+	free(normals.data);
+
+	OBJLoadResult result;
+	result.vertices = (Vertex *)resultVertices.data;
+	result.vertexCount = resultVertices.size;
+	result.indices = (u16 *)resultIndices.data;
+	result.indexCount = resultIndices.size;
 
 	return result;
 }
