@@ -124,25 +124,33 @@ inline v3 V3Cross(const v3 &a, const v3 &b)
 	return result;
 }
 
-inline f32 V3SqrLen(const v3 &a)
-{
-	return V3Dot(a, a);
-}
-
-inline f32 V3Lenght(const v3 &a)
-{
-	return Sqrt(V3SqrLen(a));
-}
-
 inline v3 operator+(const v3 &a, const v3 &b)
 {
 	const v3 result = { a.x + b.x, a.y + b.y, a.z + b.z };
 	return result;
 }
 
+inline v3 operator-(const v3 &a, const v3 &b)
+{
+	const v3 result = { a.x - b.x, a.y - b.y, a.z - b.z };
+	return result;
+}
+
+inline v3 operator-(const v3 &v)
+{
+	const v3 result = { -v.x, -v.y, -v.z };
+	return result;
+}
+
 inline v3 operator*(const v3 &a, f32 b)
 {
 	const v3 result = { a.x * b, a.y * b, a.z * b };
+	return result;
+}
+
+inline v3 operator/(const v3 &a, f32 b)
+{
+	const v3 result = { a.x / b, a.y / b, a.z / b };
 	return result;
 }
 
@@ -156,6 +164,33 @@ inline v3 operator*=(v3 &a, f32 b)
 {
 	a = { a.x * b, a.y * b, a.z * b };
 	return a;
+}
+
+inline v3 operator/=(v3 &a, f32 b)
+{
+	a = { a.x / b, a.y / b, a.z / b };
+	return a;
+}
+
+inline bool operator==(v3 &a, v3 &b)
+{
+	return a.x == b.x && a.y == b.y && a.z == b.z;
+}
+
+inline f32 V3SqrLen(const v3 &a)
+{
+	return V3Dot(a, a);
+}
+
+inline f32 V3Length(const v3 &a)
+{
+	return Sqrt(V3SqrLen(a));
+}
+
+inline v3 V3Normalize(const v3 &a)
+{
+	v3 result = a / V3Length(a);
+	return result;
 }
 
 inline mat4 Mat4Multiply(const mat4 &a, const mat4 &b)
@@ -180,6 +215,16 @@ inline mat4 Mat4Multiply(const mat4 &a, const mat4 &b)
 	result.m31 = a.m30 * b.m01 + a.m31 * b.m11 + a.m32 * b.m21 + a.m33 * b.m31;
 	result.m32 = a.m30 * b.m02 + a.m31 * b.m12 + a.m32 * b.m22 + a.m33 * b.m32;
 	result.m33 = a.m30 * b.m03 + a.m31 * b.m13 + a.m32 * b.m23 + a.m33 * b.m33;
+	return result;
+}
+
+inline v4 Mat4TransformV4(const mat4 &m, const v4 &v)
+{
+	v4 result;
+	result.x = v.x * m.m00 + v.y * m.m10 + v.z * m.m20 + v.w * m.m30;
+	result.y = v.x * m.m01 + v.y * m.m11 + v.z * m.m21 + v.w * m.m31;
+	result.z = v.x * m.m02 + v.y * m.m12 + v.z * m.m22 + v.w * m.m32;
+	result.w = v.x * m.m03 + v.y * m.m13 + v.z * m.m23 + v.w * m.m33;
 	return result;
 }
 

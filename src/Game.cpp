@@ -38,6 +38,35 @@ void main()\n\
 }\n\
 ";
 
+struct DeviceMesh
+{
+	GLuint vao;
+	union
+	{
+		struct
+		{
+			GLuint vertexBuffer;
+			GLuint indexBuffer;
+		};
+		GLuint buffers[2];
+	};
+	u32 indexCount;
+};
+
+#if DEBUG_BUILD
+struct DebugCube
+{
+	v3 pos;
+	v3 fw;
+	v3 up;
+	f32 scale;
+};
+DebugCube debugCubes[2048];
+u32 debugCubeCount;
+#define DRAW_DEBUG_CUBE(pos, fw, up, scale) if (debugCubeCount < 2048) debugCubes[debugCubeCount++] = { pos, fw, up, scale }
+#define DRAW_AA_DEBUG_CUBE(pos, scale) if (debugCubeCount < 2048) debugCubes[debugCubeCount++] = { pos, {0,1,0}, {0,0,1}, scale }
+#endif
+
 struct Controller
 {
 	bool up;
@@ -50,14 +79,21 @@ struct Controller
 	bool camRight;
 };
 
+struct Entity
+{
+	v3 pos;
+	v3 fw;
+};
+
 struct GameState
 {
 	Controller controller;
-	v3 playerPos;
-	f32 playerYaw;
 	v3 camPos;
 	f32 camYaw;
 	f32 camPitch;
+	u32 entityCount;
+	Entity entities[256];
+	u32 playerEntity;
 };
 
 GLuint LoadShader(const GLchar *shaderSource, GLuint shaderType)
@@ -81,6 +117,313 @@ GLuint LoadShader(const GLchar *shaderSource, GLuint shaderType)
 #endif
 
 	return shader;
+}
+
+v3 FurthestInDirection(v3 *points, u32 pointCount, v3 dir)
+{
+	f32 maxDist = -INFINITY;
+	v3 result = {};
+
+	v3 *scan = points;
+	for (u32 i = 0; i < pointCount; ++i)
+	{
+		v3 p = *scan++;
+		f32 dot = V3Dot(p, dir);
+		if (dot > maxDist)
+		{
+			maxDist = dot;
+			result = p;
+		}
+	}
+
+	return result;
+}
+
+inline v3 GJKSupport(v3 *pointsA, u32 pointCountA, v3 *pointsB, u32 pointCountB, v3 dir)
+{
+	v3 va = FurthestInDirection(pointsA, pointCountA, dir);
+	v3 vb = FurthestInDirection(pointsB, pointCountB, -dir);
+	return va - vb;
+}
+
+bool GJKTest(Entity *entityA, Entity *entityB)
+{
+	bool intersection = true;
+	v3 up = { 0, 0, 1 };
+
+	const v3 aPos = entityA->pos;
+	const v3 aFw = entityA->fw;
+	const v3 aRight = V3Normalize(V3Cross(aFw, up));
+	const v3 aUp = V3Cross(aRight, aFw);
+	mat4 aModelMatrix =
+	{
+		aRight.x,	aRight.y,	aRight.z,	0.0f,
+		aFw.x,		aFw.y,		aFw.z,		0.0f,
+		aUp.x,		aUp.y,		aUp.z,		0.0f,
+		aPos.x,		aPos.y,		aPos.z,		1.0f
+	};
+
+	const v3 bPos = entityB->pos;
+	const v3 bFw = entityB->fw;
+	const v3 bRight = V3Normalize(V3Cross(bFw, up));
+	const v3 bUp = V3Cross(bRight, bFw);
+	mat4 bModelMatrix =
+	{
+		bRight.x,	bRight.y,	bRight.z,	0.0f,
+		bFw.x,		bFw.y,		bFw.z,		0.0f,
+		bUp.x,		bUp.y,		bUp.z,		0.0f,
+		bPos.x,		bPos.y,		bPos.z,		1.0f
+	};
+
+	v3 vA[24];
+	v3 vB[24];
+
+	// Compute all points
+	// TODO de-hardcode cube primitive
+	{
+		for (int i = 0; i < 24; ++i)
+		{
+			const Vertex *vert = &cubeVertices[i];
+			v4 v = { vert->pos.x, vert->pos.y, vert->pos.z, 1.0f };
+			v = Mat4TransformV4(bModelMatrix, v);
+			vB[i] = { v.x, v.y, v.z };
+		}
+
+		for (int i = 0; i < 24; ++i)
+		{
+			const Vertex *vert = &cubeVertices[i];
+			v4 v = { vert->pos.x, vert->pos.y, vert->pos.z, 1.0f };
+			v = Mat4TransformV4(aModelMatrix, v);
+			vA[i] = { v.x, v.y, v.z };
+		}
+	}
+
+	v3 foundPoints[4];
+	int foundPointsCount = 1;
+	v3 testDir = { 0, 1, 0 };
+
+	foundPoints[0] = GJKSupport(vB, 24, vA, 24, testDir);
+	testDir = -foundPoints[0];
+
+	while (intersection && foundPointsCount < 4)
+	{
+		v3 a = GJKSupport(vB, 24, vA, 24, testDir);
+		if (V3Dot(testDir, a) < 0)
+		{
+			intersection = false;
+			break;
+		}
+
+		switch (foundPointsCount)
+		{
+			case 1: // Line
+			{
+				const v3 b = foundPoints[0];
+
+				foundPoints[foundPointsCount++] = a;
+				testDir = V3Cross(V3Cross(b - a, -a), b - a);
+			} break;
+			case 2: // Plane
+			{
+				const v3 b = foundPoints[1];
+				const v3 c = foundPoints[0];
+
+				const v3 ab = b - a;
+				const v3 ac = c - a;
+				const v3 nor = V3Cross(ac, ab);
+				v3 abNor = V3Cross(nor, ab);
+				v3 acNor = V3Cross(ac, nor);
+				if (V3Dot(acNor, -a) > 0)
+				{
+					foundPoints[0] = a;
+					foundPoints[1] = c;
+					testDir = V3Cross(V3Cross(ac, -a), ac);
+				}
+				else
+				{
+					if (V3Dot(abNor, -a) > 0)
+					{
+						foundPoints[0] = a;
+						foundPoints[1] = b;
+						testDir = V3Cross(V3Cross(ab, -a), ab);
+					}
+					else
+					{
+						if (V3Dot(nor, -a) > 0)
+						{
+							foundPoints[foundPointsCount++] = a;
+							testDir = nor;
+						}
+						else
+						{
+							foundPoints[0] = b;
+							foundPoints[1] = c;
+							foundPoints[2] = a;
+							++foundPointsCount;
+							testDir = -nor;
+						}
+
+						// Assert triangle is wound clockwise
+						const v3 A = foundPoints[2];
+						const v3 B = foundPoints[1];
+						const v3 C = foundPoints[0];
+						ASSERT(V3Dot(testDir, V3Cross(C - A, B - A)) > 0);
+					}
+				}
+			} break;
+			case 3: // Tetrahedron
+			{
+				const v3 b = foundPoints[2];
+				const v3 c = foundPoints[1];
+				const v3 d = foundPoints[0];
+
+				const v3 ab = b - a;
+				const v3 ac = c - a;
+				const v3 ad = d - a;
+
+				v3 abcNor = V3Cross(ac, ab);
+				v3 adbNor = V3Cross(ab, ad);
+				v3 acdNor = V3Cross(ad, ac);
+
+				// Assert normals point outside
+				v3 tetraCenter =
+				{
+					(a.x + b.x + c.x + d.x) / 4.0f,
+					(a.y + b.y + c.y + d.y) / 4.0f,
+					(a.z + b.z + c.z + d.z) / 4.0f
+				};
+
+				ASSERT(V3Dot(d - a, abcNor) < 0);
+				ASSERT(V3Dot(c - a, adbNor) < 0);
+				ASSERT(V3Dot(b - a, acdNor) < 0);
+
+				if (V3Dot(abcNor, -a) > 0)
+				{
+					if (V3Dot(adbNor, -a) > 0)
+					{
+						foundPoints[0] = b;
+						foundPoints[1] = a;
+						foundPointsCount = 2;
+						testDir = V3Cross(V3Cross(ab, -a), ab);
+					}
+					else
+					{
+						if (V3Dot(acdNor, -a) > 0)
+						{
+							foundPoints[0] = c;
+							foundPoints[1] = a;
+							foundPointsCount = 2;
+							testDir = V3Cross(V3Cross(ac, -a), ac);
+						}
+						else
+						{
+							if (V3Dot(V3Cross(abcNor, ab), -a) > 0)
+							{
+								foundPoints[0] = b;
+								foundPoints[1] = a;
+								foundPointsCount = 2;
+								testDir = V3Cross(V3Cross(ab, -a), ab);
+							}
+							else
+							{
+								if (V3Dot(V3Cross(ac, abcNor), -a) > 0)
+								{
+									foundPoints[0] = c;
+									foundPoints[1] = a;
+									foundPointsCount = 2;
+									testDir = V3Cross(V3Cross(ac, -a), ac);
+								}
+								else
+								{
+									foundPoints[0] = c;
+									foundPoints[1] = b;
+									foundPoints[2] = a;
+									testDir = abcNor;
+								}
+							}
+						}
+					}
+				}
+				else
+				{
+					if (V3Dot(acdNor, -a) > 0)
+					{
+						if (V3Dot(adbNor, -a) > 0)
+						{
+							foundPoints[0] = d;
+							foundPoints[1] = a;
+							foundPointsCount = 2;
+							testDir = V3Cross(V3Cross(ad, -a), ad);
+						}
+						else
+						{
+							if (V3Dot(V3Cross(acdNor, ac), -a) > 0)
+							{
+								foundPoints[0] = c;
+								foundPoints[1] = a;
+								foundPointsCount = 2;
+								testDir = V3Cross(V3Cross(ac, -a), ac);
+							}
+							else
+							{
+								if (V3Dot(V3Cross(ad, acdNor), -a) > 0)
+								{
+									foundPoints[0] = d;
+									foundPoints[1] = a;
+									foundPointsCount = 2;
+									testDir = V3Cross(V3Cross(ad, -a), ad);
+								}
+								else
+								{
+									foundPoints[0] = d;
+									foundPoints[1] = c;
+									foundPoints[2] = a;
+									testDir = acdNor;
+								}
+							}
+						}
+					}
+					else
+					{
+						if (V3Dot(adbNor, -a) > 0)
+						{
+							if (V3Dot(V3Cross(adbNor, ad), -a) > 0)
+							{
+								foundPoints[0] = d;
+								foundPoints[1] = a;
+								foundPointsCount = 2;
+								testDir = V3Cross(V3Cross(ad, -a), ad);
+							}
+							else
+							{
+								if (V3Dot(V3Cross(ab, adbNor), -a) > 0)
+								{
+									foundPoints[0] = b;
+									foundPoints[1] = a;
+									foundPointsCount = 2;
+									testDir = V3Cross(V3Cross(ab, -a), ab);
+								}
+								else
+								{
+									foundPoints[0] = b;
+									foundPoints[1] = d;
+									foundPoints[2] = a;
+									testDir = adbNor;
+								}
+							}
+						}
+						else
+						{
+							// Done!
+							foundPoints[foundPointsCount++] = a;
+						}
+					}
+				}
+			} break;
+		}
+	}
+
+	return intersection;
 }
 
 void StartGame()
@@ -110,20 +453,7 @@ void StartGame()
 
 	LoadOpenGLProcs();
 
-	struct
-	{
-		GLuint vao;
-		union
-		{
-			struct
-			{
-				GLuint vertexBuffer;
-				GLuint indexBuffer;
-			};
-			GLuint buffers[2];
-		};
-		u32 indexCount;
-	} playerMesh, cubeMesh, planeMesh;
+	DeviceMesh playerMesh, cubeMesh, planeMesh;
 
 	GLuint program;
 	{
@@ -234,7 +564,26 @@ void StartGame()
 	}
 
 	GameState gameState = {};
+	gameState.playerEntity = gameState.entityCount++;
+	gameState.entities[gameState.playerEntity].fw = { 0.0f, 1.0f, 0.0f };
 	gameState.camPitch = -PI * 0.35f;
+
+	// Test entities
+	Entity *testEntity = &gameState.entities[gameState.entityCount++];
+	testEntity->pos = { -5.0f, 2.0f, 0.0f };
+	testEntity->fw = { 0.0f, 1.0f, 0.0f };
+
+	testEntity = &gameState.entities[gameState.entityCount++];
+	testEntity->pos = { 4.0f, 3.0f, 0.0f };
+	testEntity->fw = { 0.0f, 1.0f, 0.0f };
+
+	testEntity = &gameState.entities[gameState.entityCount++];
+	testEntity->pos = { 2.0f, -3.0f, 0.0f };
+	testEntity->fw = { 0.707f, 0.707f, 0.0f };
+
+	testEntity = &gameState.entities[gameState.entityCount++];
+	testEntity->pos = { -7.0f, -3.0f, 0.0f };
+	testEntity->fw = { 0.707f, 0.0f, 0.707f };
 
 	u64 lastPerfCounter = SDL_GetPerformanceCounter();
 	bool running = true;
@@ -243,6 +592,10 @@ void StartGame()
 		const u64 newPerfCounter = SDL_GetPerformanceCounter();
 		const f64 time = (f64)newPerfCounter / (f64)SDL_GetPerformanceFrequency();
 		const f32 deltaTime = (f32)(newPerfCounter - lastPerfCounter) / (f32)SDL_GetPerformanceFrequency();
+
+#if DEBUG_BUILD
+		debugCubeCount = 0;
+#endif
 
 		// Check events
 		SDL_Event evt;
@@ -301,32 +654,70 @@ void StartGame()
 				gameState.camPitch -= 1.0f * deltaTime;
 
 			if (gameState.controller.camLeft)
-				gameState.camYaw += 1.0f * deltaTime;
-			else if (gameState.controller.camRight)
 				gameState.camYaw -= 1.0f * deltaTime;
+			else if (gameState.controller.camRight)
+				gameState.camYaw += 1.0f * deltaTime;
 
-			v3 fw = {};
-			if (gameState.controller.up)
-				fw += { Sin(gameState.camYaw), Cos(gameState.camYaw) };
-			else if (gameState.controller.down)
-				fw += { -Sin(gameState.camYaw), -Cos(gameState.camYaw) };
-
-			if (gameState.controller.left)
-				fw += { -Cos(gameState.camYaw), Sin(gameState.camYaw) };
-			else if (gameState.controller.right)
-				fw += { Cos(gameState.camYaw), -Sin(gameState.camYaw) };
-
-			if (V3SqrLen(fw) > 1)
-				fw *= 0.7071f;
-
-			if (V3SqrLen(fw) > 0)
+			// Move player
 			{
-				gameState.playerYaw = Atan2(fw.y, fw.x);
+				v3 worldInputDir = {};
+				if (gameState.controller.up)
+					worldInputDir += { Sin(gameState.camYaw), Cos(gameState.camYaw) };
+				else if (gameState.controller.down)
+					worldInputDir += { -Sin(gameState.camYaw), -Cos(gameState.camYaw) };
+
+				if (gameState.controller.left)
+					worldInputDir += { -Cos(gameState.camYaw), Sin(gameState.camYaw) };
+				else if (gameState.controller.right)
+					worldInputDir += { Cos(gameState.camYaw), -Sin(gameState.camYaw) };
+
+				f32 sqlen = V3SqrLen(worldInputDir);
+				if (sqlen > 1)
+					worldInputDir /= Sqrt(sqlen);
+
+				Entity *player = &gameState.entities[gameState.playerEntity];
+
+				if (V3SqrLen(worldInputDir) > 0)
+				{
+					player->fw = worldInputDir;
+				}
 
 				const f32 playerSpeed = 3.0f;
-				gameState.playerPos += fw * playerSpeed * deltaTime;
-				gameState.camPos = gameState.playerPos;
+				v3 newPlayerPos = player->pos + worldInputDir * playerSpeed * deltaTime;
+
+				// Collision
+				Entity newPlayerEntity = *player;
+				newPlayerEntity.pos = newPlayerPos;
+				bool intersection = false;
+				for (u32 entityIndex = 0; entityIndex < gameState.entityCount; ++ entityIndex)
+				{
+					if (entityIndex != gameState.playerEntity)
+					{
+						if (GJKTest(&newPlayerEntity, &gameState.entities[entityIndex]))
+						{
+							intersection = true;
+							break;
+						}
+					}
+				}
+
+				if (!intersection)
+				{
+					// TODO depenetration instead of this
+					player->pos = newPlayerPos;
+					gameState.camPos = newPlayerPos;
+				}
 			}
+
+#if DEBUG_BUILD
+			// Draw a cube for each entity
+			for (u32 entityIdx = 0; entityIdx < gameState.entityCount; ++entityIdx)
+			{
+				Entity *entity = &gameState.entities[entityIdx];
+				v3 up = { 0, 0, 1 };
+				DRAW_DEBUG_CUBE(entity->pos, entity->fw, up, 1.0f);
+			}
+#endif
 		}
 
 		// Draw
@@ -376,10 +767,11 @@ void StartGame()
 
 			// Player
 			{
-				const v3 pos = gameState.playerPos;
-				const v3 fw = { Cos(gameState.playerYaw), Sin(gameState.playerYaw), 0 };
-				const v3 right = { fw.y, -fw.x, 0 };
-				const v3 up = { 0, 0, 1 };
+				Entity *player = &gameState.entities[gameState.playerEntity];
+				const v3 pos = player->pos;
+				const v3 fw = player->fw;
+				const v3 right = V3Cross(player->fw, {0,0,1});
+				const v3 up = V3Cross(right, fw);
 				// TODO double check axis system (left/right hand and so on)
 				// TODO pull out function?
 				const mat4 model =
@@ -396,21 +788,36 @@ void StartGame()
 				glDrawElements(GL_TRIANGLES, playerMesh.indexCount, GL_UNSIGNED_SHORT, NULL);
 			}
 
-			// Cube
+#if DEBUG_BUILD
+			// Debug draws
 			{
-				mat4 model =
-				{
-					1.0f,	0.0f,	0.0f,	0.0f,
-					0.0f,	1.0f,	0.0f,	0.0f,
-					0.0f,	0.0f,	1.0f,	0.0f,
-					-5.0f,	2.0f,	0.0f,	1.0f
-				};
-				const GLuint modelUniform = glGetUniformLocation(program, "model");
-				glUniformMatrix4fv(modelUniform, 1, false, model.m);
+				glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-				glBindVertexArray(cubeMesh.vao);
-				glDrawElements(GL_TRIANGLES, cubeMesh.indexCount, GL_UNSIGNED_SHORT, NULL);
+				for (u32 i = 0; i < debugCubeCount; ++i)
+				{
+					DebugCube *cube = &debugCubes[i];
+
+					v3 pos = cube->pos;
+					v3 fw = cube->fw * cube->scale;
+					v3 right = V3Normalize(V3Cross(cube->fw, cube->up));
+					v3 up = V3Cross(right, cube->fw) * cube->scale;
+					right *= cube->scale;
+					mat4 model =
+					{
+						right.x,	right.y,	right.z,	0.0f,
+						fw.x,		fw.y,		fw.z,		0.0f,
+						up.x,		up.y,		up.z,		0.0f,
+						pos.x,		pos.y,		pos.z,		1.0f
+					};
+					const GLuint modelUniform = glGetUniformLocation(program, "model");
+					glUniformMatrix4fv(modelUniform, 1, false, model.m);
+					glBindVertexArray(cubeMesh.vao);
+					glDrawElements(GL_TRIANGLES, cubeMesh.indexCount, GL_UNSIGNED_SHORT, NULL);
+				}
+
+				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 			}
+#endif
 
 			// Plane
 			{

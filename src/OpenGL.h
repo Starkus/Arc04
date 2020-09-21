@@ -79,6 +79,10 @@ typedef void (GLAPIENTRY *glDebugOutputProc)(GLenum source, GLenum type, GLuint 
 typedef void (GLAPIENTRY *glDebugMessageCallbackProc)(glDebugOutputProc callback, void *userParam);
 typedef void (GLAPIENTRY *glDebugMessageControlProc)(GLenum source, GLenum type, GLenum severity, GLsizei count, const GLuint *ids, GLboolean enabled);
 
+#if DEBUG_BUILD
+typedef void (GLAPIENTRY *glPolygonModeProc)(GLenum face, GLenum mode);
+#endif
+
 #define GL_DeclareProc(name) name##Proc name
 GL_DeclareProc(glGetError);
 GL_DeclareProc(glGetIntegerv);
@@ -143,6 +147,7 @@ GL_DeclareProc(glVertexAttribIPointer);
 GL_DeclareProc(glEnableVertexAttribArray);
 GL_DeclareProc(glDrawArrays);
 GL_DeclareProc(glDrawElements);
+GL_DeclareProc(glPolygonMode);
 #undef GL_DeclareProc
 
 void LoadOpenGLProcs()
@@ -211,5 +216,6 @@ void LoadOpenGLProcs()
 	GL_GetProc(glEnableVertexAttribArray);
 	GL_GetProc(glDrawArrays);
 	GL_GetProc(glDrawElements);
+	GL_GetProc(glPolygonMode);
 #undef GL_GetProc
 }
