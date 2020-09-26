@@ -146,7 +146,7 @@ inline v3 GJKSupport(v3 *pointsA, u32 pointCountA, v3 *pointsB, u32 pointCountB,
 	return va - vb;
 }
 
-bool GJKTest(Entity *entityA, Entity *entityB)
+bool GJKTest(Entity *entityA, Entity *entityB, v3 *depenetration)
 {
 	bool intersection = true;
 	v3 up = { 0, 0, 1 };
@@ -267,7 +267,7 @@ bool GJKTest(Entity *entityA, Entity *entityB)
 						const v3 A = foundPoints[2];
 						const v3 B = foundPoints[1];
 						const v3 C = foundPoints[0];
-						ASSERT(V3Dot(testDir, V3Cross(C - A, B - A)) > 0);
+						ASSERT(V3Dot(testDir, V3Cross(C - A, B - A)) >= 0);
 					}
 				}
 			} break;
@@ -286,13 +286,6 @@ bool GJKTest(Entity *entityA, Entity *entityB)
 				v3 acdNor = V3Cross(ad, ac);
 
 				// Assert normals point outside
-				v3 tetraCenter =
-				{
-					(a.x + b.x + c.x + d.x) / 4.0f,
-					(a.y + b.y + c.y + d.y) / 4.0f,
-					(a.z + b.z + c.z + d.z) / 4.0f
-				};
-
 				ASSERT(V3Dot(d - a, abcNor) < 0);
 				ASSERT(V3Dot(c - a, adbNor) < 0);
 				ASSERT(V3Dot(b - a, acdNor) < 0);
@@ -423,7 +416,172 @@ bool GJKTest(Entity *entityA, Entity *entityB)
 		}
 	}
 
-	return intersection;
+	if (!intersection)
+		return false;
+
+	// EPA!
+	// By now we should have the tetrahedron from GJK
+	struct Face
+	{
+		v3 a;
+		v3 b;
+		v3 c;
+	};
+
+	struct Edge
+	{
+		v3 a;
+		v3 b;
+	};
+
+	// TODO dynamic array?
+	Face polytope[256];
+	int polytopeCount = 0;
+
+	// Make all faces from tetrahedron
+	for (int i = 0; i < 4; ++i)
+	{
+		for (int j = i+1; j < 4; ++j)
+		{
+			for (int k = j+1; k < 4; ++k)
+			{
+				polytope[polytopeCount++] =
+				{
+					foundPoints[i],
+					foundPoints[j],
+					foundPoints[k]
+				};
+			}
+		}
+	}
+
+	// Wind triangles so they face out
+	// TODO There must be a way to avoid this
+	for (int faceIdx = 0; faceIdx < 4; ++faceIdx)
+	{
+		Face *face = &polytope[faceIdx];
+		v3 normal = V3Cross(face->c - face->a, face->b - face->a);
+		if (V3Dot(normal, face->a) < 0)
+		{
+			// Rewind
+			v3 tmp = face->b;
+			face->b = face->c;
+			face->c = tmp;
+		}
+	}
+
+	Face closestFeature;
+	while (1) // TODO limit iterations for edge cases with colinear triangles?
+	{
+		// Find closest feature to origin in polytope
+		f32 leastDistance = INFINITY;
+		for (int faceIdx = 0; faceIdx < polytopeCount; ++faceIdx)
+		{
+			Face *face = &polytope[faceIdx];
+			v3 normal = V3Normalize(V3Cross(face->c - face->a, face->b - face->a));
+			f32 distToOrigin = V3Dot(normal, face->a);
+			if (distToOrigin >= leastDistance)
+				continue;
+
+			// Make sure projected origin is within triangle
+			const v3 abNor = V3Cross(face->a - face->b, normal);
+			const v3 bcNor = V3Cross(face->b - face->c, normal);
+			const v3 acNor = V3Cross(face->c - face->a, normal);
+
+			if (V3Dot(abNor, -face->a) > 0 ||
+				V3Dot(bcNor, -face->b) > 0 ||
+				V3Dot(acNor, -face->a) > 0)
+				continue;
+
+			leastDistance = distToOrigin;
+			closestFeature = *face;
+		}
+		if (leastDistance == INFINITY)
+		{
+			// Collision is probably on the very edge, we don't need depenetration
+			intersection = false;
+			break;
+		}
+
+		// Expand polytope!
+		testDir = V3Cross(closestFeature.c - closestFeature.a, closestFeature.b - closestFeature.a);
+		v3 newPoint = GJKSupport(vB, 24, vA, 24, testDir);
+		if (V3Dot(testDir, newPoint - closestFeature.a) <= 0)
+		{
+			break;
+		}
+		Edge holeEdges[256];
+		int holeEdgesCount = 0;
+#if DEBUG_BUILD
+		int oldPolytopeCount = polytopeCount;
+#endif
+		for (int faceIdx = 0; faceIdx < polytopeCount; ++faceIdx)
+		{
+			Face *face = &polytope[faceIdx];
+			v3 normal = V3Cross(face->c - face->a, face->b - face->a);
+			if (V3Dot(normal, newPoint - face->a) > 0)
+			{
+				// Add/remove edges to the hole (XOR)
+				Edge faceEdges[3] =
+				{
+					{ face->a, face->b },
+					{ face->b, face->c },
+					{ face->c, face->a }
+				};
+				for (int edgeIdx = 0; edgeIdx < 3; ++edgeIdx)
+				{
+					const Edge &edge = faceEdges[edgeIdx];
+					// If it's already on the list, remove it
+					bool found = false;
+					for (int holeEdgeIdx = 0; holeEdgeIdx < holeEdgesCount; ++holeEdgeIdx)
+					{
+						const Edge &holeEdge = holeEdges[holeEdgeIdx];
+						if ((edge.a == holeEdge.a && edge.b == holeEdge.b) ||
+							(edge.a == holeEdge.b && edge.b == holeEdge.a))
+						{
+							holeEdges[holeEdgeIdx] = holeEdges[--holeEdgesCount];
+							found = true;
+							break;
+						}
+					}
+					// Otherwise add it
+					if (!found)
+						holeEdges[holeEdgesCount++] = edge;
+				}
+				// Remove face from polytope
+				polytope[faceIdx] = polytope[--polytopeCount];
+				--faceIdx;
+			}
+		}
+#if DEBUG_BUILD
+		int deletedFaces = oldPolytopeCount - polytopeCount;
+		ASSERT(deletedFaces == 1 || holeEdgesCount < deletedFaces * 3);
+#endif
+		// Now we should have a hole in the polytope, of which all edges are in holeEdges
+		for (int holeEdgeIdx = 0; holeEdgeIdx < holeEdgesCount; ++holeEdgeIdx)
+		{
+			const Edge &holeEdge = holeEdges[holeEdgeIdx];
+			Face newFace = { holeEdge.a, holeEdge.b, newPoint };
+			// Rewind if it's facing inwards
+			v3 normal = V3Cross(newFace.c - newFace.a, newFace.b - newFace.a);
+			if (V3Dot(normal, newFace.a) < 0)
+			{
+				v3 tmp = newFace.b;
+				newFace.b = newFace.c;
+				newFace.c = tmp;
+			}
+			polytope[polytopeCount++] = newFace;
+		}
+	}
+
+	if (intersection)
+	{
+		v3 closestFeatureNor = V3Normalize(V3Cross(closestFeature.c - closestFeature.a,
+				closestFeature.b - closestFeature.a));
+		*depenetration = closestFeatureNor * V3Dot(closestFeatureNor, closestFeature.a);
+	}
+
+	return true;
 }
 
 void StartGame()
@@ -693,20 +851,18 @@ void StartGame()
 				{
 					if (entityIndex != gameState.playerEntity)
 					{
-						if (GJKTest(&newPlayerEntity, &gameState.entities[entityIndex]))
+						v3 depenetration;
+						if (GJKTest(&newPlayerEntity, &gameState.entities[entityIndex], &depenetration))
 						{
 							intersection = true;
+							newPlayerEntity.pos += depenetration;
 							break;
 						}
 					}
 				}
 
-				if (!intersection)
-				{
-					// TODO depenetration instead of this
-					player->pos = newPlayerPos;
-					gameState.camPos = newPlayerPos;
-				}
+				player->pos = newPlayerEntity.pos;
+				gameState.camPos = newPlayerEntity.pos;
 			}
 
 #if DEBUG_BUILD

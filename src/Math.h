@@ -160,6 +160,12 @@ inline v3 operator+=(v3 &a, const v3 &b)
 	return a;
 }
 
+inline v3 operator-=(v3 &a, const v3 &b)
+{
+	a = { a.x - b.x, a.y - b.y, a.z - b.z };
+	return a;
+}
+
 inline v3 operator*=(v3 &a, f32 b)
 {
 	a = { a.x * b, a.y * b, a.z * b };
@@ -172,7 +178,7 @@ inline v3 operator/=(v3 &a, f32 b)
 	return a;
 }
 
-inline bool operator==(v3 &a, v3 &b)
+inline bool operator==(const v3 &a, const v3 &b)
 {
 	return a.x == b.x && a.y == b.y && a.z == b.z;
 }
