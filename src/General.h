@@ -1,8 +1,16 @@
+#include "SDL/SDL.h"
+#include "SDL/SDL_OpenGL.h"
+
 #include <stdint.h>
+#include <stdio.h>
+#include <stdarg.h>
 
 // I hate this programming language
 #undef near
 #undef far
+
+#define EPA_VISUAL_DEBUGGING 1
+#define EPA_LOGGING 1
 
 typedef int8_t  i8;
 typedef int16_t i16;
@@ -25,3 +33,5 @@ typedef double f64;
 #else
 #define ASSERT(expr)
 #endif
+
+#define ArrayCount(array) (sizeof(array) / sizeof(array[0]))

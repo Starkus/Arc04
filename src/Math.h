@@ -108,6 +108,26 @@ union mat4
 	f32 m[16];
 };
 
+const mat4 MAT4_IDENTITY =
+{
+	1.0f,	0.0f,	0.0f,	0.0f,
+	0.0f,	1.0f,	0.0f,	0.0f,
+	0.0f,	0.0f,	1.0f,	0.0f,
+	0.0f,	0.0f,	0.0f,	1.0f
+};
+
+inline mat4 Mat4Translation(v3 translation)
+{
+	mat4 result =
+	{
+		1.0f,	0.0f,	0.0f,	0.0f,
+		0.0f,	1.0f,	0.0f,	0.0f,
+		0.0f,	0.0f,	1.0f,	0.0f,
+		translation.x, translation.y, translation.z, 1.0f
+	};
+	return result;
+}
+
 inline f32 V3Dot(const v3 &a, const v3 &b)
 {
 	return a.x * b.x + a.y * b.y + a.z * b.z;

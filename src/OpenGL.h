@@ -9,6 +9,8 @@ typedef void (GLAPIENTRY *glViewportProc)(GLint x, GLint y, GLsizei width, GLsiz
 typedef void (GLAPIENTRY *glEnableProc)(GLenum cap);
 typedef void (GLAPIENTRY *glDisableProc)(GLenum cap);
 
+typedef void (GLAPIENTRY *glFrontFaceProc)(GLenum mode);
+
 typedef void (GLAPIENTRY *glDepthMaskProc)(GLboolean flag);
 typedef void (GLAPIENTRY *glDepthFuncProc)(GLenum func);
 
@@ -81,9 +83,13 @@ typedef void (GLAPIENTRY *glDebugMessageControlProc)(GLenum source, GLenum type,
 
 #if DEBUG_BUILD
 typedef void (GLAPIENTRY *glPolygonModeProc)(GLenum face, GLenum mode);
+
+typedef void (GLAPIENTRY *glBeginProc)(GLenum mode);
+typedef void (GLAPIENTRY *glEndProc)();
+typedef void (GLAPIENTRY *glVertex3fProc)(GLfloat x, GLfloat y, GLfloat z);
 #endif
 
-#define GL_DeclareProc(name) name##Proc name
+#define GL_DeclareProc(name) name##Proc name##Pointer
 GL_DeclareProc(glGetError);
 GL_DeclareProc(glGetIntegerv);
 GL_DeclareProc(glClearColor);
@@ -91,6 +97,7 @@ GL_DeclareProc(glClear);
 GL_DeclareProc(glViewport);
 GL_DeclareProc(glEnable);
 GL_DeclareProc(glDisable);
+GL_DeclareProc(glFrontFace);
 GL_DeclareProc(glDepthMask);
 GL_DeclareProc(glDepthFunc);
 GL_DeclareProc(glBlendFunc);
@@ -148,7 +155,79 @@ GL_DeclareProc(glEnableVertexAttribArray);
 GL_DeclareProc(glDrawArrays);
 GL_DeclareProc(glDrawElements);
 GL_DeclareProc(glPolygonMode);
+GL_DeclareProc(glBegin);
+GL_DeclareProc(glEnd);
+GL_DeclareProc(glVertex3f);
 #undef GL_DeclareProc
+
+#define glGetError glGetErrorPointer
+#define glGetIntegerv glGetIntegervPointer
+#define glClearColor glClearColorPointer
+#define glClear glClearPointer
+#define glViewport glViewportPointer
+#define glEnable glEnablePointer
+#define glDisable glDisablePointer
+#define glFrontFace glFrontFacePointer
+#define glDepthMask glDepthMaskPointer
+#define glDepthFunc glDepthFuncPointer
+#define glBlendFunc glBlendFuncPointer
+#define glBlendFuncSeparate glBlendFuncSeparatePointer
+#define glGenFramebuffers glGenFramebuffersPointer
+#define glBindFramebuffer glBindFramebufferPointer
+#define glFramebufferTexture2D glFramebufferTexture2DPointer
+#define glFramebufferRenderbuffer glFramebufferRenderbufferPointer
+#define glDrawBuffers glDrawBuffersPointer
+#define glCheckFramebufferStatus glCheckFramebufferStatusPointer
+#define glBlitFramebuffer glBlitFramebufferPointer
+#define glGenTextures glGenTexturesPointer
+#define glDeleteTextures glDeleteTexturesPointer
+#define glBindTexture glBindTexturePointer
+#define glTexImage2D glTexImage2DPointer
+#define glGenerateMipmap glGenerateMipmapPointer
+#define glTexParameteri glTexParameteriPointer
+#define glGenRenderbuffers glGenRenderbuffersPointer
+#define glBindRenderbuffer glBindRenderbufferPointer
+#define glRenderbufferStorage glRenderbufferStoragePointer
+#define glCreateShader glCreateShaderPointer
+#define glDeleteShader glDeleteShaderPointer
+#define glShaderSource glShaderSourcePointer
+#define glCompileShader glCompileShaderPointer
+#define glGetShaderiv glGetShaderivPointer
+#define glGetShaderInfoLog glGetShaderInfoLogPointer
+#define glCreateProgram glCreateProgramPointer
+#define glDeleteProgram glDeleteProgramPointer
+#define glAttachShader glAttachShaderPointer
+#define glLinkProgram glLinkProgramPointer
+#define glGetProgramiv glGetProgramivPointer
+#define glGetProgramInfoLog glGetProgramInfoLogPointer
+#define glUseProgram glUseProgramPointer
+#define glBindAttribLocation glBindAttribLocationPointer
+#define glGetUniformLocation glGetUniformLocationPointer
+#define glUniformMatrix4fv glUniformMatrix4fvPointer
+#define glUniform1i glUniform1iPointer
+#define glUniform1f glUniform1fPointer
+#define glUniform2f glUniform2fPointer
+#define glUniform3f glUniform3fPointer
+#define glUniform1fv glUniform1fvPointer
+#define glUniform3fv glUniform3fvPointer
+#define glActiveTexture glActiveTexturePointer
+#define glGenBuffers glGenBuffersPointer
+#define glDeleteBuffers glDeleteBuffersPointer
+#define glBindBuffer glBindBufferPointer
+#define glBufferData glBufferDataPointer
+#define glBufferSubData glBufferSubDataPointer
+#define glGenVertexArrays glGenVertexArraysPointer
+#define glDeleteVertexArrays glDeleteVertexArraysPointer
+#define glBindVertexArray glBindVertexArrayPointer
+#define glVertexAttribPointer glVertexAttribPointerPointer
+#define glVertexAttribIPointer glVertexAttribIPointerPointer
+#define glEnableVertexAttribArray glEnableVertexAttribArrayPointer
+#define glDrawArrays glDrawArraysPointer
+#define glDrawElements glDrawElementsPointer
+#define glPolygonMode glPolygonModePointer
+#define glBegin glBeginPointer
+#define glEnd glEndPointer
+#define glVertex3f glVertex3fPointer
 
 void LoadOpenGLProcs()
 {
@@ -160,6 +239,7 @@ void LoadOpenGLProcs()
 	GL_GetProc(glViewport);
 	GL_GetProc(glEnable);
 	GL_GetProc(glDisable);
+	GL_GetProc(glFrontFace);
 	GL_GetProc(glDepthMask);
 	GL_GetProc(glDepthFunc);
 	GL_GetProc(glBlendFunc);
@@ -217,5 +297,8 @@ void LoadOpenGLProcs()
 	GL_GetProc(glDrawArrays);
 	GL_GetProc(glDrawElements);
 	GL_GetProc(glPolygonMode);
+	GL_GetProc(glBegin);
+	GL_GetProc(glEnd);
+	GL_GetProc(glVertex3f);
 #undef GL_GetProc
 }
