@@ -9,8 +9,8 @@
 #undef near
 #undef far
 
-#define EPA_VISUAL_DEBUGGING 1
-#define EPA_LOGGING 1
+#define EPA_VISUAL_DEBUGGING 0
+#define EPA_LOGGING 0
 
 typedef int8_t  i8;
 typedef int16_t i16;

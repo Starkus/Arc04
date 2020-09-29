@@ -310,9 +310,8 @@ void StartGame()
 				if (g_currentPolytopeStep < 0)
 					g_currentPolytopeStep = 0;
 			}
-#endif
-
 			DRAW_AA_DEBUG_CUBE(v3{}, 0.05f); // Draw origin
+#endif
 
 			if (gameState.controller.camUp.endedDown)
 				gameState.camPitch += 1.0f * deltaTime;

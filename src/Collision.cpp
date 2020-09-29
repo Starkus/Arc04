@@ -40,7 +40,7 @@ void GenPolytopeMesh(Face *polytopeData, int faceCount, Vertex *buffer)
 }
 #endif
 
-v3 FurthestInDirection(const v3 *points, u32 pointCount, v3 dir)
+inline v3 FurthestInDirection(const v3 *points, u32 pointCount, v3 dir)
 {
 	f32 maxDist = -INFINITY;
 	v3 result = {};
@@ -73,13 +73,19 @@ GJKResult GJKTest(const v3 *vA, u32 vACount, const v3 *vB, u32 vBCount)
 	result.hit = true;
 
 	int foundPointsCount = 1;
-	v3 testDir = { 0, 1, 0 };
+	v3 testDir = { 0, 1, 0 }; // Random initial test direction
 
 	result.points[0] = GJKSupport(vB, vBCount, vA, vACount, testDir);
 	testDir = -result.points[0];
 
-	while (result.hit && foundPointsCount < 4)
+	for (int iterations = 0; result.hit && foundPointsCount < 4; ++iterations)
 	{
+		if (iterations >= 50)
+		{
+			ASSERT(false);
+			break;
+		}
+
 		v3 a = GJKSupport(vB, vBCount, vA, vACount, testDir);
 		if (V3Dot(testDir, a) < 0)
 		{
@@ -154,9 +160,9 @@ GJKResult GJKTest(const v3 *vA, u32 vACount, const v3 *vB, u32 vBCount)
 				const v3 ac = c - a;
 				const v3 ad = d - a;
 
-				v3 abcNor = V3Cross(ac, ab);
-				v3 adbNor = V3Cross(ab, ad);
-				v3 acdNor = V3Cross(ad, ac);
+				const v3 abcNor = V3Cross(ac, ab);
+				const v3 adbNor = V3Cross(ab, ad);
+				const v3 acdNor = V3Cross(ad, ac);
 
 				// Assert normals point outside
 				ASSERT(V3Dot(d - a, abcNor) <= 0);
@@ -325,8 +331,9 @@ v3 ComputeDepenetration(GJKResult gjkResult, const v3 *vA, u32 vACount, const v3
 	}
 
 	Face closestFeature;
+	f32 lastLeastDistance = -1.0f;
 	const int maxIterations = 64;
-	for (int epaStep = 0; epaStep < maxIterations; ++epaStep) // TODO limit iterations for edge cases with colinear triangles?
+	for (int epaStep = 0; epaStep < maxIterations; ++epaStep)
 	{
 		ASSERT(epaStep < maxIterations - 1);
 
@@ -340,6 +347,7 @@ v3 ComputeDepenetration(GJKResult gjkResult, const v3 *vA, u32 vACount, const v3
 #endif
 
 		// Find closest feature to origin in polytope
+		Face newClosestFeature = {};
 		int validFacesFound = 0;
 		f32 leastDistance = INFINITY;
 		EPALOG("Looking for closest feature\n");
@@ -361,7 +369,7 @@ v3 ComputeDepenetration(GJKResult gjkResult, const v3 *vA, u32 vACount, const v3
 				continue;
 
 			leastDistance = distToOrigin;
-			closestFeature = *face;
+			newClosestFeature = *face;
 			++validFacesFound;
 		}
 		if (leastDistance == INFINITY)
@@ -369,18 +377,21 @@ v3 ComputeDepenetration(GJKResult gjkResult, const v3 *vA, u32 vACount, const v3
 			//ASSERT(false);
 			EPALOG("ERROR: Couldn't find closest feature!");
 			// Collision is probably on the very edge, we don't need depenetration
-
-#if EPA_VISUAL_DEBUGGING
-			GenPolytopeMesh(polytope, polytopeCount, g_polytopeSteps[epaStep + 1]);
-			g_polytopeStepCounts[epaStep + 1] = polytopeCount;
-			g_writePolytopeGeom = false;
-#endif
-
-			return v3{};
+			break;
+		}
+		else if (leastDistance <= lastLeastDistance)
+		{
+			// We tried to expand in this direction but failed! So we are at the edge of
+			// the Minkowski difference
+			// TODO do we really need two exit conditions? Something must be wrong with
+			// the other one!
+			EPALOG("Ending because couldn't get any further away from the outer edge");
 			break;
 		}
 		else
 		{
+			closestFeature = newClosestFeature;
+			lastLeastDistance = leastDistance;
 			EPALOG("Picked face with distance %.02f out of %d faces\n", leastDistance,
 					validFacesFound);
 		}
@@ -397,58 +408,53 @@ v3 ComputeDepenetration(GJKResult gjkResult, const v3 *vA, u32 vACount, const v3
 		}
 		Edge holeEdges[256];
 		int holeEdgesCount = 0;
-#if DEBUG_BUILD
-		//memset(holeEdges, 0xFCFCFCFC, sizeof(holeEdges));
 		int oldPolytopeCount = polytopeCount;
-#endif
 		for (int faceIdx = 0; faceIdx < polytopeCount; )
 		{
 			Face *face = &polytope[faceIdx];
 			v3 normal = V3Cross(face->c - face->a, face->b - face->a);
-			if (V3Dot(normal, newPoint - face->a) > 0)
-			{
-				// Add/remove edges to the hole (XOR)
-				Edge faceEdges[3] =
-				{
-					{ face->a, face->b },
-					{ face->b, face->c },
-					{ face->c, face->a }
-				};
-				for (int edgeIdx = 0; edgeIdx < 3; ++edgeIdx)
-				{
-					const Edge &edge = faceEdges[edgeIdx];
-					// If it's already on the list, remove it
-					bool found = false;
-					for (int holeEdgeIdx = 0; holeEdgeIdx < holeEdgesCount; ++holeEdgeIdx)
-					{
-						const Edge &holeEdge = holeEdges[holeEdgeIdx];
-						if ((edge.a == holeEdge.a && edge.b == holeEdge.b) ||
-							(edge.a == holeEdge.b && edge.b == holeEdge.a))
-						{
-							holeEdges[holeEdgeIdx] = holeEdges[--holeEdgesCount];
-							found = true;
-							break;
-						}
-					}
-					// Otherwise add it
-					if (!found)
-						holeEdges[holeEdgesCount++] = edge;
-				}
-				// Remove face from polytope
-				polytope[faceIdx] = polytope[--polytopeCount];
-			}
-			else
+			// Ignore if not facing new point
+			if (V3Dot(normal, newPoint - face->a) <= 0)
 			{
 				++faceIdx;
+				continue;
 			}
+
+			// Add/remove edges to the hole (XOR)
+			Edge faceEdges[3] =
+			{
+				{ face->a, face->b },
+				{ face->b, face->c },
+				{ face->c, face->a }
+			};
+			for (int edgeIdx = 0; edgeIdx < 3; ++edgeIdx)
+			{
+				const Edge &edge = faceEdges[edgeIdx];
+				// If it's already on the list, remove it
+				bool found = false;
+				for (int holeEdgeIdx = 0; holeEdgeIdx < holeEdgesCount; ++holeEdgeIdx)
+				{
+					const Edge &holeEdge = holeEdges[holeEdgeIdx];
+					if ((edge.a == holeEdge.a && edge.b == holeEdge.b) ||
+						(edge.a == holeEdge.b && edge.b == holeEdge.a))
+					{
+						holeEdges[holeEdgeIdx] = holeEdges[--holeEdgesCount];
+						found = true;
+						break;
+					}
+				}
+				// Otherwise add it
+				if (!found)
+					holeEdges[holeEdgesCount++] = edge;
+			}
+			// Remove face from polytope
+			polytope[faceIdx] = polytope[--polytopeCount];
 		}
 		int deletedFaces = oldPolytopeCount - polytopeCount;
 		EPALOG("Deleted %d faces which were facing new point\n", deletedFaces);
 		EPALOG("Presumably left a hole with %d edges\n", holeEdgesCount);
 		if (deletedFaces > 1 && holeEdgesCount >= deletedFaces * 3)
 		{
-			//ASSERT(false);
-
 			EPALOG("ERROR! Multiple holes were made on the polytope!\n");
 #if EPA_VISUAL_DEBUGGING
 			GenPolytopeMesh(polytope, polytopeCount, g_polytopeSteps[epaStep + 1]);
@@ -456,28 +462,21 @@ v3 ComputeDepenetration(GJKResult gjkResult, const v3 *vA, u32 vACount, const v3
 			g_writePolytopeGeom = false;
 #endif
 		}
-		// Now we should have a hole in the polytope, of which all edges are in holeEdges
-#if DEBUG_BUILD
 		oldPolytopeCount = polytopeCount;
-#endif
+		// Now we should have a hole in the polytope, of which all edges are in holeEdges
+
 		for (int holeEdgeIdx = 0; holeEdgeIdx < holeEdgesCount; ++holeEdgeIdx)
 		{
 			const Edge &holeEdge = holeEdges[holeEdgeIdx];
 			Face newFace = { holeEdge.a, holeEdge.b, newPoint };
-			// Rewind if it's facing inwards
-			v3 normal = V3Cross(newFace.c - newFace.a, newFace.b - newFace.a);
-			if (V3Dot(normal, newFace.a) < 0)
-			{
-				v3 tmp = newFace.b;
-				newFace.b = newFace.c;
-				newFace.c = tmp;
-			}
+			// Assert it's facing the right direction
+			// If this assert starts failing we can just rewind the triangles
+			const v3 normal = V3Cross(newFace.c - newFace.a, newFace.b - newFace.a);
+			ASSERT(V3Dot(normal, newFace.a) >= 0);
 			polytope[polytopeCount++] = newFace;
 		}
-#if DEBUG_BUILD
 		EPALOG("Added %d faces to fill the hole. Polytope now has %d faces\n",
 				polytopeCount - oldPolytopeCount, polytopeCount);
-#endif
 	}
 
 	v3 closestFeatureNor = V3Normalize(V3Cross(closestFeature.c - closestFeature.a,
@@ -492,3 +491,5 @@ void GetEPAStepGeometry(int step, Vertex **buffer, u32 *count)
 	*buffer = g_polytopeSteps[step];
 }
 #endif
+
+#undef EPALOG
