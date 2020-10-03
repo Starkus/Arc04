@@ -168,6 +168,7 @@ OBJLoadResult LoadOBJ(const char *filename)
 					vertex->pos = ((v3 *)vertices.data)[indices[0]];
 					vertex->uv = ((v2 *)uvs.data)[indices[1]];
 					vertex->color = ((v3 *)normals.data)[indices[2]]; // FIXME saving color into normal
+					vertex->color = vertex->color * 0.5f + v3{ 0.5f, 0.5f, 0.5f };
 
 					// FIXME dumb linear indices, add actual duplicate removal
 					// TODO check index doesn't go out of u16 bounds
@@ -193,4 +194,62 @@ OBJLoadResult LoadOBJ(const char *filename)
 	result.indexCount = resultIndices.size;
 
 	return result;
+}
+
+void LoadOBJAsPoints(const char *filename, v3 **points, u32 *pointCount)
+{
+	// TODO allocate in frame allocator?
+	DynamicArrayV3 vertices = { (v3 *)malloc(sizeof(v3) * 32), 0, 32 };
+
+	SDL_RWops *file = SDL_RWFromFile(filename, "r");
+	const u64 fileSize = SDL_RWsize(file);
+	char *fileBuffer = (char *)malloc(fileSize);
+	SDL_RWread(file, fileBuffer, sizeof(char), fileSize);
+	SDL_RWclose(file);
+
+	const char *scan = fileBuffer;
+	char numberBuffer[256];
+	while (*scan)
+	{
+		switch (*scan)
+		{
+			case '#':
+			case 'o':
+			case 'f':
+				break;
+			case 'v':
+			{
+				++scan;
+				switch (*scan)
+				{
+					case 't':
+					case 'n':
+						break;
+					case ' ':
+					{
+						// Get pointer to next vertex in array
+						ArrayAddOne(&vertices);
+						v3 *vertex = &vertices.data[vertices.size - 1];
+						for (int i = 0; i < 3; ++i)
+						{
+							++scan; // Skip space
+							int numberBufferIdx = 0;
+							for (; *scan != ' ' && *scan != '\n'; ++scan)
+							{
+								numberBuffer[numberBufferIdx++] = *scan;
+							}
+							numberBuffer[numberBufferIdx] = 0;
+							vertex->v[i] = (f32)Atof(numberBuffer);
+						}
+					} break;
+				}
+			} break;
+		}
+
+		// Go to next line
+		for (; *scan != 0 && *scan++ != '\n'; );
+	}
+
+	*points = vertices.data;
+	*pointCount = vertices.size;
 }

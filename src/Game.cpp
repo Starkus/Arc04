@@ -59,8 +59,7 @@ void StartGame()
 
 	LoadOpenGLProcs();
 
-	DeviceMesh playerMesh, cubeMesh, planeMesh;
-
+	DeviceMesh playerMesh, anvilMesh, cubeMesh;
 	GLuint program;
 	{
 		// Backface culling
@@ -90,6 +89,29 @@ void StartGame()
 			free(obj.indices);
 		}
 
+		// Anvil
+		{
+			OBJLoadResult obj = LoadOBJ("data/anvil.obj");
+			anvilMesh.indexCount = obj.indexCount;
+
+			glGenVertexArrays(1, &anvilMesh.vao);
+			glBindVertexArray(anvilMesh.vao);
+
+			glGenBuffers(2, anvilMesh.buffers);
+			glBindBuffer(GL_ARRAY_BUFFER, anvilMesh.vertexBuffer);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(obj.vertices[0]) * obj.vertexCount, obj.vertices, GL_STATIC_DRAW);
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, anvilMesh.indexBuffer);
+			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(obj.indices[0]) * obj.indexCount, obj.indices, GL_STATIC_DRAW);
+
+			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
+			glEnableVertexAttribArray(0);
+			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, color));
+			glEnableVertexAttribArray(1);
+
+			free(obj.vertices);
+			free(obj.indices);
+		}
+
 		// Cube
 		{
 			cubeMesh.indexCount = 6 * 2 * 3;
@@ -102,25 +124,6 @@ void StartGame()
 			glBufferData(GL_ARRAY_BUFFER, sizeof(cubeVertices), cubeVertices, GL_STATIC_DRAW);
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeMesh.indexBuffer);
 			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cubeIndices), cubeIndices, GL_STATIC_DRAW);
-
-			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
-			glEnableVertexAttribArray(0);
-			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, color));
-			glEnableVertexAttribArray(1);
-		}
-
-		// Plane
-		{
-			planeMesh.indexCount = 2 * 3;
-
-			glGenVertexArrays(1, &planeMesh.vao);
-			glBindVertexArray(planeMesh.vao);
-
-			glGenBuffers(2, planeMesh.buffers);
-			glBindBuffer(GL_ARRAY_BUFFER, planeMesh.vertexBuffer);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(planeVertices), planeVertices, GL_STATIC_DRAW);
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, planeMesh.indexBuffer);
-			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(planeIndices), planeIndices, GL_STATIC_DRAW);
 
 			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
 			glEnableVertexAttribArray(0);
@@ -190,26 +193,90 @@ void StartGame()
 	}
 
 	GameState gameState = {};
-	gameState.playerEntity = gameState.entityCount++;
-	gameState.entities[gameState.playerEntity].fw = { 0.0f, 1.0f, 0.0f };
+
+	// Init level
+	{
+		DeviceMesh *levelMesh = &gameState.levelGeometry.renderMesh;
+		OBJLoadResult obj = LoadOBJ("data/level.obj");
+		levelMesh->indexCount = obj.indexCount;
+
+		glGenVertexArrays(1, &levelMesh->vao);
+		glBindVertexArray(levelMesh->vao);
+
+		glGenBuffers(2, levelMesh->buffers);
+		glBindBuffer(GL_ARRAY_BUFFER, levelMesh->vertexBuffer);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(obj.vertices[0]) * obj.vertexCount, obj.vertices, GL_STATIC_DRAW);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, levelMesh->indexBuffer);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(obj.indices[0]) * obj.indexCount, obj.indices, GL_STATIC_DRAW);
+
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, color));
+		glEnableVertexAttribArray(1);
+
+		// Save triangles
+		gameState.levelGeometry.triangles = (v3 *)malloc(obj.vertexCount * sizeof(v3));
+		gameState.levelGeometry.triangleCount = obj.vertexCount / 3;
+		for (u32 vertexIdx = 0; vertexIdx < obj.vertexCount; ++vertexIdx)
+		{
+			// FIXME we are ignoring indices here!!! this will not work if we start eliminating
+			// duplicate vertices on wavefront importer!!
+			Vertex *vertex = &obj.vertices[vertexIdx];
+			gameState.levelGeometry.triangles[vertexIdx] = vertex->pos;
+		}
+
+		free(obj.vertices);
+		free(obj.indices);
+	}
+
+	// Init player
+	{
+		Entity *playerEnt = &gameState.entities[gameState.entityCount++];
+		gameState.player.entity = playerEnt;
+		playerEnt->fw = { 0.0f, 1.0f, 0.0f };
+		playerEnt->mesh = &playerMesh;
+
+		LoadOBJAsPoints("data/monkey_collision.obj", &playerEnt->collisionPoints,
+				&playerEnt->collisionPointCount);
+	}
+
+	// Init camera
 	gameState.camPitch = -PI * 0.35f;
 
 	// Test entities
-	Entity *testEntity = &gameState.entities[gameState.entityCount++];
-	testEntity->pos = { -5.0f, 2.0f, 0.0f };
-	testEntity->fw = { 0.0f, 1.0f, 0.0f };
+	{
+		v3 *points;
+		u32 pointCount;
+		LoadOBJAsPoints("data/anvil_collision.obj", &points, &pointCount);
 
-	testEntity = &gameState.entities[gameState.entityCount++];
-	testEntity->pos = { 4.0f, 3.0f, 0.0f };
-	testEntity->fw = { 0.0f, 1.0f, 0.0f };
+		Entity *testEntity = &gameState.entities[gameState.entityCount++];
+		testEntity->pos = { -5.0f, 2.0f, 1.0f };
+		testEntity->fw = { 0.0f, 1.0f, 0.0f };
+		testEntity->mesh = &anvilMesh;
+		testEntity->collisionPoints = points;
+		testEntity->collisionPointCount = pointCount;
 
-	testEntity = &gameState.entities[gameState.entityCount++];
-	testEntity->pos = { 2.0f, -3.0f, 0.0f };
-	testEntity->fw = { 0.707f, 0.707f, 0.0f };
+		testEntity = &gameState.entities[gameState.entityCount++];
+		testEntity->pos = { 4.0f, 3.0f, 1.0f };
+		testEntity->fw = { 0.0f, 1.0f, 0.0f };
+		testEntity->mesh = &anvilMesh;
+		testEntity->collisionPoints = points;
+		testEntity->collisionPointCount = pointCount;
 
-	testEntity = &gameState.entities[gameState.entityCount++];
-	testEntity->pos = { -7.0f, -3.0f, 0.0f };
-	testEntity->fw = { 0.707f, 0.0f, 0.707f };
+		testEntity = &gameState.entities[gameState.entityCount++];
+		testEntity->pos = { 2.0f, -3.0f, 1.0f };
+		testEntity->fw = { 0.707f, 0.707f, 0.0f };
+		testEntity->mesh = &anvilMesh;
+		testEntity->collisionPoints = points;
+		testEntity->collisionPointCount = pointCount;
+
+		testEntity = &gameState.entities[gameState.entityCount++];
+		testEntity->pos = { -7.0f, -3.0f, 1.0f };
+		testEntity->fw = { 0.707f, 0.0f, 0.707f };
+		testEntity->mesh = &anvilMesh;
+		testEntity->collisionPoints = points;
+		testEntity->collisionPointCount = pointCount;
+	}
 
 	u64 lastPerfCounter = SDL_GetPerformanceCounter();
 	bool running = true;
@@ -269,6 +336,10 @@ void StartGame()
 							checkButton(c.right);
 							break;
 
+						case SDLK_SPACE:
+							checkButton(c.jump);
+							break;
+
 						case SDLK_UP:
 							checkButton(c.camUp);
 							break;
@@ -323,9 +394,8 @@ void StartGame()
 			else if (gameState.controller.camRight.endedDown)
 				gameState.camYaw += 1.0f * deltaTime;
 
-			Entity *player = &gameState.entities[gameState.playerEntity];
-
 			// Move player
+			Player *player = &gameState.player;
 			{
 				v3 worldInputDir = {};
 				if (gameState.controller.up.endedDown)
@@ -344,21 +414,45 @@ void StartGame()
 
 				if (V3SqrLen(worldInputDir) > 0)
 				{
-					player->fw = worldInputDir;
+					player->entity->fw = worldInputDir;
 				}
 
 				const f32 playerSpeed = 3.0f;
-				player->pos += worldInputDir * playerSpeed * deltaTime;
+				player->entity->pos += worldInputDir * playerSpeed * deltaTime;
+
+				// Jump
+				if (player->state == PLAYERSTATE_GROUNDED && gameState.controller.jump.endedDown &&
+						gameState.controller.jump.changed)
+				{
+					player->vel.z = 15.0f;
+					player->state = PLAYERSTATE_AIR;
+				}
+
+				// Gravity
+				if (player->state == PLAYERSTATE_AIR)
+				{
+					player->vel.z -= 30.0f * deltaTime;
+					if (player->vel.z < -75.0f)
+						player->vel.z = -75.0f;
+					player->entity->pos.z += player->vel.z * deltaTime;
+				}
+				else if (player->state == PLAYERSTATE_GROUNDED)
+				{
+					player->vel.z = 0;
+				}
 			}
 
 			// Collision
+			bool touchedGround = false;
+
 			for (u32 entityIndex = 0; entityIndex < gameState.entityCount; ++ entityIndex)
 			{
-				if (entityIndex != gameState.playerEntity)
+				Entity *entity = &gameState.entities[entityIndex];
+				if (entity != gameState.player.entity)
 				{
 					const v3 up = { 0, 0, 1 };
-					const v3 aPos = player->pos;
-					const v3 aFw = player->fw;
+					const v3 aPos = player->entity->pos;
+					const v3 aFw = player->entity->fw;
 					const v3 aRight = V3Normalize(V3Cross(aFw, up));
 					const v3 aUp = V3Cross(aRight, aFw);
 					mat4 aModelMatrix =
@@ -369,7 +463,6 @@ void StartGame()
 						aPos.x,		aPos.y,		aPos.z,		1.0f
 					};
 
-					Entity *entity = &gameState.entities[entityIndex];
 					const v3 bPos = entity->pos;
 					const v3 bFw = entity->fw;
 					const v3 bRight = V3Normalize(V3Cross(bFw, up));
@@ -382,40 +475,74 @@ void StartGame()
 						bPos.x,		bPos.y,		bPos.z,		1.0f
 					};
 
-					v3 vA[24];
-					v3 vB[24];
+					u32 vACount = player->entity->collisionPointCount;
+					u32 vBCount = entity->collisionPointCount;
+					v3 *vA = (v3 *)malloc(vACount * sizeof(v3));
+					v3 *vB = (v3 *)malloc(vBCount * sizeof(v3));
 
 					// Compute all points
-					// TODO de-hardcode cube primitive
 					{
-						for (int i = 0; i < 24; ++i)
+						for (u32 i = 0; i < vACount; ++i)
 						{
-							const Vertex *vert = &cubeVertices[i];
-							v4 v = { vert->pos.x, vert->pos.y, vert->pos.z, 1.0f };
-							v = Mat4TransformV4(bModelMatrix, v);
-							vB[i] = { v.x, v.y, v.z };
-						}
-
-						for (int i = 0; i < 24; ++i)
-						{
-							const Vertex *vert = &cubeVertices[i];
-							v4 v = { vert->pos.x, vert->pos.y, vert->pos.z, 1.0f };
+							v3 p = player->entity->collisionPoints[i];
+							v4 v = { p.x, p.y, p.z, 1.0f };
 							v = Mat4TransformV4(aModelMatrix, v);
 							vA[i] = { v.x, v.y, v.z };
 						}
+
+						for (u32 i = 0; i < vBCount; ++i)
+						{
+							v3 p = entity->collisionPoints[i];
+							v4 v = { p.x, p.y, p.z, 1.0f };
+							v = Mat4TransformV4(bModelMatrix, v);
+							vB[i] = { v.x, v.y, v.z };
+						}
 					}
 
-					GJKResult gjkResult = GJKTest(vA, 24, vB, 24);
+					GJKResult gjkResult = GJKTest(vA, vACount, vB, vBCount);
 					if (gjkResult.hit)
 					{
-						v3 depenetration = ComputeDepenetration(gjkResult, vA, 24, vB, 24);
-						player->pos += depenetration;
+						v3 depenetration = ComputeDepenetration(gjkResult, vA, vACount, vB, vBCount);
+						player->entity->pos += depenetration;
+						// TOFIX handle velocity change upon hits properly
+						if (V3Normalize(depenetration).z > 0.9f)
+							touchedGround = true;
+						break;
+					}
+
+					free(vA);
+					free(vB);
+				}
+			}
+
+			// Ray testing
+			{
+				LevelGeometry *level = &gameState.levelGeometry;
+				for (u32 triIdx = 0; triIdx < level->triangleCount; ++triIdx)
+				{
+					v3 origin = player->entity->pos + v3{ 0, 0, 1 };
+					v3 dir = { 0, 0, -1.1f };
+					v3 a = level->triangles[triIdx * 3 + 0];
+					v3 b = level->triangles[triIdx * 3 + 1];
+					v3 c = level->triangles[triIdx * 3 + 2];
+					v3 hit;
+					if (RayTriangleIntersection(origin, dir, a, b, c, &hit))
+					{
+						DRAW_AA_DEBUG_CUBE(hit, 0.2f);
+						DRAW_AA_DEBUG_CUBE(a, 0.1f);
+						DRAW_AA_DEBUG_CUBE(b, 0.1f);
+						DRAW_AA_DEBUG_CUBE(c, 0.1f);
+
+						player->entity->pos.z = hit.z;
+						touchedGround = true;
 						break;
 					}
 				}
 			}
 
-			gameState.camPos = player->pos;
+			player->state = touchedGround ? PLAYERSTATE_GROUNDED : PLAYERSTATE_AIR;
+
+			gameState.camPos = player->entity->pos;
 
 #if DEBUG_BUILD
 			// Draw a cube for each entity
@@ -473,12 +600,13 @@ void StartGame()
 			glClearColor(0.95f, 0.88f, 0.05f, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-			// Player
+			// Entity
+			for (u32 entityIdx = 0; entityIdx < gameState.entityCount; ++entityIdx)
 			{
-				Entity *player = &gameState.entities[gameState.playerEntity];
-				const v3 pos = player->pos;
-				const v3 fw = player->fw;
-				const v3 right = V3Cross(player->fw, {0,0,1});
+				Entity *entity = &gameState.entities[entityIdx];
+				const v3 pos = entity->pos;
+				const v3 fw = entity->fw;
+				const v3 right = V3Cross(entity->fw, {0,0,1});
 				const v3 up = V3Cross(right, fw);
 				// TODO pull out function?
 				const mat4 model =
@@ -490,11 +618,20 @@ void StartGame()
 				};
 				glUniformMatrix4fv(modelUniform, 1, false, model.m);
 
-				glBindVertexArray(playerMesh.vao);
-				glDrawElements(GL_TRIANGLES, playerMesh.indexCount, GL_UNSIGNED_SHORT, NULL);
+				glBindVertexArray(entity->mesh->vao);
+				glDrawElements(GL_TRIANGLES, entity->mesh->indexCount, GL_UNSIGNED_SHORT, NULL);
 			}
 
-#if DEBUG_BUILD
+			// Level
+			{
+				LevelGeometry *level = &gameState.levelGeometry;
+
+				glUniformMatrix4fv(modelUniform, 1, false, MAT4_IDENTITY.m);
+				glBindVertexArray(level->renderMesh.vao);
+				glDrawElements(GL_TRIANGLES, level->renderMesh.indexCount, GL_UNSIGNED_SHORT, NULL);
+			}
+
+#if 0//DEBUG_BUILD
 			// Debug draws
 			{
 				glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -541,14 +678,6 @@ void StartGame()
 			}
 #endif
 
-			// Plane
-			{
-				glUniformMatrix4fv(modelUniform, 1, false, Mat4Translation({ 0, 0, -1 }).m);
-
-				glBindVertexArray(planeMesh.vao);
-				glDrawElements(GL_TRIANGLES, planeMesh.indexCount, GL_UNSIGNED_SHORT, NULL);
-			}
-
 			SDL_GL_SwapWindow(window);
 		}
 
@@ -558,10 +687,12 @@ void StartGame()
 	// Cleanup
 	{
 		glDeleteBuffers(2, playerMesh.buffers);
-		glDeleteBuffers(2, planeMesh.buffers);
+		glDeleteBuffers(2, anvilMesh.buffers);
+		glDeleteBuffers(2, gameState.levelGeometry.renderMesh.buffers);
 		glDeleteBuffers(2, cubeMesh.buffers);
 		glDeleteVertexArrays(1, &playerMesh.vao);
-		glDeleteVertexArrays(1, &planeMesh.vao);
+		glDeleteVertexArrays(1, &anvilMesh.vao);
+		glDeleteVertexArrays(1, &gameState.levelGeometry.renderMesh.vao);
 		glDeleteVertexArrays(1, &cubeMesh.vao);
 
 #if DEBUG_BUILD

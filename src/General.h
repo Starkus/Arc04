@@ -28,7 +28,7 @@ typedef double f64;
 #define DEBUG_BUILD 1
 #define DEBUG_ONLY(a) a
 
-#if DEBUG_BUILD
+#if 0//DEBUG_BUILD
 #define ASSERT(expr) do { if (!(expr)) __debugbreak(); } while (false)
 #else
 #define ASSERT(expr)

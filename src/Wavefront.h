@@ -11,3 +11,4 @@ struct OBJLoadResult
 };
 
 OBJLoadResult LoadOBJ(const char *filename);
+void LoadOBJAsPoints(const char *filename, v3 **points, u32 *pointCount);

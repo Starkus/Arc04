@@ -40,6 +40,53 @@ void GenPolytopeMesh(Face *polytopeData, int faceCount, Vertex *buffer)
 }
 #endif
 
+bool RayTriangleIntersection(v3 rayOrigin, v3 rayDir, v3 a, v3 b, v3 c, v3 *hit)
+{
+	const v3 ab = b - a;
+	const v3 bc = c - b;
+	const v3 ca = a - c;
+	v3 nor = V3Cross(-ca, ab);
+
+	f32 rayDistAlongNormal = V3Dot(rayDir, -nor);
+	const f32 epsilon = 0.000001f;
+	if (rayDistAlongNormal > -epsilon && rayDistAlongNormal < epsilon)
+		// Perpendicular
+		return false;
+
+	f32 aDistAlongNormal = V3Dot(a - rayOrigin, -nor);
+	f32 factor = aDistAlongNormal / rayDistAlongNormal;
+
+	if (factor < 0 || factor > 1)
+		return false;
+
+	v3 rayPlaneInt = rayOrigin + rayDir * factor;
+
+	// Barycentric coordinates
+	{
+		const v3 projABOntoBC = bc * (V3Dot(ab, bc) / V3Dot(bc, bc));
+		const v3 v = ab - projABOntoBC;
+		if (V3Dot(v, ab) < V3Dot(v, rayPlaneInt - a))
+			return false;
+	}
+
+	{
+		const v3 projBCOntoCA = ca * (V3Dot(bc, ca) / V3Dot(ca, ca));
+		const v3 v = bc - projBCOntoCA;
+		if (V3Dot(v, bc) < V3Dot(v, rayPlaneInt - b))
+			return false;
+	}
+
+	{
+		const v3 projCAOntoAB = ab * (V3Dot(ca, ab) / V3Dot(ab, ab));
+		const v3 v = ca - projCAOntoAB;
+		if (V3Dot(v, ca) < V3Dot(v, rayPlaneInt - c))
+			return false;
+	}
+
+	*hit = rayPlaneInt;
+	return true;
+}
+
 inline v3 FurthestInDirection(const v3 *points, u32 pointCount, v3 dir)
 {
 	f32 maxDist = -INFINITY;

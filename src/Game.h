@@ -40,6 +40,75 @@ struct DeviceMesh
 	u32 indexCount;
 };
 
+struct Button
+{
+	bool endedDown;
+	bool changed;
+};
+
+union Controller
+{
+	struct
+	{
+		Button up;
+		Button down;
+		Button left;
+		Button right;
+		Button jump;
+		Button camUp;
+		Button camDown;
+		Button camLeft;
+		Button camRight;
+
+#if EPA_VISUAL_DEBUGGING
+		Button epaStepUp;
+		Button epaStepDown;
+#endif
+	};
+	Button b[11];
+};
+
+struct Entity
+{
+	v3 pos;
+	v3 fw;
+	DeviceMesh *mesh;
+	v3 *collisionPoints;
+	u32 collisionPointCount;
+};
+
+struct LevelGeometry
+{
+	DeviceMesh renderMesh;
+	v3 *triangles;
+	u32 triangleCount;
+};
+
+enum PlayerState
+{
+	PLAYERSTATE_GROUNDED,
+	PLAYERSTATE_AIR
+};
+
+struct Player
+{
+	Entity *entity;
+	v3 vel;
+	PlayerState state;
+};
+
+struct GameState
+{
+	Controller controller;
+	v3 camPos;
+	f32 camYaw;
+	f32 camPitch;
+	u32 entityCount;
+	Entity entities[256];
+	LevelGeometry levelGeometry;
+	Player player;
+};
+
 #if DEBUG_BUILD
 struct DebugCube
 {
@@ -70,47 +139,3 @@ void DrawDebugTriangles(Vertex* vertices, int count)
 
 int g_currentPolytopeStep;
 #endif
-
-struct Button
-{
-	bool endedDown;
-	bool changed;
-};
-
-union Controller
-{
-	struct
-	{
-		Button up;
-		Button down;
-		Button left;
-		Button right;
-		Button camUp;
-		Button camDown;
-		Button camLeft;
-		Button camRight;
-
-#if EPA_VISUAL_DEBUGGING
-		Button epaStepUp;
-		Button epaStepDown;
-#endif
-	};
-	Button b[10];
-};
-
-struct Entity
-{
-	v3 pos;
-	v3 fw;
-};
-
-struct GameState
-{
-	Controller controller;
-	v3 camPos;
-	f32 camYaw;
-	f32 camPitch;
-	u32 entityCount;
-	Entity entities[256];
-	u32 playerEntity;
-};
