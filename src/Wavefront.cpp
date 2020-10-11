@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include "SDL/SDL.h"
 #include "Geometry.h"
+#include "Containers.h"
 
 // Crash upon encountering invalid character in atof and atoi for debugging purposes
 #if 1
@@ -35,39 +36,21 @@ int Atoi(const char *str)
 }
 #endif
 
-#define DECLARE_DYNAMIC_ARRAY(_TYPE, _STRUCTNAME) \
-struct _STRUCTNAME \
-{ \
-	_TYPE *data; \
-	u32 size; \
-	u32 capacity; \
-}; \
-\
-inline void ArrayAddOne(_STRUCTNAME *array) \
-{ \
-	if (array->size >= array->capacity) \
-	{ \
-		array->capacity *= 2; \
-		array->data = (_TYPE *)realloc(array->data, array->capacity * sizeof(_TYPE)); \
-	} \
-	array->size++; \
-}
-
-DECLARE_DYNAMIC_ARRAY(v2, DynamicArrayV2)
-DECLARE_DYNAMIC_ARRAY(v3, DynamicArrayV3)
-DECLARE_DYNAMIC_ARRAY(Vertex, DynamicArrayVertex)
-DECLARE_DYNAMIC_ARRAY(u16, DynamicArrayU16)
+DECLARE_DYNAMIC_ARRAY(v2)
+DECLARE_DYNAMIC_ARRAY(v3)
+DECLARE_DYNAMIC_ARRAY(Vertex)
+DECLARE_DYNAMIC_ARRAY(u16)
 
 // TODO support .objs that have attributes different than position/uv/normal
 OBJLoadResult LoadOBJ(const char *filename)
 {
 	// TODO allocate in frame allocator?
-	DynamicArrayV3 vertices = { (v3 *)malloc(sizeof(v3) * 32), 0, 32 };
-	DynamicArrayV2 uvs = { (v2 *)malloc(sizeof(v2) * 32), 0, 32 };
-	DynamicArrayV3 normals = { (v3 *)malloc(sizeof(v3) * 32), 0, 32 };
+	DynamicArray_v3 vertices = { (v3 *)malloc(sizeof(v3) * 32), 0, 32 };
+	DynamicArray_v2 uvs = { (v2 *)malloc(sizeof(v2) * 32), 0, 32 };
+	DynamicArray_v3 normals = { (v3 *)malloc(sizeof(v3) * 32), 0, 32 };
 
-	DynamicArrayVertex resultVertices = { (Vertex *)malloc(sizeof(Vertex) * 32), 0, 32 };
-	DynamicArrayU16 resultIndices = { (u16 *)malloc(sizeof(u16) * 32), 0, 32 };
+	DynamicArray_Vertex resultVertices = { (Vertex *)malloc(sizeof(Vertex) * 32), 0, 32 };
+	DynamicArray_u16 resultIndices = { (u16 *)malloc(sizeof(u16) * 32), 0, 32 };
 
 	SDL_RWops *file = SDL_RWFromFile(filename, "r");
 	const u64 fileSize = SDL_RWsize(file);
@@ -92,7 +75,7 @@ OBJLoadResult LoadOBJ(const char *filename)
 					case ' ':
 					{
 						// Get pointer to next vertex in array
-						ArrayAddOne(&vertices);
+						DynamicArrayAdd_v3(&vertices);
 						v3 *vertex = &vertices.data[vertices.size - 1];
 						for (int i = 0; i < 3; ++i)
 						{
@@ -110,7 +93,7 @@ OBJLoadResult LoadOBJ(const char *filename)
 					{
 						++scan;
 						// Get pointer to next uv in array
-						ArrayAddOne(&uvs);
+						DynamicArrayAdd_v2(&uvs);
 						v2 *uv = &uvs.data[uvs.size - 1];
 						for (int i = 0; i < 2; ++i)
 						{
@@ -128,7 +111,7 @@ OBJLoadResult LoadOBJ(const char *filename)
 					{
 						++scan;
 						// Get pointer to next normal in array
-						ArrayAddOne(&normals);
+						DynamicArrayAdd_v3(&normals);
 						v3 *normal = &normals.data[normals.size - 1];
 						for (int i = 0; i < 3; ++i)
 						{
@@ -163,7 +146,7 @@ OBJLoadResult LoadOBJ(const char *filename)
 						indices[j] = Atoi(numberBuffer) - 1;
 					}
 
-					ArrayAddOne(&resultVertices);
+					DynamicArrayAdd_Vertex(&resultVertices);
 					Vertex *vertex = &((Vertex *)resultVertices.data)[resultVertices.size - 1];
 					vertex->pos = ((v3 *)vertices.data)[indices[0]];
 					vertex->uv = ((v2 *)uvs.data)[indices[1]];
@@ -172,7 +155,7 @@ OBJLoadResult LoadOBJ(const char *filename)
 
 					// FIXME dumb linear indices, add actual duplicate removal
 					// TODO check index doesn't go out of u16 bounds
-					ArrayAddOne(&resultIndices);
+					DynamicArrayAdd_u16(&resultIndices);
 					((u16 *)resultIndices.data)[resultIndices.size - 1] = (u16)resultIndices.size - 1;
 				}
 			} break;
@@ -199,7 +182,7 @@ OBJLoadResult LoadOBJ(const char *filename)
 void LoadOBJAsPoints(const char *filename, v3 **points, u32 *pointCount)
 {
 	// TODO allocate in frame allocator?
-	DynamicArrayV3 vertices = { (v3 *)malloc(sizeof(v3) * 32), 0, 32 };
+	DynamicArray_v3 vertices = { (v3 *)malloc(sizeof(v3) * 32), 0, 32 };
 
 	SDL_RWops *file = SDL_RWFromFile(filename, "r");
 	const u64 fileSize = SDL_RWsize(file);
@@ -228,7 +211,7 @@ void LoadOBJAsPoints(const char *filename, v3 **points, u32 *pointCount)
 					case ' ':
 					{
 						// Get pointer to next vertex in array
-						ArrayAddOne(&vertices);
+						DynamicArrayAdd_v3(&vertices);
 						v3 *vertex = &vertices.data[vertices.size - 1];
 						for (int i = 0; i < 3; ++i)
 						{

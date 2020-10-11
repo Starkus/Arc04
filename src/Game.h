@@ -25,6 +25,38 @@ void main()\n\
 }\n\
 ";
 
+const GLchar *skinVertexShaderSource = "\
+#version 330 core\n\
+layout (location = 0) in vec3 pos;\n\
+layout (location = 1) in vec2 uv;\n\
+layout (location = 2) in vec3 normal;\n\
+layout (location = 3) in uvec4 indices;\n\
+layout (location = 4) in vec4 weights;\n\
+uniform mat4 model;\n\
+uniform mat4 view;\n\
+uniform mat4 projection;\n\
+uniform mat4 joints[32];\n\
+out vec3 vertexColor;\n\
+\n\
+void main()\n\
+{\n\
+	vec4 oldPos = vec4(pos, 1.0);\n\
+	vec4 newPos = (joints[indices.x] * oldPos) * weights.x;\n\
+	newPos += (joints[indices.y] * oldPos) * weights.y;\n\
+	newPos += (joints[indices.z] * oldPos) * weights.z;\n\
+	newPos += (joints[indices.w] * oldPos) * weights.w;\n\
+\n\
+	vec4 oldNor = vec4(normal, 0.0);\n\
+	vec4 newNor = (joints[indices.x] * oldNor) * weights.x;\n\
+	newNor += (joints[indices.y] * oldNor) * weights.y;\n\
+	newNor += (joints[indices.z] * oldNor) * weights.z;\n\
+	newNor += (joints[indices.w] * oldNor) * weights.w;\n\
+\n\
+	gl_Position = projection * view * model * vec4(newPos.xyz, 1.0);\n\
+	vertexColor = newNor.xyz * 0.5 + vec3(0.5);\n\
+}\n\
+";
+
 struct DeviceMesh
 {
 	GLuint vao;
@@ -38,6 +70,29 @@ struct DeviceMesh
 		GLuint buffers[2];
 	};
 	u32 indexCount;
+};
+
+struct AnimationChannel
+{
+	u32 jointIndex;
+	mat4 *transforms;
+};
+
+struct Animation
+{
+	u32 frameCount;
+	f32 *timestamps;
+	u32 channelCount;
+	AnimationChannel *channels;
+};
+
+struct SkeletalMesh
+{
+	DeviceMesh deviceMesh;
+	u8 jointCount;
+	mat4 *bindPoses;
+	u32 animationCount;
+	Animation *animations;
 };
 
 struct Button

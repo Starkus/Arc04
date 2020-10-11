@@ -1,5 +1,8 @@
+#include "SDL/SDL.h"
+#include "SDL/SDL_OpenGL.h"
+
 #include "General.h"
-#include "Math.h"
+#include "Maths.h"
 #include "Geometry.h"
 #include "Primitives.h"
 #include "Wavefront.h"
@@ -32,6 +35,21 @@ GLuint LoadShader(const GLchar *shaderSource, GLuint shaderType)
 	return shader;
 }
 
+void FreeSkeletalMesh(SkeletalMesh *ptr)
+{
+	free(ptr->bindPoses);
+	for (u32 i = 0; i < ptr->animationCount; ++i)
+	{
+		for (u32 j = 0; j < ptr->animations[i].channelCount; ++j)
+		{
+			free(ptr->animations[i].channels[j].transforms);
+		}
+		free(ptr->animations[i].channels);
+		free(ptr->animations[i].timestamps);
+	}
+	free(ptr->animations);
+}
+
 void StartGame()
 {
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_EVENTS);
@@ -60,7 +78,8 @@ void StartGame()
 	LoadOpenGLProcs();
 
 	DeviceMesh playerMesh, anvilMesh, cubeMesh;
-	GLuint program;
+	SkeletalMesh skinnedMesh = {};
+	GLuint program, skinnedMeshProgram;
 	{
 		// Backface culling
 		glEnable(GL_CULL_FACE);
@@ -147,6 +166,111 @@ void StartGame()
 			glEnableVertexAttribArray(1);
 		}
 
+		// Skinned mesh
+		{
+			SDL_RWops *file = SDL_RWFromFile("data/colladatest.bin", "rb");
+			const u64 fileSize = SDL_RWsize(file);
+			u8 *fileBuffer = (u8 *)malloc(fileSize);
+			SDL_RWread(file, fileBuffer, sizeof(u8), fileSize);
+			SDL_RWclose(file);
+
+			u8 *fileScan = fileBuffer;
+
+			u32 vertexCount = *fileScan;
+			fileScan += sizeof(u32);
+			u32 indexCount = *fileScan;
+			fileScan += sizeof(u32);
+
+			skinnedMesh.deviceMesh.indexCount = indexCount;
+
+			SkinnedVertex *vertexData = (SkinnedVertex *)fileScan;
+			fileScan += sizeof(SkinnedVertex) * vertexCount;
+			u16 *indexData = (u16 *)fileScan;
+			fileScan += sizeof(u16) * indexCount;
+
+			u8 jointCount = *fileScan;
+			fileScan += sizeof(u32);
+			mat4 *bindPoses = (mat4 *)malloc(sizeof(mat4) * jointCount);
+			memcpy(bindPoses, fileScan, sizeof(mat4) * jointCount);
+			fileScan += sizeof(mat4) * jointCount;
+
+			skinnedMesh.jointCount = jointCount;
+			skinnedMesh.bindPoses = bindPoses;
+
+			u32 animationCount = *fileScan;
+			fileScan += sizeof(u32);
+
+			skinnedMesh.animationCount = animationCount;
+			skinnedMesh.animations = (Animation *)malloc(sizeof(Animation) * animationCount);
+			SDL_Log("%d animations\n", animationCount);
+
+			for (u32 animIdx = 0; animIdx < animationCount; ++animIdx)
+			{
+				Animation *animation = &skinnedMesh.animations[animIdx];
+
+				u32 frameCount = *fileScan;
+				fileScan += sizeof(u32);
+				f32 *timestamps = (f32 *)malloc(sizeof(f32) * frameCount);
+				memcpy(timestamps, fileScan, sizeof(f32) * frameCount);
+				fileScan += sizeof(f32) * frameCount;
+				u32 channelCount = *fileScan;
+				fileScan += sizeof(u32);
+
+				animation->frameCount = frameCount;
+				animation->timestamps = timestamps;
+				animation->channelCount = channelCount;
+				animation->channels = (AnimationChannel *)malloc(sizeof(AnimationChannel) *channelCount);
+
+				for (u32 channelIdx = 0; channelIdx < channelCount; ++channelIdx)
+				{
+					AnimationChannel *channel = &animation->channels[channelIdx];
+
+					u8 jointIndex = *fileScan;
+					fileScan += sizeof(u32);
+					mat4 *transforms = (mat4 *)malloc(sizeof(mat4) * frameCount);
+					memcpy(transforms, fileScan, sizeof(mat4) * frameCount);
+					fileScan += sizeof(mat4) * frameCount;
+
+					channel->jointIndex = jointIndex;
+					channel->transforms = transforms;
+				}
+
+				SDL_Log("%d frames\n", frameCount);
+			}
+
+			glGenVertexArrays(1, &skinnedMesh.deviceMesh.vao);
+			glBindVertexArray(skinnedMesh.deviceMesh.vao);
+
+			glGenBuffers(2, skinnedMesh.deviceMesh.buffers);
+			glBindBuffer(GL_ARRAY_BUFFER, skinnedMesh.deviceMesh.vertexBuffer);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(SkinnedVertex) * vertexCount, vertexData, GL_STATIC_DRAW);
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, skinnedMesh.deviceMesh.indexBuffer);
+			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(u16) * indexCount, indexData, GL_STATIC_DRAW);
+
+			// Position
+			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(SkinnedVertex),
+					(GLvoid *)offsetof(SkinnedVertex, pos));
+			glEnableVertexAttribArray(0);
+			// UV
+			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(SkinnedVertex),
+					(GLvoid *)offsetof(SkinnedVertex, uv));
+			glEnableVertexAttribArray(1);
+			// Normal
+			glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(SkinnedVertex),
+					(GLvoid *)offsetof(SkinnedVertex, nor));
+			glEnableVertexAttribArray(2);
+			// Joint indices
+			glVertexAttribIPointer(3, 4, GL_UNSIGNED_SHORT, sizeof(SkinnedVertex),
+					(GLvoid *)offsetof(SkinnedVertex, indices));
+			glEnableVertexAttribArray(3);
+			// Joint weights
+			glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(SkinnedVertex),
+					(GLvoid *)offsetof(SkinnedVertex, weights));
+			glEnableVertexAttribArray(4);
+
+			free(fileBuffer);
+		}
+
 		// Shaders
 		GLuint vertexShader = LoadShader(vertexShaderSource, GL_VERTEX_SHADER);
 		GLuint fragmentShader = LoadShader(fragShaderSource, GL_FRAGMENT_SHADER);
@@ -169,7 +293,26 @@ void StartGame()
 		}
 #endif
 
-		glUseProgram(program);
+		GLuint skinVertexShader = LoadShader(skinVertexShaderSource, GL_VERTEX_SHADER);
+		GLuint skinFragmentShader = fragmentShader;
+
+		skinnedMeshProgram = glCreateProgram();
+		glAttachShader(skinnedMeshProgram, skinVertexShader);
+		glAttachShader(skinnedMeshProgram, skinFragmentShader);
+		glLinkProgram(skinnedMeshProgram);
+#if defined(DEBUG_BUILD)
+		{
+			GLint status;
+			glGetProgramiv(skinnedMeshProgram, GL_LINK_STATUS, &status);
+			if (status != GL_TRUE)
+			{
+				char msg[256];
+				GLsizei len;
+				glGetProgramInfoLog(skinnedMeshProgram, sizeof(msg), &len, msg);
+				SDL_Log("Error linking shader program: %s", msg);
+			}
+		}
+#endif
 
 		glEnable(GL_DEPTH_TEST);
 
@@ -188,8 +331,14 @@ void StartGame()
 			0.0f, 0.0f, -(far + near) / (far - near), -1.0f,
 			0.0f, 0.0f, -(2.0f * far * near) / (far - near), 0.0f
 		};
+
+		glUseProgram(program);
 		GLuint projUniform = glGetUniformLocation(program, "projection");
 		glUniformMatrix4fv(projUniform, 1, false, proj.m);
+
+		glUseProgram(skinnedMeshProgram);
+		GLuint projUniformAlt = glGetUniformLocation(skinnedMeshProgram, "projection");
+		glUniformMatrix4fv(projUniformAlt, 1, false, proj.m);
 	}
 
 	GameState gameState = {};
@@ -565,8 +714,9 @@ void StartGame()
 		// Draw
 		{
 			// View matrix
+			mat4 view;
 			{
-				mat4 view = Mat4Translation({ 0.0f, 0.0f, -5.0f });
+				view = Mat4Translation({ 0.0f, 0.0f, -5.0f });
 				const f32 pitch = gameState.camPitch;
 				mat4 pitchMatrix =
 				{
@@ -590,12 +740,13 @@ void StartGame()
 				const v3 pos = gameState.camPos;
 				mat4 camPosMatrix = Mat4Translation(-pos);
 				view = Mat4Multiply(camPosMatrix, view);
-
-				GLuint viewUniform = glGetUniformLocation(program, "view");
-				glUniformMatrix4fv(viewUniform, 1, false, view.m);
 			}
 
-			const GLuint modelUniform = glGetUniformLocation(program, "model");
+			glUseProgram(program);
+			GLuint viewUniform = glGetUniformLocation(program, "view");
+			glUniformMatrix4fv(viewUniform, 1, false, view.m);
+
+			GLuint modelUniform = glGetUniformLocation(program, "model");
 
 			glClearColor(0.95f, 0.88f, 0.05f, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -678,6 +829,59 @@ void StartGame()
 			}
 #endif
 
+			// Skinned meshes
+			glUseProgram(skinnedMeshProgram);
+			viewUniform = glGetUniformLocation(skinnedMeshProgram, "view");
+			modelUniform = glGetUniformLocation(skinnedMeshProgram, "model");
+
+			GLuint jointsUniform = glGetUniformLocation(skinnedMeshProgram, "joints");
+			glUniformMatrix4fv(viewUniform, 1, false, view.m);
+			{
+				glUniformMatrix4fv(modelUniform, 1, false, MAT4_IDENTITY.m);
+
+				mat4 joints[32];
+				for (int i = 0; i < 32; ++i)
+				{
+					joints[i] = MAT4_IDENTITY;
+				}
+
+				static u32 animationFrame = 0;
+				Animation *animation = &skinnedMesh.animations[0];
+				for (u32 channelIdx = 0; channelIdx < animation->channelCount; ++channelIdx)
+				{
+					AnimationChannel *channel = &animation->channels[channelIdx];
+					const u32 frame = animationFrame;
+					const u32 jointIdx = channel->jointIndex;
+
+					mat4 transform = MAT4_IDENTITY;
+					if (jointIdx == 0)
+					{
+						////transform = Mat4Multiply(transform, Mat4Transpose(skinnedMesh.bindPoses[jointIdx]));
+						transform = Mat4Multiply(transform, channel->transforms[frame]);
+						transform = Mat4Multiply(transform, skinnedMesh.bindPoses[jointIdx]);
+					}
+					else
+					{
+						////transform = Mat4Multiply(transform, Mat4Transpose(skinnedMesh.bindPoses[0]));
+						transform = Mat4Multiply(transform, animation->channels[0].transforms[animationFrame]);
+						transform = Mat4Multiply(transform, skinnedMesh.bindPoses[0]);
+						transform = Mat4Multiply(transform, Mat4Transpose(skinnedMesh.bindPoses[jointIdx]));
+						transform = Mat4Multiply(transform, channel->transforms[frame]);
+						transform = Mat4Multiply(transform, skinnedMesh.bindPoses[jointIdx]);
+					}
+					joints[jointIdx] = transform;
+				}
+				++animationFrame;
+				if (animationFrame >= animation->frameCount)
+					animationFrame = 0;
+
+				// TODO dont transpose here, but in import!
+				glUniformMatrix4fv(jointsUniform, 32, true, joints[0].m);
+
+				glBindVertexArray(skinnedMesh.deviceMesh.vao);
+				glDrawElements(GL_TRIANGLES, skinnedMesh.deviceMesh.indexCount, GL_UNSIGNED_SHORT, NULL);
+			}
+
 			SDL_GL_SwapWindow(window);
 		}
 
@@ -686,14 +890,18 @@ void StartGame()
 
 	// Cleanup
 	{
+		FreeSkeletalMesh(&skinnedMesh);
+
 		glDeleteBuffers(2, playerMesh.buffers);
 		glDeleteBuffers(2, anvilMesh.buffers);
 		glDeleteBuffers(2, gameState.levelGeometry.renderMesh.buffers);
 		glDeleteBuffers(2, cubeMesh.buffers);
+		glDeleteBuffers(2, skinnedMesh.deviceMesh.buffers);
 		glDeleteVertexArrays(1, &playerMesh.vao);
 		glDeleteVertexArrays(1, &anvilMesh.vao);
 		glDeleteVertexArrays(1, &gameState.levelGeometry.renderMesh.vao);
 		glDeleteVertexArrays(1, &cubeMesh.vao);
+		glDeleteVertexArrays(1, &skinnedMesh.deviceMesh.vao);
 
 #if DEBUG_BUILD
 		glDeleteBuffers(1, &debugGeometryBuffer.deviceBuffer);

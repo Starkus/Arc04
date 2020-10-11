@@ -1,6 +1,3 @@
-#include "SDL/SDL.h"
-#include "SDL/SDL_OpenGL.h"
-
 #include <stdint.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -28,7 +25,7 @@ typedef double f64;
 #define DEBUG_BUILD 1
 #define DEBUG_ONLY(a) a
 
-#if 0//DEBUG_BUILD
+#if DEBUG_BUILD
 #define ASSERT(expr) do { if (!(expr)) __debugbreak(); } while (false)
 #else
 #define ASSERT(expr)
