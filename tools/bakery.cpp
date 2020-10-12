@@ -72,6 +72,83 @@ struct Animation
 
 typedef XMLElement* XMLElementPtr;
 
+// STACK
+const u64 stackSize = 128 * 1024 * 1024;
+void *stackMem;
+void *stackPtr;
+void StackInit()
+{
+	stackMem = malloc(stackSize);
+	stackPtr = stackMem;
+}
+void StackFinalize()
+{
+	free(stackMem);
+}
+void *StackAlloc(u64 size)
+{
+	ASSERT((u8 *)stackPtr + size < (u8 *)stackMem + stackSize); // Out of memory!
+	void *result;
+
+	result = stackPtr;
+	stackPtr = (u8 *)stackPtr + size;
+
+	return result;
+}
+void *StackRealloc(void *ptr, u64 newSize)
+{
+	//ASSERT(false);
+	printf("WARNING: STACK REALLOC\n");
+
+	void *newBlock = StackAlloc(newSize);
+	memcpy(newBlock, ptr, newSize);
+	return newBlock;
+}
+void StackFree(void *ptr)
+{
+	stackPtr = ptr;
+}
+
+// FRAME
+const u64 frameSize = 256 * 1024 * 1024;
+void *frameMem;
+void *framePtr;
+void FrameInit()
+{
+	frameMem = malloc(stackSize);
+	framePtr = frameMem;
+}
+void FrameFinalize()
+{
+	free(frameMem);
+}
+void *FrameAlloc(u64 size)
+{
+	ASSERT((u8 *)framePtr + size < (u8 *)frameMem + stackSize); // Out of memory!
+	void *result;
+
+	result = framePtr;
+	framePtr = (u8 *)framePtr + size;
+
+	return result;
+}
+void *FrameRealloc(void *ptr, u64 newSize)
+{
+	//ASSERT(false);
+	printf("WARNING: FRAME REALLOC\n");
+
+	void *newBlock = FrameAlloc(newSize);
+	memcpy(newBlock, ptr, newSize);
+	return newBlock;
+}
+void FrameFree(void *ptr)
+{
+}
+void FrameWipe()
+{
+	framePtr = frameMem;
+}
+
 DECLARE_ARRAY(u16);
 DECLARE_ARRAY(int);
 DECLARE_ARRAY(f32);
@@ -295,7 +372,6 @@ int ReadCollada(const char *filename)
 				positionsCount);
 		positions.size = positionsCount / 3;
 	}
-	DeferredFree(positions.data);
 
 	// Read normals
 	Array_v3 normals = {};
@@ -307,7 +383,6 @@ int ReadCollada(const char *filename)
 		ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), (f32 *)normals.data, normalsCount);
 		normals.size = normalsCount / 3;
 	}
-	DeferredFree(normals.data);
 
 	// Read uvs
 	Array_v2 uvs = {};
@@ -319,7 +394,6 @@ int ReadCollada(const char *filename)
 		ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), (f32 *)uvs.data, uvsCount);
 		uvs.size = uvsCount / 2;
 	}
-	DeferredFree(uvs.data);
 
 	// Read indices
 	Array_int triangleIndices;
@@ -331,7 +405,6 @@ int ReadCollada(const char *filename)
 				triangleIndices.data, totalIndexCount);
 		triangleIndices.size = totalIndexCount;
 	}
-	DeferredFree(triangleIndices.data);
 
 	// SKIN
 	XMLElement *controllerEl = rootEl->FirstChildElement("library_controllers")
@@ -413,10 +486,9 @@ int ReadCollada(const char *filename)
 	{
 		XMLElement *arrayEl = weightsSource->FirstChildElement("float_array");
 		int count = arrayEl->FindAttribute("count")->IntValue();
-		weights = (f32 *)malloc(sizeof(f32) * count);
+		weights = (f32 *)FrameAlloc(sizeof(f32) * count);
 		ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), weights, count);
 	}
-	DeferredFree(weights);
 
 	Skeleton skeleton = {};
 	char *jointNamesBuffer = 0;
@@ -424,10 +496,10 @@ int ReadCollada(const char *filename)
 	{
 		XMLElement *arrayEl = jointsSource->FirstChildElement("Name_array");
 		skeleton.jointCount = (u8)arrayEl->FindAttribute("count")->IntValue();
-		skeleton.ids = (char **)malloc(sizeof(char *) * skeleton.jointCount);
+		skeleton.ids = (char **)FrameAlloc(sizeof(char *) * skeleton.jointCount);
 
 		const char *in = arrayEl->FirstChild()->ToText()->Value();
-		jointNamesBuffer = (char *)malloc(sizeof(char *) * strlen(in));
+		jointNamesBuffer = (char *)FrameAlloc(sizeof(char *) * strlen(in));
 		strcpy(jointNamesBuffer, in);
 		char *wordBegin = jointNamesBuffer;
 		int jointIdx = 0;
@@ -452,15 +524,13 @@ int ReadCollada(const char *filename)
 			}
 		}
 	}
-	DeferredFree(jointNamesBuffer);
-	DeferredFree(skeleton.ids);
 
 	// Read bind poses
 	{
 		XMLElement *arrayEl = bindPosesSource->FirstChildElement("float_array");
 		int count = arrayEl->FindAttribute("count")->IntValue();
 		ASSERT(count / 16 == skeleton.jointCount);
-		skeleton.bindPoses = (mat4 *)malloc(sizeof(f32) * count);
+		skeleton.bindPoses = (mat4 *)FrameAlloc(sizeof(f32) * count);
 		ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), (f32 *)skeleton.bindPoses,
 				count);
 
@@ -469,15 +539,13 @@ int ReadCollada(const char *filename)
 			skeleton.bindPoses[i] = Mat4Transpose(skeleton.bindPoses[i]);
 		}
 	}
-	DeferredFree(skeleton.bindPoses);
 
 	// Read counts
 	int *weightCounts = 0;
 	{
-		weightCounts = (int *)malloc(sizeof(int) * weightIndexCount);
+		weightCounts = (int *)FrameAlloc(sizeof(int) * weightIndexCount);
 		ReadStringToInts(weightCountSource->FirstChild()->ToText()->Value(), weightCounts, weightIndexCount);
 	}
-	DeferredFree(weightCounts);
 
 	// Read weight indices
 	int *weightIndices = 0;
@@ -485,14 +553,12 @@ int ReadCollada(const char *filename)
 		int count = 0;
 		for (int i = 0; i < weightIndexCount; ++i)
 			count += weightCounts[i] * 2; // FIXME hardcoded 2!
-		weightIndices = (int *)malloc(sizeof(int) * count);
+		weightIndices = (int *)FrameAlloc(sizeof(int) * count);
 		ReadStringToInts(weightIndicesSource->FirstChild()->ToText()->Value(), weightIndices, count);
 	}
-	DeferredFree(weightIndices);
 
 	Array_SkinnedPosition skinnedPositions;
 	ArrayInit_SkinnedPosition(&skinnedPositions, positions.size);
-	DeferredFree(skinnedPositions.data);
 	{
 		int *weightCountScan = weightCounts;
 		int *weightIndexScan = weightIndices;
@@ -525,21 +591,34 @@ int ReadCollada(const char *filename)
 	DynamicArray_RawVertex finalVertices;
 	Array_u16 finalIndices;
 	{
+		void *oldStackPtr = stackPtr;
+
 		const bool hasUvs = uvsOffset >= 0;
 		const bool hasNormals = normalsOffset >= 0;
 
-		finalVertices.capacity = 32;
-		DynamicArrayInit_RawVertex(&finalVertices);
-
 		ArrayInit_u16(&finalIndices, triangleIndicesCount * 3);
 
-		const int nOfBuckets = 128;
-		DynamicArray_u16 *buckets = (DynamicArray_u16 *)malloc(sizeof(DynamicArray_u16) * nOfBuckets);
+		// We make the number of buckets the next power of 2 after the count
+		// to minimize collisions with a reasonable amount of memory.
+		int nOfBuckets = 128;
+		// Assume roughly one unique vertex per triangle, which is reasonable
+		// for smooth triangles that share all of their verices most of the
+		// time.
+		while (nOfBuckets < triangleIndicesCount)
+		{
+			nOfBuckets *= 2;
+		}
+		printf("Going with %d buckets for %d indices\n", nOfBuckets, triangleIndicesCount * 3);
+
+		DynamicArray_u16 *buckets = (DynamicArray_u16 *)StackAlloc(sizeof(DynamicArray_u16) * nOfBuckets);
 		for (int bucketIdx = 0; bucketIdx < nOfBuckets; ++bucketIdx)
 		{
-			buckets[bucketIdx].capacity = 32;
-			DynamicArrayInit_u16(&buckets[bucketIdx]);
+			DynamicArrayInit_u16(&buckets[bucketIdx], 4, StackAlloc);
 		}
+
+		// nOfBuckets should be a good enough estimation for the size of this array too
+		const u32 initialCapacity = nOfBuckets;
+		DynamicArrayInit_RawVertex(&finalVertices, initialCapacity, FrameAlloc);
 
 		for (int triangleIdx = 0; triangleIdx < triangleIndicesCount * 3; ++triangleIdx)
 		{
@@ -581,18 +660,34 @@ int ReadCollada(const char *filename)
 			if (index == 0xFFFF)
 			{
 				// Push back vertex
-				u16 newVertexIdx = (u16)DynamicArrayAdd_RawVertex(&finalVertices);
+				u16 newVertexIdx = (u16)DynamicArrayAdd_RawVertex(&finalVertices, FrameRealloc);
 				finalVertices[newVertexIdx] = newVertex;
 				finalIndices[finalIndices.size++] = newVertexIdx;
 
 				// Add to map
-				bucket[DynamicArrayAdd_u16(&bucket)] = newVertexIdx;
+				bucket[DynamicArrayAdd_u16(&bucket, StackRealloc)] = newVertexIdx;
 			}
 			else
 			{
 				finalIndices[finalIndices.size++] = index;
 			}
 		}
+
+		int total = 0;
+		int collisions = 0;
+		for (int bucketIdx = 0; bucketIdx < nOfBuckets; ++bucketIdx)
+		{
+			DynamicArray_u16 &bucket = (buckets[bucketIdx]);
+			collisions += bucket.size ? bucket.size - 1 : 0;
+			total += bucket.size;
+		}
+
+		printf("Vertex indexing collided %d times out of %d (%.02f%%)\n", collisions, total,
+				100.0f * collisions / (f32)total);
+
+		printf("Vertex indexing used %.02fkb of stack\n", ((u8 *)stackPtr - (u8 *)oldStackPtr) /
+				1024.0f);
+		StackFree(oldStackPtr);
 	}
 
 	printf("Ended up with %d unique vertices and %d indices\n", finalVertices.size,
@@ -608,10 +703,10 @@ int ReadCollada(const char *filename)
 
 	// JOINT HIERARCHY
 	{
-		skeleton.jointParents = (u8 *)malloc(skeleton.jointCount);
+		skeleton.jointParents = (u8 *)FrameAlloc(skeleton.jointCount);
 		memset(skeleton.jointParents, 0xFFFF, skeleton.jointCount);
 
-		skeleton.restPoses = (mat4 *)malloc(sizeof(mat4) * skeleton.jointCount);
+		skeleton.restPoses = (mat4 *)FrameAlloc(sizeof(mat4) * skeleton.jointCount);
 
 		XMLElement *sceneEl = rootEl->FirstChildElement("library_visual_scenes")
 			->FirstChildElement("visual_scene");
@@ -619,9 +714,7 @@ int ReadCollada(const char *filename)
 		XMLElement *nodeEl = sceneEl->FirstChildElement("node");
 
 		DynamicArray_XMLElementPtr stack;
-		stack.capacity = 16;
-		DynamicArrayInit_XMLElementPtr(&stack);
-		DeferredFree(stack.data);
+		DynamicArrayInit_XMLElementPtr(&stack, 16, FrameAlloc);
 
 		bool checkChildren = true;
 		while (nodeEl != nullptr)
@@ -661,7 +754,7 @@ int ReadCollada(const char *filename)
 
 						skeleton.jointParents[jointIdx] = parentJointIdx;
 
-						printf("Joint %s has parent %s\n", childName, parentName);
+						//printf("Joint %s has parent %s\n", childName, parentName);
 					}
 				}
 
@@ -681,7 +774,7 @@ int ReadCollada(const char *filename)
 					if (strcmp(type, "JOINT") == 0)
 					{
 						// Push joint to stack!
-						stack[DynamicArrayAdd_XMLElementPtr(&stack)] = nodeEl;
+						stack[DynamicArrayAdd_XMLElementPtr(&stack, FrameRealloc)] = nodeEl;
 					}
 
 					nodeEl = childEl;
@@ -710,8 +803,7 @@ int ReadCollada(const char *filename)
 	Animation animation = {};
 
 	DynamicArray_AnimationChannel channels;
-	channels.capacity = 16;
-	DynamicArrayInit_AnimationChannel(&channels);
+	DynamicArrayInit_AnimationChannel(&channels, skeleton.jointCount, FrameAlloc);
 
 	XMLElement *animationEl = rootEl->FirstChildElement("library_animations")
 		->FirstChildElement("animation");
@@ -719,7 +811,7 @@ int ReadCollada(const char *filename)
 	XMLElement *subAnimEl = animationEl->FirstChildElement("animation");
 	while (subAnimEl != nullptr)
 	{
-		printf("Found animation %s\n", subAnimEl->FindAttribute("id")->Value());
+		//printf("Found animation %s\n", subAnimEl->FindAttribute("id")->Value());
 
 		XMLElement *channelEl = subAnimEl->FirstChildElement("channel");
 		const char *samplerSourceName = channelEl->FindAttribute("source")->Value() + 1;
@@ -786,7 +878,7 @@ int ReadCollada(const char *filename)
 			// once per animation
 			XMLElement *arrayEl = timestampsSource->FirstChildElement("float_array");
 			animation.frameCount = arrayEl->FindAttribute("count")->IntValue();
-			animation.timestamps = (f32 *)malloc(sizeof(f32) * animation.frameCount);
+			animation.timestamps = (f32 *)FrameAlloc(sizeof(f32) * animation.frameCount);
 			ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), animation.timestamps,
 					animation.frameCount);
 		}
@@ -798,7 +890,7 @@ int ReadCollada(const char *filename)
 			XMLElement *arrayEl = matricesSource->FirstChildElement("float_array");
 			int count = arrayEl->FindAttribute("count")->IntValue();
 			ASSERT(animation.frameCount == (u32)(count / 16));
-			channel.transforms = (mat4 *)malloc(sizeof(f32) * count);
+			channel.transforms = (mat4 *)FrameAlloc(sizeof(f32) * count);
 			ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), (f32 *)channel.transforms,
 					count);
 
@@ -840,11 +932,11 @@ int ReadCollada(const char *filename)
 				}
 			}
 			ASSERT(channel.jointIndex != 0xFF);
-			printf("Channel thought to target joint \"%s\", ID %d\n", jointIdBuffer,
-					channel.jointIndex);
+			//printf("Channel thought to target joint \"%s\", ID %d\n", jointIdBuffer,
+					//channel.jointIndex);
 		}
 
-		int newChannelIdx = DynamicArrayAdd_AnimationChannel(&channels);
+		int newChannelIdx = DynamicArrayAdd_AnimationChannel(&channels, FrameRealloc);
 		channels[newChannelIdx] = channel;
 
 		subAnimEl = subAnimEl->NextSiblingElement("animation");
@@ -932,14 +1024,19 @@ int ReadCollada(const char *filename)
 		CloseHandle(newFile);
 	}
 
-	free(finalVertices.data);
-	free(finalIndices.data);
+	printf("Used %.02fkb of frame allocator\n", ((u8 *)framePtr - (u8 *)frameMem) / 1024.0f);
+	FrameFree(0);
 
 	return 0;
 }
 
 int main(int argc, char **argv)
 {
+	StackInit();
+	FrameInit();
+
+	int error = 0;
+
 	char colladaWildcard[MAX_PATH];
 	sprintf(colladaWildcard, "%s*.dae", dataDir);
 	WIN32_FIND_DATA findData;
@@ -948,8 +1045,8 @@ int main(int argc, char **argv)
 	while (1)
 	{
 		sprintf(fullName, "%s%s", dataDir, findData.cFileName);
-		printf("Detected file %s\n", fullName);
-		int error = ReadCollada(fullName);
+		printf("\nDetected file %s\n------------------------------\n", fullName);
+		error = ReadCollada(fullName);
 		if (error != 0)
 			return error;
 
@@ -957,5 +1054,8 @@ int main(int argc, char **argv)
 			break;
 	}
 
-	return 0;
+	StackFinalize();
+	FrameFinalize();
+
+	return error;
 }

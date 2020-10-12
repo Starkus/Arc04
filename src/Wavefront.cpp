@@ -75,7 +75,7 @@ OBJLoadResult LoadOBJ(const char *filename)
 					case ' ':
 					{
 						// Get pointer to next vertex in array
-						DynamicArrayAdd_v3(&vertices);
+						DynamicArrayAdd_v3(&vertices, realloc);
 						v3 *vertex = &vertices.data[vertices.size - 1];
 						for (int i = 0; i < 3; ++i)
 						{
@@ -93,7 +93,7 @@ OBJLoadResult LoadOBJ(const char *filename)
 					{
 						++scan;
 						// Get pointer to next uv in array
-						DynamicArrayAdd_v2(&uvs);
+						DynamicArrayAdd_v2(&uvs, realloc);
 						v2 *uv = &uvs.data[uvs.size - 1];
 						for (int i = 0; i < 2; ++i)
 						{
@@ -111,7 +111,7 @@ OBJLoadResult LoadOBJ(const char *filename)
 					{
 						++scan;
 						// Get pointer to next normal in array
-						DynamicArrayAdd_v3(&normals);
+						DynamicArrayAdd_v3(&normals, realloc);
 						v3 *normal = &normals.data[normals.size - 1];
 						for (int i = 0; i < 3; ++i)
 						{
@@ -146,7 +146,7 @@ OBJLoadResult LoadOBJ(const char *filename)
 						indices[j] = Atoi(numberBuffer) - 1;
 					}
 
-					DynamicArrayAdd_Vertex(&resultVertices);
+					DynamicArrayAdd_Vertex(&resultVertices, realloc);
 					Vertex *vertex = &((Vertex *)resultVertices.data)[resultVertices.size - 1];
 					vertex->pos = ((v3 *)vertices.data)[indices[0]];
 					vertex->uv = ((v2 *)uvs.data)[indices[1]];
@@ -155,7 +155,7 @@ OBJLoadResult LoadOBJ(const char *filename)
 
 					// FIXME dumb linear indices, add actual duplicate removal
 					// TODO check index doesn't go out of u16 bounds
-					DynamicArrayAdd_u16(&resultIndices);
+					DynamicArrayAdd_u16(&resultIndices, realloc);
 					((u16 *)resultIndices.data)[resultIndices.size - 1] = (u16)resultIndices.size - 1;
 				}
 			} break;
@@ -211,7 +211,7 @@ void LoadOBJAsPoints(const char *filename, v3 **points, u32 *pointCount)
 					case ' ':
 					{
 						// Get pointer to next vertex in array
-						DynamicArrayAdd_v3(&vertices);
+						DynamicArrayAdd_v3(&vertices, realloc);
 						v3 *vertex = &vertices.data[vertices.size - 1];
 						for (int i = 0; i < 3; ++i)
 						{

@@ -36,18 +36,19 @@ struct DynamicArray_##_TYPE \
 	} \
 }; \
 \
-inline void DynamicArrayInit_##_TYPE(DynamicArray_##_TYPE *array) \
+inline void DynamicArrayInit_##_TYPE(DynamicArray_##_TYPE *array, u32 capacity, void *(*allocFunc)(u64)) \
 { \
-	array->data = (_TYPE *)malloc(sizeof(_TYPE) * array->capacity); \
+	array->data = (_TYPE *)allocFunc(sizeof(_TYPE) * capacity); \
 	array->size = 0; \
+	array->capacity = capacity; \
 } \
 \
-inline u32 DynamicArrayAdd_##_TYPE(DynamicArray_##_TYPE *array) \
+inline u32 DynamicArrayAdd_##_TYPE(DynamicArray_##_TYPE *array, void *(*reallocFunc)(void *, u64)) \
 { \
 	if (array->size >= array->capacity) \
 	{ \
 		array->capacity *= 2; \
-		array->data = (_TYPE *)realloc(array->data, array->capacity * sizeof(_TYPE)); \
+		array->data = (_TYPE *)reallocFunc(array->data, array->capacity * sizeof(_TYPE)); \
 	} \
 	return array->size++; \
 }
