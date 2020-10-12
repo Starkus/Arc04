@@ -5,12 +5,12 @@
 #include "Maths.h"
 #include "Geometry.h"
 #include "Primitives.h"
-#include "Wavefront.h"
 #include "OpenGL.h"
 
 #include "Game.h"
 
-#include "Collision.h"
+#include "Collision.cpp"
+#include "BakeryInterop.cpp"
 
 GLuint LoadShader(const GLchar *shaderSource, GLuint shaderType)
 {
@@ -77,7 +77,7 @@ void StartGame()
 
 	LoadOpenGLProcs();
 
-	DeviceMesh playerMesh, anvilMesh, cubeMesh;
+	DeviceMesh anvilMesh, cubeMesh;
 	SkeletalMesh skinnedMesh = {};
 	GLuint program, skinnedMeshProgram;
 	{
@@ -85,50 +85,33 @@ void StartGame()
 		glEnable(GL_CULL_FACE);
 		glFrontFace(GL_CW);
 
-		// Player
-		{
-			OBJLoadResult obj = LoadOBJ("data/monkey.obj");
-			playerMesh.indexCount = obj.indexCount;
-
-			glGenVertexArrays(1, &playerMesh.vao);
-			glBindVertexArray(playerMesh.vao);
-
-			glGenBuffers(2, playerMesh.buffers);
-			glBindBuffer(GL_ARRAY_BUFFER, playerMesh.vertexBuffer);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(obj.vertices[0]) * obj.vertexCount, obj.vertices, GL_STATIC_DRAW);
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, playerMesh.indexBuffer);
-			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(obj.indices[0]) * obj.indexCount, obj.indices, GL_STATIC_DRAW);
-
-			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
-			glEnableVertexAttribArray(0);
-			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, color));
-			glEnableVertexAttribArray(1);
-
-			free(obj.vertices);
-			free(obj.indices);
-		}
-
 		// Anvil
 		{
-			OBJLoadResult obj = LoadOBJ("data/anvil.obj");
-			anvilMesh.indexCount = obj.indexCount;
+			Vertex *vertexData;
+			u16 *indexData;
+			u32 vertexCount;
+			u32 indexCount;
+			void *fileBuffer = ReadMesh("data/anvil.bin", &vertexData, &indexData, &vertexCount, &indexCount);
+
+			anvilMesh.indexCount = indexCount;
 
 			glGenVertexArrays(1, &anvilMesh.vao);
 			glBindVertexArray(anvilMesh.vao);
 
 			glGenBuffers(2, anvilMesh.buffers);
 			glBindBuffer(GL_ARRAY_BUFFER, anvilMesh.vertexBuffer);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(obj.vertices[0]) * obj.vertexCount, obj.vertices, GL_STATIC_DRAW);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(vertexData[0]) * vertexCount, vertexData, GL_STATIC_DRAW);
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, anvilMesh.indexBuffer);
-			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(obj.indices[0]) * obj.indexCount, obj.indices, GL_STATIC_DRAW);
+			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indexData[0]) * indexCount, indexData, GL_STATIC_DRAW);
 
 			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
 			glEnableVertexAttribArray(0);
-			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, color));
+			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, uv));
 			glEnableVertexAttribArray(1);
+			glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, nor));
+			glEnableVertexAttribArray(2);
 
-			free(obj.vertices);
-			free(obj.indices);
+			free(fileBuffer);
 		}
 
 		// Cube
@@ -146,7 +129,7 @@ void StartGame()
 
 			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
 			glEnableVertexAttribArray(0);
-			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, color));
+			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, nor));
 			glEnableVertexAttribArray(1);
 		}
 
@@ -162,88 +145,16 @@ void StartGame()
 
 			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
 			glEnableVertexAttribArray(0);
-			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, color));
+			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, nor));
 			glEnableVertexAttribArray(1);
 		}
 
 		// Skinned mesh
 		{
-			SDL_RWops *file = SDL_RWFromFile("data/Sparkus.bin", "rb");
-			const u64 fileSize = SDL_RWsize(file);
-			u8 *fileBuffer = (u8 *)malloc(fileSize);
-			SDL_RWread(file, fileBuffer, sizeof(u8), fileSize);
-			SDL_RWclose(file);
-
-			u8 *fileScan = fileBuffer;
-
-			u32 vertexCount = *(u32 *)fileScan;
-			fileScan += sizeof(u32);
-			u32 indexCount = *(u32 *)fileScan;
-			fileScan += sizeof(u32);
-
-			skinnedMesh.deviceMesh.indexCount = indexCount;
-
-			SkinnedVertex *vertexData = (SkinnedVertex *)fileScan;
-			fileScan += sizeof(SkinnedVertex) * vertexCount;
-			u16 *indexData = (u16 *)fileScan;
-			fileScan += sizeof(u16) * indexCount;
-
-			u8 jointCount = *fileScan;
-			fileScan += sizeof(u32);
-			mat4 *bindPoses = (mat4 *)malloc(sizeof(mat4) * jointCount);
-			memcpy(bindPoses, fileScan, sizeof(mat4) * jointCount);
-			fileScan += sizeof(mat4) * jointCount;
-			u8 *jointParents = (u8 *)malloc(jointCount);
-			memcpy(jointParents, fileScan, jointCount);
-			fileScan += jointCount;
-			mat4 *restPoses = (mat4 *)malloc(sizeof(mat4) * jointCount);
-			memcpy(restPoses, fileScan, sizeof(mat4) * jointCount);
-			fileScan += sizeof(mat4) * jointCount;
-
-			skinnedMesh.jointCount = jointCount;
-			skinnedMesh.bindPoses = bindPoses;
-			skinnedMesh.jointParents = jointParents;
-			skinnedMesh.restPoses = restPoses;
-
-			u32 animationCount = *(u32 *)fileScan;
-			fileScan += sizeof(u32);
-
-			skinnedMesh.animationCount = animationCount;
-			skinnedMesh.animations = (Animation *)malloc(sizeof(Animation) * animationCount);
-
-			for (u32 animIdx = 0; animIdx < animationCount; ++animIdx)
-			{
-				Animation *animation = &skinnedMesh.animations[animIdx];
-
-				u32 frameCount = *(u32 *)fileScan;
-				fileScan += sizeof(u32);
-				f32 *timestamps = (f32 *)malloc(sizeof(f32) * frameCount);
-				memcpy(timestamps, fileScan, sizeof(f32) * frameCount);
-				fileScan += sizeof(f32) * frameCount;
-				u32 channelCount = *(u32 *)fileScan;
-				fileScan += sizeof(u32);
-
-				animation->frameCount = frameCount;
-				animation->timestamps = timestamps;
-				animation->channelCount = channelCount;
-				animation->channels = (AnimationChannel *)malloc(sizeof(AnimationChannel) *channelCount);
-
-				for (u32 channelIdx = 0; channelIdx < channelCount; ++channelIdx)
-				{
-					AnimationChannel *channel = &animation->channels[channelIdx];
-
-					u8 jointIndex = *fileScan;
-					fileScan += sizeof(u32);
-					mat4 *transforms = (mat4 *)malloc(sizeof(mat4) * frameCount);
-					memcpy(transforms, fileScan, sizeof(mat4) * frameCount);
-					fileScan += sizeof(mat4) * frameCount;
-
-					channel->jointIndex = jointIndex;
-					channel->transforms = transforms;
-				}
-
-				SDL_Log("%d frames\n", frameCount);
-			}
+			SkinnedVertex *vertexData;
+			u16 *indexData;
+			u32 vertexCount;
+			void *fileBuffer = ReadSkinnedMesh("data/Sparkus.bin", &skinnedMesh, &vertexData, &indexData, &vertexCount);
 
 			glGenVertexArrays(1, &skinnedMesh.deviceMesh.vao);
 			glBindVertexArray(skinnedMesh.deviceMesh.vao);
@@ -252,7 +163,7 @@ void StartGame()
 			glBindBuffer(GL_ARRAY_BUFFER, skinnedMesh.deviceMesh.vertexBuffer);
 			glBufferData(GL_ARRAY_BUFFER, sizeof(SkinnedVertex) * vertexCount, vertexData, GL_STATIC_DRAW);
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, skinnedMesh.deviceMesh.indexBuffer);
-			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(u16) * indexCount, indexData, GL_STATIC_DRAW);
+			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(u16) * skinnedMesh.deviceMesh.indexCount, indexData, GL_STATIC_DRAW);
 
 			// Position
 			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(SkinnedVertex),
@@ -352,37 +263,38 @@ void StartGame()
 
 	// Init level
 	{
+		Vertex *vertexData;
+		u16 *indexData;
+		u32 vertexCount;
+		u32 indexCount;
+		void *fileBuffer = ReadMesh("data/level_graphics.bin", &vertexData, &indexData, &vertexCount, &indexCount);
+
 		DeviceMesh *levelMesh = &gameState.levelGeometry.renderMesh;
-		OBJLoadResult obj = LoadOBJ("data/level.obj");
-		levelMesh->indexCount = obj.indexCount;
+		levelMesh->indexCount = indexCount;
 
 		glGenVertexArrays(1, &levelMesh->vao);
 		glBindVertexArray(levelMesh->vao);
 
 		glGenBuffers(2, levelMesh->buffers);
 		glBindBuffer(GL_ARRAY_BUFFER, levelMesh->vertexBuffer);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(obj.vertices[0]) * obj.vertexCount, obj.vertices, GL_STATIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * vertexCount, vertexData, GL_STATIC_DRAW);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, levelMesh->indexBuffer);
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(obj.indices[0]) * obj.indexCount, obj.indices, GL_STATIC_DRAW);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(u16) * indexCount, indexData, GL_STATIC_DRAW);
 
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
 		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, color));
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, uv));
 		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, nor));
+		glEnableVertexAttribArray(2);
 
-		// Save triangles
-		gameState.levelGeometry.triangles = (v3 *)malloc(obj.vertexCount * sizeof(v3));
-		gameState.levelGeometry.triangleCount = obj.vertexCount / 3;
-		for (u32 vertexIdx = 0; vertexIdx < obj.vertexCount; ++vertexIdx)
-		{
-			// FIXME we are ignoring indices here!!! this will not work if we start eliminating
-			// duplicate vertices on wavefront importer!!
-			Vertex *vertex = &obj.vertices[vertexIdx];
-			gameState.levelGeometry.triangles[vertexIdx] = vertex->pos;
-		}
+		Triangle *triangleData;
+		u32 triangleCount;
+		ReadTriangleGeometry("data/level.bin", &triangleData, &triangleCount);
+		gameState.levelGeometry.triangles = triangleData;
+		gameState.levelGeometry.triangleCount = triangleCount;
 
-		free(obj.vertices);
-		free(obj.indices);
+		free(fileBuffer);
 	}
 
 	// Init player
@@ -390,11 +302,10 @@ void StartGame()
 		Entity *playerEnt = &gameState.entities[gameState.entityCount++];
 		gameState.player.entity = playerEnt;
 		playerEnt->fw = { 0.0f, 1.0f, 0.0f };
-		playerEnt->mesh = &playerMesh;
-		playerEnt->mesh = 0; // !!!!!!!!!!!
+		playerEnt->mesh = 0;
 
-		LoadOBJAsPoints("data/monkey_collision.obj", &playerEnt->collisionPoints,
-				&playerEnt->collisionPointCount);
+		ReadPoints("data/monkey_collision.bin", &playerEnt->collisionPoints,
+			&playerEnt->collisionPointCount);
 	}
 
 	// Init camera
@@ -404,7 +315,7 @@ void StartGame()
 	{
 		v3 *points;
 		u32 pointCount;
-		LoadOBJAsPoints("data/anvil_collision.obj", &points, &pointCount);
+		ReadPoints("data/anvil_collision.bin", &points, &pointCount);
 
 		Entity *testEntity = &gameState.entities[gameState.entityCount++];
 		testEntity->pos = { -5.0f, 2.0f, 1.0f };
@@ -557,7 +468,7 @@ void StartGame()
 			{
 				--gameState.animationIdx;
 				if (gameState.animationIdx < 0)
-					gameState.animationIdx = skinnedMesh.animationCount;
+					gameState.animationIdx = skinnedMesh.animationCount - 1;
 			}
 
 			if (gameState.controller.camUp.endedDown)
@@ -698,16 +609,14 @@ void StartGame()
 				{
 					v3 origin = player->entity->pos + v3{ 0, 0, 1 };
 					v3 dir = { 0, 0, -1.1f };
-					v3 a = level->triangles[triIdx * 3 + 0];
-					v3 b = level->triangles[triIdx * 3 + 1];
-					v3 c = level->triangles[triIdx * 3 + 2];
+					Triangle &triangle = level->triangles[triIdx];
 					v3 hit;
-					if (RayTriangleIntersection(origin, dir, a, b, c, &hit))
+					if (RayTriangleIntersection(origin, dir, triangle, &hit))
 					{
 						DRAW_AA_DEBUG_CUBE(hit, 0.2f);
-						DRAW_AA_DEBUG_CUBE(a, 0.1f);
-						DRAW_AA_DEBUG_CUBE(b, 0.1f);
-						DRAW_AA_DEBUG_CUBE(c, 0.1f);
+						DRAW_AA_DEBUG_CUBE(triangle.a, 0.1f);
+						DRAW_AA_DEBUG_CUBE(triangle.b, 0.1f);
+						DRAW_AA_DEBUG_CUBE(triangle.c, 0.1f);
 
 						player->entity->pos.z = hit.z;
 						touchedGround = true;
@@ -1003,12 +912,10 @@ void StartGame()
 	{
 		FreeSkeletalMesh(&skinnedMesh);
 
-		glDeleteBuffers(2, playerMesh.buffers);
 		glDeleteBuffers(2, anvilMesh.buffers);
 		glDeleteBuffers(2, gameState.levelGeometry.renderMesh.buffers);
 		glDeleteBuffers(2, cubeMesh.buffers);
 		glDeleteBuffers(2, skinnedMesh.deviceMesh.buffers);
-		glDeleteVertexArrays(1, &playerMesh.vao);
 		glDeleteVertexArrays(1, &anvilMesh.vao);
 		glDeleteVertexArrays(1, &gameState.levelGeometry.renderMesh.vao);
 		glDeleteVertexArrays(1, &cubeMesh.vao);

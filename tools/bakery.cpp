@@ -10,29 +10,32 @@ using namespace tinyxml2;
 #include "Containers.h"
 #include "Geometry.h"
 
-// DEFER
-#ifndef _DEFER_HELPER_DEFINED
-#define _DEFER_HELPER_DEFINED
-class _DEFER_HELPER
-{
-public:
-	void *ptr;
-	_DEFER_HELPER(void *ptr) : ptr(ptr) {}
-	~_DEFER_HELPER() { free(ptr); }
-};
-#endif
-#define _DEFER_HELPER_CONCAT_(a, b) a##b
-#define _DEFER_HELPER_CONCAT2_(a, b) _DEFER_HELPER_CONCAT_(a, b)
-#define DeferredFree(ptr) _DEFER_HELPER _DEFER_HELPER_CONCAT2_(_defer_helper_, __LINE__) = { ptr }
-////////
-
 const char *dataDir = "../data/";
 
 enum ErrorCode
 {
 	ERROR_OK,
 	ERROR_META_NOROOT = XML_ERROR_COUNT,
-	ERROR_COLLADA_NOROOT
+	ERROR_COLLADA_NOROOT,
+	ERROR_META_WRONG_TYPE
+};
+
+enum MetaType
+{
+	METATYPE_INVALID = -1,
+	METATYPE_MESH,
+	METATYPE_SKINNED_MESH,
+	METATYPE_TRIANGLE_DATA,
+	METATYPE_POINTS,
+	METATYPE_COUNT
+};
+
+const char *MetaTypeNames[] =
+{
+	"MESH",
+	"SKINNED_MESH",
+	"TRIANGLE_DATA",
+	"POINTS"
 };
 
 struct SkinnedPosition
@@ -100,7 +103,7 @@ void *StackAlloc(u64 size)
 void *StackRealloc(void *ptr, u64 newSize)
 {
 	//ASSERT(false);
-	SDL_Log("WARNING: STACK REALLOC\n");
+	//SDL_Log("WARNING: STACK REALLOC\n");
 
 	void *newBlock = StackAlloc(newSize);
 	memcpy(newBlock, ptr, newSize);
@@ -110,6 +113,38 @@ void StackFree(void *ptr)
 {
 	stackPtr = ptr;
 }
+
+DECLARE_ARRAY(u16);
+DECLARE_ARRAY(int);
+DECLARE_ARRAY(f32);
+DECLARE_ARRAY(v3);
+DECLARE_ARRAY(v2);
+DECLARE_ARRAY(mat4);
+DECLARE_ARRAY(SkinnedPosition);
+DECLARE_DYNAMIC_ARRAY(u16);
+DECLARE_DYNAMIC_ARRAY(XMLElementPtr);
+DECLARE_DYNAMIC_ARRAY(RawVertex);
+DECLARE_DYNAMIC_ARRAY(AnimationChannel);
+DECLARE_DYNAMIC_ARRAY(Animation);
+
+struct RawGeometry
+{
+	Array_v3 positions;
+	Array_v2 uvs;
+	Array_v3 normals;
+	Array_int triangleIndices;
+	int verticesOffset;
+	int normalsOffset;
+	int uvsOffset;
+	int triangleCount;
+};
+
+struct WeightData
+{
+	f32 *weights;
+	int *weightCounts;
+	int *weightIndices;
+};
 
 // FRAME
 const u64 frameSize = 256 * 1024 * 1024;
@@ -137,7 +172,7 @@ void *FrameAlloc(u64 size)
 void *FrameRealloc(void *ptr, u64 newSize)
 {
 	//ASSERT(false);
-	SDL_Log("WARNING: FRAME REALLOC\n");
+	//SDL_Log("WARNING: FRAME REALLOC\n");
 
 	void *newBlock = FrameAlloc(newSize);
 	memcpy(newBlock, ptr, newSize);
@@ -151,19 +186,6 @@ void FrameWipe()
 	framePtr = frameMem;
 }
 
-DECLARE_ARRAY(u16);
-DECLARE_ARRAY(int);
-DECLARE_ARRAY(f32);
-DECLARE_ARRAY(v3);
-DECLARE_ARRAY(v2);
-DECLARE_ARRAY(mat4);
-DECLARE_ARRAY(SkinnedPosition);
-DECLARE_DYNAMIC_ARRAY(u16);
-DECLARE_DYNAMIC_ARRAY(XMLElementPtr);
-DECLARE_DYNAMIC_ARRAY(RawVertex);
-DECLARE_DYNAMIC_ARRAY(AnimationChannel);
-DECLARE_DYNAMIC_ARRAY(Animation);
-
 u32 HashRawVertex(const RawVertex &v)
 {
 	u32 result = 0;
@@ -172,6 +194,28 @@ u32 HashRawVertex(const RawVertex &v)
 		result = ((u8 *)&v)[counter] + (result << 6) + (result << 16) - result;
 	}
 	return result;
+}
+
+void GetOutputFilename(const char *metaFilename, char *outputFilename)
+{
+	strcpy(outputFilename, metaFilename);
+	// Change extension
+	char *lastDot = 0;
+	for (char *scan = outputFilename; ; ++scan)
+	{
+		if (*scan == '.')
+		{
+			lastDot = scan;
+		}
+		else if (*scan == 0)
+		{
+			if (!lastDot)
+				lastDot = scan;
+			break;
+		}
+	}
+	strcpy(lastDot, ".bin\0");
+	SDL_Log("Output name: %s\n", outputFilename);
 }
 
 void ReadStringToFloats(const char *text, f32 *buffer, int count)
@@ -237,8 +281,7 @@ void ReadStringToInts(const char *text, int *buffer, int count)
 	}
 }
 
-int ReadColladaGeometry(const char *filename, DynamicArray_RawVertex &finalVertices,
-		Array_u16 &finalIndices, Skeleton &skeleton)
+int ReadColladaGeometry(const char *filename, RawGeometry *result)
 {
 	XMLError error;
 
@@ -257,6 +300,8 @@ int ReadColladaGeometry(const char *filename, DynamicArray_RawVertex &finalVerti
 		return ERROR_COLLADA_NOROOT;
 	}
 
+	*result = {};
+
 	// GEOMETRY
 	XMLElement *geometryEl = rootEl->FirstChildElement("library_geometries")
 		->FirstChildElement("geometry");
@@ -269,23 +314,22 @@ int ReadColladaGeometry(const char *filename, DynamicArray_RawVertex &finalVerti
 	XMLElement *positionsSource = 0;
 	XMLElement *uvsSource = 0;
 	XMLElement *triangleIndicesSource = 0;
-	int triangleIndicesCount = -1;
 
 	const char *verticesSourceName = 0;
 	const char *normalsSourceName = 0;
 	const char *positionsSourceName = 0;
 	const char *uvsSourceName = 0;
 
-	int verticesOffset = -1;
-	int normalsOffset = -1;
-	int uvsOffset = -1;
+	result->verticesOffset = -1;
+	result->normalsOffset = -1;
+	result->uvsOffset = -1;
 	int attrCount = 0;
 
 	// Get triangle source ids and index array
 	{
 		XMLElement *trianglesEl = meshEl->FirstChildElement("triangles");
 		triangleIndicesSource = trianglesEl->FirstChildElement("p");
-		triangleIndicesCount = trianglesEl->FindAttribute("count")->IntValue();
+		result->triangleCount = trianglesEl->FindAttribute("count")->IntValue();
 
 		XMLElement *inputEl = trianglesEl->FirstChildElement("input");
 		while (inputEl != nullptr)
@@ -296,19 +340,19 @@ int ReadColladaGeometry(const char *filename, DynamicArray_RawVertex &finalVerti
 			if (strcmp(semantic, "VERTEX") == 0)
 			{
 				verticesSourceName = source + 1;
-				verticesOffset = offset;
+				result->verticesOffset = offset;
 				++attrCount;
 			}
 			else if (strcmp(semantic, "NORMAL") == 0)
 			{
 				normalsSourceName = source + 1;
-				normalsOffset = offset;
+				result->normalsOffset = offset;
 				++attrCount;
 			}
 			else if (strcmp(semantic, "TEXCOORD") == 0)
 			{
 				uvsSourceName = source + 1;
-				uvsOffset = offset;
+				result->uvsOffset = offset;
 				++attrCount;
 			}
 			inputEl = inputEl->NextSiblingElement("input");
@@ -367,47 +411,67 @@ int ReadColladaGeometry(const char *filename, DynamicArray_RawVertex &finalVerti
 	}
 
 	// Read positions
-	Array_v3 positions;
 	{
 		XMLElement *arrayEl = positionsSource->FirstChildElement("float_array");
 		int positionsCount = arrayEl->FindAttribute("count")->IntValue();
-		ArrayInit_v3(&positions, positionsCount / 3);
-		ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), (f32 *)positions.data,
+		ArrayInit_v3(&result->positions, positionsCount / 3);
+		ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), (f32 *)result->positions.data,
 				positionsCount);
-		positions.size = positionsCount / 3;
+		result->positions.size = positionsCount / 3;
 	}
 
 	// Read normals
-	Array_v3 normals = {};
+	result->normals = {};
 	if (normalsSource)
 	{
 		XMLElement *arrayEl = normalsSource->FirstChildElement("float_array");
 		int normalsCount = arrayEl->FindAttribute("count")->IntValue();
-		ArrayInit_v3(&normals, normalsCount / 3);
-		ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), (f32 *)normals.data, normalsCount);
-		normals.size = normalsCount / 3;
+		ArrayInit_v3(&result->normals, normalsCount / 3);
+		ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), (f32 *)result->normals.data, normalsCount);
+		result->normals.size = normalsCount / 3;
 	}
 
 	// Read uvs
-	Array_v2 uvs = {};
+	result->uvs = {};
 	if (uvsSource)
 	{
 		XMLElement *arrayEl = uvsSource->FirstChildElement("float_array");
 		int uvsCount = arrayEl->FindAttribute("count")->IntValue();
-		ArrayInit_v2(&uvs, uvsCount / 2);
-		ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), (f32 *)uvs.data, uvsCount);
-		uvs.size = uvsCount / 2;
+		ArrayInit_v2(&result->uvs, uvsCount / 2);
+		ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), (f32 *)result->uvs.data, uvsCount);
+		result->uvs.size = uvsCount / 2;
 	}
 
 	// Read indices
-	Array_int triangleIndices;
+	result->triangleIndices;
 	{
-		const int totalIndexCount = triangleIndicesCount * 3 * attrCount;
+		const int totalIndexCount = result->triangleCount * 3 * attrCount;
 
-		ArrayInit_int(&triangleIndices, totalIndexCount);
+		ArrayInit_int(&result->triangleIndices, totalIndexCount);
 		ReadStringToInts(triangleIndicesSource->FirstChild()->ToText()->Value(),
-				triangleIndices.data, totalIndexCount);
-		triangleIndices.size = totalIndexCount;
+				result->triangleIndices.data, totalIndexCount);
+		result->triangleIndices.size = totalIndexCount;
+	}
+	return 0;
+}
+
+int ReadColladaController(const char *filename, Skeleton *skeleton, WeightData *weightData)
+{
+	XMLError error;
+
+	tinyxml2::XMLDocument doc;
+	error = doc.LoadFile(filename);
+	if (error != XML_SUCCESS)
+	{
+		SDL_Log("ERROR! Parsing XML file \"%s\" (%s)\n", filename, doc.ErrorStr());
+		return error;
+	}
+
+	XMLElement *rootEl = doc.FirstChildElement("COLLADA");
+	if (!rootEl)
+	{
+		SDL_Log("ERROR! Collada root node not found\n");
+		return ERROR_COLLADA_NOROOT;
 	}
 
 	// SKIN
@@ -486,20 +550,20 @@ int ReadColladaGeometry(const char *filename, DynamicArray_RawVertex &finalVerti
 	}
 
 	// Read weights
-	f32 *weights = 0;
+	weightData->weights = 0;
 	{
 		XMLElement *arrayEl = weightsSource->FirstChildElement("float_array");
 		int count = arrayEl->FindAttribute("count")->IntValue();
-		weights = (f32 *)FrameAlloc(sizeof(f32) * count);
-		ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), weights, count);
+		weightData->weights = (f32 *)FrameAlloc(sizeof(f32) * count);
+		ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), weightData->weights, count);
 	}
 
 	char *jointNamesBuffer = 0;
 	// Read joint names
 	{
 		XMLElement *arrayEl = jointsSource->FirstChildElement("Name_array");
-		skeleton.jointCount = (u8)arrayEl->FindAttribute("count")->IntValue();
-		skeleton.ids = (char **)FrameAlloc(sizeof(char *) * skeleton.jointCount);
+		skeleton->jointCount = (u8)arrayEl->FindAttribute("count")->IntValue();
+		skeleton->ids = (char **)FrameAlloc(sizeof(char *) * skeleton->jointCount);
 
 		const char *in = arrayEl->FirstChild()->ToText()->Value();
 		jointNamesBuffer = (char *)FrameAlloc(sizeof(char *) * strlen(in));
@@ -512,7 +576,7 @@ int ReadColladaGeometry(const char *filename, DynamicArray_RawVertex &finalVerti
 			{
 				if (wordBegin != scan)
 				{
-					skeleton.ids[jointIdx++] = wordBegin;
+					skeleton->ids[jointIdx++] = wordBegin;
 					*scan = 0;
 				}
 				wordBegin = scan + 1;
@@ -521,7 +585,7 @@ int ReadColladaGeometry(const char *filename, DynamicArray_RawVertex &finalVerti
 			{
 				if (wordBegin != scan)
 				{
-					skeleton.ids[jointIdx++] = wordBegin;
+					skeleton->ids[jointIdx++] = wordBegin;
 				}
 				break;
 			}
@@ -532,50 +596,165 @@ int ReadColladaGeometry(const char *filename, DynamicArray_RawVertex &finalVerti
 	{
 		XMLElement *arrayEl = bindPosesSource->FirstChildElement("float_array");
 		int count = arrayEl->FindAttribute("count")->IntValue();
-		ASSERT(count / 16 == skeleton.jointCount);
-		skeleton.bindPoses = (mat4 *)FrameAlloc(sizeof(f32) * count);
-		ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), (f32 *)skeleton.bindPoses,
+		ASSERT(count / 16 == skeleton->jointCount);
+		skeleton->bindPoses = (mat4 *)FrameAlloc(sizeof(f32) * count);
+		ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), (f32 *)skeleton->bindPoses,
 				count);
 
 		for (int i = 0; i < count / 16; ++i)
 		{
-			skeleton.bindPoses[i] = Mat4Transpose(skeleton.bindPoses[i]);
+			skeleton->bindPoses[i] = Mat4Transpose(skeleton->bindPoses[i]);
 		}
 	}
 
 	// Read counts
-	int *weightCounts = 0;
+	weightData->weightCounts = 0;
 	{
-		weightCounts = (int *)FrameAlloc(sizeof(int) * weightIndexCount);
-		ReadStringToInts(weightCountSource->FirstChild()->ToText()->Value(), weightCounts, weightIndexCount);
+		weightData->weightCounts = (int *)FrameAlloc(sizeof(int) * weightIndexCount);
+		ReadStringToInts(weightCountSource->FirstChild()->ToText()->Value(), weightData->weightCounts, weightIndexCount);
 	}
 
 	// Read weight indices
-	int *weightIndices = 0;
+	weightData->weightIndices = 0;
 	{
 		int count = 0;
 		for (int i = 0; i < weightIndexCount; ++i)
-			count += weightCounts[i] * 2; // FIXME hardcoded 2!
-		weightIndices = (int *)FrameAlloc(sizeof(int) * count);
-		ReadStringToInts(weightIndicesSource->FirstChild()->ToText()->Value(), weightIndices, count);
+			count += weightData->weightCounts[i] * 2; // FIXME hardcoded 2!
+		weightData->weightIndices = (int *)FrameAlloc(sizeof(int) * count);
+		ReadStringToInts(weightIndicesSource->FirstChild()->ToText()->Value(), weightData->weightIndices, count);
 	}
 
-	Array_SkinnedPosition skinnedPositions;
-	ArrayInit_SkinnedPosition(&skinnedPositions, positions.size);
+	// JOINT HIERARCHY
 	{
-		int *weightCountScan = weightCounts;
-		int *weightIndexScan = weightIndices;
-		for (u32 i = 0; i < positions.size; ++i)
+		skeleton->jointParents = (u8 *)FrameAlloc(skeleton->jointCount);
+		memset(skeleton->jointParents, 0xFFFF, skeleton->jointCount);
+
+		skeleton->restPoses = (mat4 *)FrameAlloc(sizeof(mat4) * skeleton->jointCount);
+
+		XMLElement *sceneEl = rootEl->FirstChildElement("library_visual_scenes")
+			->FirstChildElement("visual_scene");
+		SDL_Log("Found visual scene %s\n", sceneEl->FindAttribute("id")->Value());
+		XMLElement *nodeEl = sceneEl->FirstChildElement("node");
+
+		DynamicArray_XMLElementPtr stack;
+		DynamicArrayInit_XMLElementPtr(&stack, 16, FrameAlloc);
+
+		bool checkChildren = true;
+		while (nodeEl != nullptr)
 		{
-			SkinnedPosition *skinnedPos = &skinnedPositions[skinnedPositions.size++];
-			skinnedPos->pos = positions[i];
+			const char *nodeType = nodeEl->FindAttribute("type")->Value();
+			if (checkChildren && strcmp(nodeType, "JOINT") == 0)
+			{
+				XMLElement *child = nodeEl;
+				const char *childName = child->FindAttribute("sid")->Value();
+
+				u8 jointIdx = 0xFF;
+				for (int i = 0; i < skeleton->jointCount; ++i)
+				{
+					if (strcmp(skeleton->ids[i], childName) == 0)
+						jointIdx = (u8)i;
+				}
+				ASSERT(jointIdx != 0xFF);
+
+				if (stack.size)
+				{
+					XMLElement *parent = stack[stack.size - 1];
+					const char *parentType = parent->FindAttribute("type")->Value();
+					if (strcmp(parentType, "JOINT") == 0)
+					{
+						// Save parent ID
+						const char *parentName = parent->FindAttribute("sid")->Value();
+
+						u8 parentJointIdx = 0xFF;
+						for (int i = 0; i < skeleton->jointCount; ++i)
+						{
+							if (strcmp(skeleton->ids[i], parentName) == 0)
+								parentJointIdx = (u8)i;
+							else if (strcmp(skeleton->ids[i], childName) == 0)
+								jointIdx = (u8)i;
+						}
+						ASSERT(parentJointIdx != 0xFF);
+
+						skeleton->jointParents[jointIdx] = parentJointIdx;
+
+						//SDL_Log("Joint %s has parent %s\n", childName, parentName);
+					}
+				}
+
+				XMLElement *matrixEl = nodeEl->FirstChildElement("matrix");
+				const char *matrixStr = matrixEl->FirstChild()->ToText()->Value();
+				mat4 restPose;
+				ReadStringToFloats(matrixStr, (f32 *)&restPose, 16);
+				skeleton->restPoses[jointIdx] = Mat4Transpose(restPose);
+			}
+
+			if (checkChildren)
+			{
+				XMLElement *childEl = nodeEl->FirstChildElement("node");
+				if (childEl)
+				{
+					const char *type = nodeEl->FindAttribute("type")->Value();
+					if (strcmp(type, "JOINT") == 0)
+					{
+						// Push joint to stack!
+						stack[DynamicArrayAdd_XMLElementPtr(&stack, FrameRealloc)] = nodeEl;
+					}
+
+					nodeEl = childEl;
+					continue;
+				}
+			}
+
+			XMLElement *siblingEl = nodeEl->NextSiblingElement("node");
+			if (siblingEl)
+			{
+				nodeEl = siblingEl;
+				checkChildren = true;
+				continue;
+			}
+
+			// Pop from stack!
+			if (stack.size == 0)
+				break;
+
+			nodeEl = stack[--stack.size];
+			checkChildren = false;
+		}
+	}
+
+	return 0;
+}
+
+int ConstructSkinnedMesh(const char *filename, const RawGeometry *geometry,
+		const WeightData *weightData,
+		DynamicArray_RawVertex &finalVertices, Array_u16 &finalIndices)
+{
+	const u32 vertexTotal = geometry->positions.size;
+
+	Array_SkinnedPosition skinnedPositions;
+	ArrayInit_SkinnedPosition(&skinnedPositions, vertexTotal);
+	for (u32 i = 0; i < vertexTotal; ++i)
+	{
+		SkinnedPosition *skinnedPos = &skinnedPositions[skinnedPositions.size++];
+		*skinnedPos = {};
+		skinnedPos->pos = geometry->positions[i];
+	}
+
+	// Inject weights into skinned positions
+	if (weightData)
+	{
+		const int *weightCountScan = weightData->weightCounts;
+		const int *weightIndexScan = weightData->weightIndices;
+		for (u32 i = 0; i < skinnedPositions.size; ++i)
+		{
+			SkinnedPosition *skinnedPos = &skinnedPositions[i];
 
 			int jointsNum = *weightCountScan++;
 			ASSERT(jointsNum <= 4);
 			for (int j = 0; j < jointsNum; ++j)
 			{
 				skinnedPos->jointIndices[j] = (u8)*weightIndexScan++;
-				skinnedPos->jointWeights[j] = weights[*weightIndexScan++];
+				skinnedPos->jointWeights[j] = weightData->weights[*weightIndexScan++];
 			}
 			for (int j = jointsNum; j < 4; ++j)
 			{
@@ -594,10 +773,11 @@ int ReadColladaGeometry(const char *filename, DynamicArray_RawVertex &finalVerti
 	{
 		void *oldStackPtr = stackPtr;
 
-		const bool hasUvs = uvsOffset >= 0;
-		const bool hasNormals = normalsOffset >= 0;
+		const bool hasUvs = geometry->uvsOffset >= 0;
+		const bool hasNormals = geometry->normalsOffset >= 0;
+		const int attrCount = 1 + hasUvs + hasNormals;
 
-		ArrayInit_u16(&finalIndices, triangleIndicesCount * 3);
+		ArrayInit_u16(&finalIndices, geometry->triangleCount * 3);
 
 		// We make the number of buckets the next power of 2 after the count
 		// to minimize collisions with a reasonable amount of memory.
@@ -605,11 +785,11 @@ int ReadColladaGeometry(const char *filename, DynamicArray_RawVertex &finalVerti
 		// Assume roughly one unique vertex per triangle, which is reasonable
 		// for smooth triangles that share all of their verices most of the
 		// time.
-		while (nOfBuckets < triangleIndicesCount)
+		while (nOfBuckets < geometry->triangleCount)
 		{
 			nOfBuckets *= 2;
 		}
-		SDL_Log("Going with %d buckets for %d indices\n", nOfBuckets, triangleIndicesCount * 3);
+		SDL_Log("Going with %d buckets for %d indices\n", nOfBuckets, geometry->triangleCount * 3);
 
 		DynamicArray_u16 *buckets = (DynamicArray_u16 *)StackAlloc(sizeof(DynamicArray_u16) * nOfBuckets);
 		for (int bucketIdx = 0; bucketIdx < nOfBuckets; ++bucketIdx)
@@ -621,25 +801,25 @@ int ReadColladaGeometry(const char *filename, DynamicArray_RawVertex &finalVerti
 		const u32 initialCapacity = nOfBuckets;
 		DynamicArrayInit_RawVertex(&finalVertices, initialCapacity, FrameAlloc);
 
-		for (int triangleIdx = 0; triangleIdx < triangleIndicesCount * 3; ++triangleIdx)
+		for (int triangleIdx = 0; triangleIdx < geometry->triangleCount * 3; ++triangleIdx)
 		{
-			const int posIdx = triangleIndices[triangleIdx * attrCount + verticesOffset];
+			const int posIdx = geometry->triangleIndices[triangleIdx * attrCount + geometry->verticesOffset];
 			SkinnedPosition pos = skinnedPositions[posIdx];
 
 			int uvIdx = 0;
 			v2 uv = {};
 			if (hasUvs)
 			{
-				uvIdx = triangleIndices[triangleIdx * attrCount + uvsOffset];
-				uv = uvs[uvIdx];
+				uvIdx = geometry->triangleIndices[triangleIdx * attrCount + geometry->uvsOffset];
+				uv = geometry->uvs[uvIdx];
 			}
 
 			int norIdx = 0;
 			v3 nor = {};
 			if (hasNormals)
 			{
-				norIdx = triangleIndices[triangleIdx * attrCount + normalsOffset];
-				nor = normals[norIdx];
+				norIdx = geometry->triangleIndices[triangleIdx * attrCount + geometry->normalsOffset];
+				nor = geometry->normals[norIdx];
 			}
 
 			RawVertex newVertex = { pos, uv, nor };
@@ -695,109 +875,11 @@ int ReadColladaGeometry(const char *filename, DynamicArray_RawVertex &finalVerti
 			finalIndices.size);
 
 	// Rewind triangles
-	for (int i = 0; i < triangleIndicesCount; ++i)
+	for (int i = 0; i < geometry->triangleCount; ++i)
 	{
 		u16 tmp = finalIndices[i * 3 + 1];
 		finalIndices[i * 3 + 1] = finalIndices[i * 3 + 2];
 		finalIndices[i * 3 + 2] = tmp;
-	}
-
-	// JOINT HIERARCHY
-	{
-		skeleton.jointParents = (u8 *)FrameAlloc(skeleton.jointCount);
-		memset(skeleton.jointParents, 0xFFFF, skeleton.jointCount);
-
-		skeleton.restPoses = (mat4 *)FrameAlloc(sizeof(mat4) * skeleton.jointCount);
-
-		XMLElement *sceneEl = rootEl->FirstChildElement("library_visual_scenes")
-			->FirstChildElement("visual_scene");
-		SDL_Log("Found visual scene %s\n", sceneEl->FindAttribute("id")->Value());
-		XMLElement *nodeEl = sceneEl->FirstChildElement("node");
-
-		DynamicArray_XMLElementPtr stack;
-		DynamicArrayInit_XMLElementPtr(&stack, 16, FrameAlloc);
-
-		bool checkChildren = true;
-		while (nodeEl != nullptr)
-		{
-			const char *nodeType = nodeEl->FindAttribute("type")->Value();
-			if (checkChildren && strcmp(nodeType, "JOINT") == 0)
-			{
-				XMLElement *child = nodeEl;
-				const char *childName = child->FindAttribute("sid")->Value();
-
-				u8 jointIdx = 0xFF;
-				for (int i = 0; i < skeleton.jointCount; ++i)
-				{
-					if (strcmp(skeleton.ids[i], childName) == 0)
-						jointIdx = (u8)i;
-				}
-				ASSERT(jointIdx != 0xFF);
-
-				if (stack.size)
-				{
-					XMLElement *parent = stack[stack.size - 1];
-					const char *parentType = parent->FindAttribute("type")->Value();
-					if (strcmp(parentType, "JOINT") == 0)
-					{
-						// Save parent ID
-						const char *parentName = parent->FindAttribute("sid")->Value();
-
-						u8 parentJointIdx = 0xFF;
-						for (int i = 0; i < skeleton.jointCount; ++i)
-						{
-							if (strcmp(skeleton.ids[i], parentName) == 0)
-								parentJointIdx = (u8)i;
-							else if (strcmp(skeleton.ids[i], childName) == 0)
-								jointIdx = (u8)i;
-						}
-						ASSERT(parentJointIdx != 0xFF);
-
-						skeleton.jointParents[jointIdx] = parentJointIdx;
-
-						//SDL_Log("Joint %s has parent %s\n", childName, parentName);
-					}
-				}
-
-				XMLElement *matrixEl = nodeEl->FirstChildElement("matrix");
-				const char *matrixStr = matrixEl->FirstChild()->ToText()->Value();
-				mat4 restPose;
-				ReadStringToFloats(matrixStr, (f32 *)&restPose, 16);
-				skeleton.restPoses[jointIdx] = Mat4Transpose(restPose);
-			}
-
-			if (checkChildren)
-			{
-				XMLElement *childEl = nodeEl->FirstChildElement("node");
-				if (childEl)
-				{
-					const char *type = nodeEl->FindAttribute("type")->Value();
-					if (strcmp(type, "JOINT") == 0)
-					{
-						// Push joint to stack!
-						stack[DynamicArrayAdd_XMLElementPtr(&stack, FrameRealloc)] = nodeEl;
-					}
-
-					nodeEl = childEl;
-					continue;
-				}
-			}
-
-			XMLElement *siblingEl = nodeEl->NextSiblingElement("node");
-			if (siblingEl)
-			{
-				nodeEl = siblingEl;
-				checkChildren = true;
-				continue;
-			}
-
-			// Pop from stack!
-			if (stack.size == 0)
-				break;
-
-			nodeEl = stack[--stack.size];
-			checkChildren = false;
-		}
 	}
 
 	return 0;
@@ -968,17 +1050,49 @@ int ReadColladaAnimation(const char *filename, Animation &animation, Skeleton &s
 	return 0;
 }
 
+int OutputMesh(const char *filename, DynamicArray_RawVertex &finalVertices, Array_u16 &finalIndices)
+{
+	// Output!
+	{
+		SDL_RWops *newFile = SDL_RWFromFile(filename, "wb");
+		{
+			SDL_RWwrite(newFile, &finalVertices.size, sizeof(finalVertices.size), 1);
+			SDL_RWwrite(newFile, &finalIndices.size, sizeof(finalIndices.size), 1);
+
+			// Write vertex data
+			for (u32 i = 0; i < finalVertices.size; ++i)
+			{
+				RawVertex *rawVertex = &finalVertices[i];
+				Vertex gameVertex;
+				gameVertex.pos = rawVertex->skinnedPos.pos;
+				gameVertex.uv = rawVertex->uv;
+				gameVertex.nor = rawVertex->normal;
+
+				SDL_RWwrite(newFile, &gameVertex, sizeof(gameVertex), 1);
+			}
+
+			// Write indices
+			for (u32 i = 0; i < finalIndices.size; ++i)
+			{
+				u16 outputIdx = finalIndices[i];
+				SDL_RWwrite(newFile, &outputIdx, sizeof(outputIdx), 1);
+			}
+		}
+		SDL_RWclose(newFile);
+	}
+
+	return 0;
+}
+
 int OutputSkinnedMesh(const char *filename, DynamicArray_RawVertex &finalVertices,
 		Array_u16 &finalIndices, Skeleton &skeleton, DynamicArray_Animation &animations)
 {
 	// Output!
 	{
-		HANDLE newFile = CreateFileA(filename, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
-				FILE_ATTRIBUTE_NORMAL, NULL);
-		DWORD bytesWritten;
+		SDL_RWops *newFile = SDL_RWFromFile(filename, "wb");
 		{
-			WriteFile(newFile, &finalVertices.size, sizeof(finalVertices.size), &bytesWritten, NULL);
-			WriteFile(newFile, &finalIndices.size, sizeof(finalIndices.size), &bytesWritten, NULL);
+			SDL_RWwrite(newFile, &finalVertices.size, sizeof(finalVertices.size), 1);
+			SDL_RWwrite(newFile, &finalIndices.size, sizeof(finalIndices.size), 1);
 
 			// Write vertex data
 			for (u32 i = 0; i < finalVertices.size; ++i)
@@ -994,43 +1108,41 @@ int OutputSkinnedMesh(const char *filename, DynamicArray_RawVertex &finalVertice
 					gameVertex.weights[j] = rawVertex->skinnedPos.jointWeights[j];
 				}
 
-				WriteFile(newFile, &gameVertex, sizeof(gameVertex), &bytesWritten, NULL);
-				ASSERT(bytesWritten == sizeof(SkinnedVertex));
+				SDL_RWwrite(newFile, &gameVertex, sizeof(gameVertex), 1);
 			}
 
 			// Write indices
 			for (u32 i = 0; i < finalIndices.size; ++i)
 			{
 				u16 outputIdx = finalIndices[i];
-				WriteFile(newFile, &outputIdx, sizeof(outputIdx), &bytesWritten, NULL);
-				ASSERT(bytesWritten == sizeof(outputIdx));
+				SDL_RWwrite(newFile, &outputIdx, sizeof(outputIdx), 1);
 			}
 
 			// Write skeleton
-			WriteFile(newFile, &skeleton.jointCount, sizeof(u32), &bytesWritten, NULL);
-			WriteFile(newFile, skeleton.bindPoses, sizeof(mat4) * skeleton.jointCount, &bytesWritten, NULL);
-			WriteFile(newFile, skeleton.jointParents, skeleton.jointCount, &bytesWritten, NULL);
-			WriteFile(newFile, skeleton.restPoses, sizeof(mat4) * skeleton.jointCount, &bytesWritten, NULL);
+			SDL_RWwrite(newFile, &skeleton.jointCount, sizeof(u32), 1);
+			SDL_RWwrite(newFile, skeleton.bindPoses, sizeof(mat4) * skeleton.jointCount, 1);
+			SDL_RWwrite(newFile, skeleton.jointParents, skeleton.jointCount, 1);
+			SDL_RWwrite(newFile, skeleton.restPoses, sizeof(mat4) * skeleton.jointCount, 1);
 
 			// Write animations
-			WriteFile(newFile, &animations.size, sizeof(u32), &bytesWritten, NULL);
+			SDL_RWwrite(newFile, &animations.size, sizeof(u32), 1);
 
 			for (u32 animIdx = 0; animIdx < animations.size; ++animIdx)
 			{
 				Animation *animation = &animations[animIdx];
-				WriteFile(newFile, &animation->frameCount, sizeof(u32), &bytesWritten, NULL);
-				WriteFile(newFile, animation->timestamps, sizeof(f32) * animation->frameCount, &bytesWritten, NULL);
+				SDL_RWwrite(newFile, &animation->frameCount, sizeof(u32), 1);
+				SDL_RWwrite(newFile, animation->timestamps, sizeof(u32) * animation->frameCount, 1);
 
-				WriteFile(newFile, &animation->channelCount, sizeof(u32), &bytesWritten, NULL);
+				SDL_RWwrite(newFile, &animation->channelCount, sizeof(u32), 1);
 				for (u32 channelIdx = 0; channelIdx < animation->channelCount; ++channelIdx)
 				{
 					AnimationChannel *channel = &animation->channels[channelIdx];
-					WriteFile(newFile, &channel->jointIndex, sizeof(u32), &bytesWritten, NULL);
-					WriteFile(newFile, channel->transforms, sizeof(mat4) * animation->frameCount, &bytesWritten, NULL);
+					SDL_RWwrite(newFile, &channel->jointIndex, sizeof(u32), 1);
+					SDL_RWwrite(newFile, channel->transforms, sizeof(mat4) * animation->frameCount, 1);
 				}
 			}
 		}
-		CloseHandle(newFile);
+		SDL_RWclose(newFile);
 	}
 
 	return 0;
@@ -1062,67 +1174,200 @@ int ReadMeta(const char *filename)
 
 	DynamicArrayInit_Animation(&animations, 16, FrameAlloc);
 
-	const char *type = rootEl->FindAttribute("type")->Value();
-	SDL_Log("Meta type: %s\n", type);
+	const char *typeStr = rootEl->FindAttribute("type")->Value();
+	SDL_Log("Meta type: %s\n", typeStr);
 
-	XMLElement *geometryEl = rootEl->FirstChildElement("geometry");
-	while (geometryEl != nullptr)
+	MetaType type = METATYPE_INVALID;
+	for (int i = 0; i < METATYPE_COUNT; ++i)
 	{
+		if (strcmp(typeStr, MetaTypeNames[i]) == 0)
+		{
+			type = (MetaType)i;
+		}
+	}
+	if (type == METATYPE_INVALID)
+	{
+		SDL_Log("ERROR! Invalid meta type\n");
+		return ERROR_META_WRONG_TYPE;
+	}
+
+	switch(type)
+	{
+	case METATYPE_MESH:
+	{
+		XMLElement *geometryEl = rootEl->FirstChildElement("geometry");
+		while (geometryEl != nullptr)
+		{
+			const char *geomFile = geometryEl->FirstChild()->ToText()->Value();
+			SDL_Log("Found geometry file: %s\n", geomFile);
+
+			char fullname[MAX_PATH];
+			sprintf(fullname, "%s%s", dataDir, geomFile);
+
+			RawGeometry rawGeometry;
+			int error = ReadColladaGeometry(fullname, &rawGeometry);
+			if (error)
+				return error;
+
+			ConstructSkinnedMesh(fullname, &rawGeometry, nullptr, finalVertices,
+					finalIndices);
+
+			geometryEl = geometryEl->NextSiblingElement("geometry");
+		}
+
+		// Output
+		{
+			char outputName[MAX_PATH];
+			GetOutputFilename(filename, outputName);
+
+			int error = OutputMesh(outputName, finalVertices, finalIndices);
+			if (error)
+				return error;
+		}
+	} break;
+	case METATYPE_SKINNED_MESH:
+	{
+		XMLElement *geometryEl = rootEl->FirstChildElement("geometry");
+		while (geometryEl != nullptr)
+		{
+			const char *geomFile = geometryEl->FirstChild()->ToText()->Value();
+			SDL_Log("Found geometry file: %s\n", geomFile);
+
+			char fullname[MAX_PATH];
+			sprintf(fullname, "%s%s", dataDir, geomFile);
+
+			RawGeometry rawGeometry;
+			int error = ReadColladaGeometry(fullname, &rawGeometry);
+			if (error)
+				return error;
+
+			WeightData weightData;
+			error = ReadColladaController(fullname, &skeleton, &weightData);
+			if (error)
+				return error;
+
+			ConstructSkinnedMesh(fullname, &rawGeometry, &weightData, finalVertices,
+					finalIndices);
+
+			geometryEl = geometryEl->NextSiblingElement("geometry");
+		}
+
+		XMLElement *animationEl = rootEl->FirstChildElement("animation");
+		while (animationEl != nullptr)
+		{
+			const char *animFile = animationEl->FirstChild()->ToText()->Value();
+			SDL_Log("Found animation file: %s\n", animFile);
+
+			char fullname[MAX_PATH];
+			sprintf(fullname, "%s%s", dataDir, animFile);
+
+			Animation &animation = animations[DynamicArrayAdd_Animation(&animations, FrameRealloc)];
+			animation = {};
+			int error = ReadColladaAnimation(fullname, animation, skeleton);
+			if (error)
+				return error;
+
+			animationEl = animationEl->NextSiblingElement("animation");
+		}
+
+		// Output
+		{
+			char outputName[MAX_PATH];
+			GetOutputFilename(filename, outputName);
+
+			int error = OutputSkinnedMesh(outputName, finalVertices, finalIndices, skeleton, animations);
+			if (error)
+				return error;
+		}
+	} break;
+	case METATYPE_TRIANGLE_DATA:
+	{
+		XMLElement *geometryEl = rootEl->FirstChildElement("geometry");
+
 		const char *geomFile = geometryEl->FirstChild()->ToText()->Value();
 		SDL_Log("Found geometry file: %s\n", geomFile);
 
 		char fullname[MAX_PATH];
 		sprintf(fullname, "%s%s", dataDir, geomFile);
 
-		int error = ReadColladaGeometry(fullname, finalVertices, finalIndices, skeleton);
+		RawGeometry rawGeometry;
+		int error = ReadColladaGeometry(fullname, &rawGeometry);
 		if (error)
 			return error;
 
-		geometryEl = geometryEl->NextSiblingElement("geometry");
-	}
+		// Output
+		char outputName[MAX_PATH];
+		GetOutputFilename(filename, outputName);
 
-	XMLElement *animationEl = rootEl->FirstChildElement("animation");
-	while (animationEl != nullptr)
+		SDL_RWops *file = SDL_RWFromFile(outputName, "wb");
+
+		const u32 triangleCount = rawGeometry.triangleCount;
+		SDL_RWwrite(file, &triangleCount, sizeof(u32), 1);
+
+		int attrCount = 1;
+		if (rawGeometry.normalsOffset >= 0)
+			++attrCount;
+		if (rawGeometry.uvsOffset >= 0)
+			++attrCount;
+
+		for (u32 i = 0; i < triangleCount; ++i)
+		{
+			struct
+			{
+				v3 a;
+				v3 b;
+				v3 c;
+				v3 normal;
+			} triangle;
+
+			int ai = rawGeometry.triangleIndices[(i * 3 + 0) * attrCount + rawGeometry.verticesOffset];
+			int bi = rawGeometry.triangleIndices[(i * 3 + 2) * attrCount + rawGeometry.verticesOffset];
+			int ci = rawGeometry.triangleIndices[(i * 3 + 1) * attrCount + rawGeometry.verticesOffset];
+			//SDL_Log("Triangle: %d %d %d\n", ai, bi, ci);
+
+			triangle.a = rawGeometry.positions[ai];
+			triangle.b = rawGeometry.positions[bi];
+			triangle.c = rawGeometry.positions[ci];
+			//SDL_Log("Triangle: [%.02f,%.02f,%.02f] [%.02f,%.02f,%.02f] [%.02f,%.02f,%.02f]\n",
+					//a.x, a.y, a.z,
+					//b.x, b.y, b.z,
+					//c.x, c.y, c.z);
+
+			triangle.normal = V3Normalize(V3Cross(triangle.c - triangle.a, triangle.b - triangle.a));
+
+			SDL_RWwrite(file, &triangle, sizeof(triangle), 1);
+		}
+
+		SDL_RWclose(file);
+	} break;
+	case METATYPE_POINTS:
 	{
-		const char *animFile = animationEl->FirstChild()->ToText()->Value();
-		SDL_Log("Found animation file: %s\n", animFile);
+		XMLElement *geometryEl = rootEl->FirstChildElement("geometry");
+
+		const char *geomFile = geometryEl->FirstChild()->ToText()->Value();
+		SDL_Log("Found geometry file: %s\n", geomFile);
 
 		char fullname[MAX_PATH];
-		sprintf(fullname, "%s%s", dataDir, animFile);
+		sprintf(fullname, "%s%s", dataDir, geomFile);
 
-		Animation &animation = animations[DynamicArrayAdd_Animation(&animations, FrameRealloc)];
-		animation = {};
-		int error = ReadColladaAnimation(fullname, animation, skeleton);
+		RawGeometry rawGeometry;
+		int error = ReadColladaGeometry(fullname, &rawGeometry);
 		if (error)
 			return error;
 
-		animationEl = animationEl->NextSiblingElement("animation");
-	}
-
-	// Output
-	{
+		// Output
 		char outputName[MAX_PATH];
-		strcpy(outputName, filename);
-		// Change extension
-		char *lastDot = 0;
-		for (char *scan = outputName; ; ++scan)
-		{
-			if (*scan == '.')
-			{
-				lastDot = scan;
-			}
-			else if (*scan == 0)
-			{
-				if (!lastDot)
-					lastDot = scan;
-				break;
-			}
-		}
-		strcpy(lastDot, ".bin\0");
-		SDL_Log("Output name: %s\n", outputName);
+		GetOutputFilename(filename, outputName);
 
-		int error = OutputSkinnedMesh(outputName, finalVertices, finalIndices, skeleton, animations);
-	}
+		SDL_RWops *file = SDL_RWFromFile(outputName, "wb");
+
+		const u32 pointCount = rawGeometry.positions.size;
+		SDL_RWwrite(file, &pointCount, sizeof(u32), 1);
+		SDL_RWwrite(file, rawGeometry.positions.data, sizeof(v3), pointCount);
+
+		SDL_RWclose(file);
+	} break;
+	};
 
 	return 0;
 }
@@ -1148,7 +1393,7 @@ int main(int argc, char **argv)
 		error = ReadMeta(fullName);
 
 		SDL_Log("Used %.02fkb of frame allocator\n", ((u8 *)framePtr - (u8 *)frameMem) / 1024.0f);
-		FrameFree(0);
+		FrameWipe();
 
 		if (error != 0)
 			return error;

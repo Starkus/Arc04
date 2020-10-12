@@ -1,27 +1,30 @@
 const GLchar *vertexShaderSource = "\
 #version 330 core\n\
 layout (location = 0) in vec3 pos;\n\
-layout (location = 1) in vec3 col;\n\
+layout (location = 1) in vec2 uv;\n\
+layout (location = 2) in vec3 nor;\n\
 uniform mat4 model;\n\
 uniform mat4 view;\n\
 uniform mat4 projection;\n\
-out vec3 vertexColor;\n\
+out vec3 normal;\n\
 \n\
 void main()\n\
 {\n\
 	gl_Position = projection * view * model * vec4(pos, 1.0);\n\
-	vertexColor = col;\n\
+	normal = (model * vec4(nor, 0.0)).xyz;\n\
 }\n\
 ";
 
 const GLchar *fragShaderSource = "\
 #version 330 core\n\
-in vec3 vertexColor;\n\
+in vec3 normal;\n\
 out vec4 fragColor;\n\
 \n\
 void main()\n\
 {\n\
-	fragColor = vec4(vertexColor, 1.0);\n\
+	vec3 lightDir = normalize(vec3(1, 0.7, 1.3));\n\
+	float light = dot(normal, lightDir);\n\
+	fragColor = vec4(light * 0.5 + 0.5);\n\
 }\n\
 ";
 
@@ -29,14 +32,14 @@ const GLchar *skinVertexShaderSource = "\
 #version 330 core\n\
 layout (location = 0) in vec3 pos;\n\
 layout (location = 1) in vec2 uv;\n\
-layout (location = 2) in vec3 normal;\n\
+layout (location = 2) in vec3 nor;\n\
 layout (location = 3) in uvec4 indices;\n\
 layout (location = 4) in vec4 weights;\n\
 uniform mat4 model;\n\
 uniform mat4 view;\n\
 uniform mat4 projection;\n\
 uniform mat4 joints[128];\n\
-out vec3 vertexColor;\n\
+out vec3 normal;\n\
 \n\
 void main()\n\
 {\n\
@@ -46,15 +49,14 @@ void main()\n\
 	newPos += (joints[indices.z] * oldPos) * weights.z;\n\
 	newPos += (joints[indices.w] * oldPos) * weights.w;\n\
 \n\
-	vec4 oldNor = vec4(normal, 0.0);\n\
+	vec4 oldNor = vec4(nor, 0.0);\n\
 	vec4 newNor = (joints[indices.x] * oldNor) * weights.x;\n\
 	newNor += (joints[indices.y] * oldNor) * weights.y;\n\
 	newNor += (joints[indices.z] * oldNor) * weights.z;\n\
 	newNor += (joints[indices.w] * oldNor) * weights.w;\n\
 \n\
 	gl_Position = projection * view * model * vec4(newPos.xyz, 1.0);\n\
-	vertexColor = newNor.xyz * 0.5 + vec3(0.5);\n\
-	//vertexColor = weights.xyz + vec3(weights.w);\n\
+	normal = (model * vec4(newNor.xyz, 0)).xyz;\n\
 }\n\
 ";
 
@@ -140,7 +142,7 @@ struct Entity
 struct LevelGeometry
 {
 	DeviceMesh renderMesh;
-	v3 *triangles;
+	Triangle *triangles;
 	u32 triangleCount;
 };
 

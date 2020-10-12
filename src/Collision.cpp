@@ -40,12 +40,16 @@ void GenPolytopeMesh(Face *polytopeData, int faceCount, Vertex *buffer)
 }
 #endif
 
-bool RayTriangleIntersection(v3 rayOrigin, v3 rayDir, v3 a, v3 b, v3 c, v3 *hit)
+bool RayTriangleIntersection(v3 rayOrigin, v3 rayDir, const Triangle &triangle, v3 *hit)
 {
+	const v3 &a = triangle.a;
+	const v3 &b = triangle.b;
+	const v3 &c = triangle.c;
+	const v3 &nor = triangle.normal;
+
 	const v3 ab = b - a;
 	const v3 bc = c - b;
 	const v3 ca = a - c;
-	v3 nor = V3Cross(-ca, ab);
 
 	f32 rayDistAlongNormal = V3Dot(rayDir, -nor);
 	const f32 epsilon = 0.000001f;

@@ -11,6 +11,12 @@ struct Array_##_TYPE \
 		ASSERT((u32)idx < capacity_); \
 		return data[idx]; \
 	} \
+	\
+	const _TYPE &operator[](int idx) const \
+	{ \
+		ASSERT((u32)idx < capacity_); \
+		return data[idx]; \
+	} \
 }; \
 \
 inline void ArrayInit_##_TYPE(Array_##_TYPE *array, u32 capacity) \
@@ -30,6 +36,12 @@ struct DynamicArray_##_TYPE \
 	u32 capacity; \
 	\
 	_TYPE &operator[](int idx) \
+	{ \
+		ASSERT((u32)idx < capacity); \
+		return data[idx]; \
+	} \
+	\
+	const _TYPE &operator[](int idx) const \
 	{ \
 		ASSERT((u32)idx < capacity); \
 		return data[idx]; \

@@ -9,7 +9,7 @@ struct GJKResult
 	v3 points[4];
 };
 
-bool RayTriangleIntersection(v3 rayOrigin, v3 rayDir, v3 a, v3 b, v3 c, v3 *hit);
+bool RayTriangleIntersection(v3 rayOrigin, v3 rayDir, const Triangle &triangle, v3 *hit);
 GJKResult GJKTest(const v3 *vA, u32 vACount, const v3 *vB, u32 vBCount);
 v3 ComputeDepenetration(GJKResult gjkResult, const v3 *vA, u32 vACount, const v3 *vB, u32 vBCount);
 

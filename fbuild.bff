@@ -9,15 +9,6 @@
 #include "build/paths.bff"
 #include "compiler.bff"
 
-// Sources
-
-Unity('GameSource')
-{
-	.UnityInputPath = '$SourcePath$'
-	.UnityOutputPath = '$OutputPath$/Unity'
-	.UnityNumFiles = 1
-}
-
 // Build targets
 
 .AllTargets = {}
@@ -29,7 +20,7 @@ ForEach(.BuildType in .BuildTypes)
 	ObjectList('GameSource_$BuildTypeName$')
 	{
 		.CompilerOptions = '$ExeCompilerOptions$'
-		.CompilerInputUnity = 'GameSource'
+		.CompilerInputFiles = '$SourcePath$/Game.cpp'
 		.CompilerOutputPath = '$OutputPath$/$BuildTypeName$'
 	}
 
