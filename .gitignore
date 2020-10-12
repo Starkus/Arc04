@@ -1,8 +1,16 @@
 bin
 build
+*.exe
+*.pdb
+*.obj
+
 tags
 .vimrc
 *.rdbg
+
 *.fdb
 *.swp
+*.blend1
+
+data/*.bin
 

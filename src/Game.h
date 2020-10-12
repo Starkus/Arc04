@@ -54,6 +54,7 @@ void main()\n\
 \n\
 	gl_Position = projection * view * model * vec4(newPos.xyz, 1.0);\n\
 	vertexColor = newNor.xyz * 0.5 + vec3(0.5);\n\
+	vertexColor = weights.xyz + vec3(weights.w);\n\
 }\n\
 ";
 
@@ -91,6 +92,7 @@ struct SkeletalMesh
 	DeviceMesh deviceMesh;
 	u8 jointCount;
 	mat4 *bindPoses;
+	u8 *jointParents;
 	u32 animationCount;
 	Animation *animations;
 };

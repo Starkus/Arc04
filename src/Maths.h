@@ -219,6 +219,64 @@ inline v3 V3Normalize(const v3 &a)
 	return result;
 }
 
+inline f32 Mat4Determinant(const mat4 &m)
+{
+	f32 result = m.m00 *
+		(m.m11 * m.m22 * m.m33 + m.m12 * m.m23 * m.m31 + m.m13 * m.m21 * m.m32
+		- m.m13 * m.m22 * m.m31 - m.m12 * m.m21 * m.m33 - m.m11 * m.m23 * m.m32);
+	result -= m.m10 *
+		(m.m01 * m.m22 * m.m33 + m.m02 * m.m23 * m.m31 + m.m03 * m.m21 * m.m32
+		- m.m03 * m.m22 * m.m31 - m.m02 * m.m21 * m.m33 - m.m01 * m.m23 * m.m32);
+	result += m.m20 *
+		(m.m01 * m.m12 * m.m33 + m.m02 * m.m13 * m.m31 + m.m03 * m.m11 * m.m32
+		- m.m03 * m.m12 * m.m31 - m.m02 * m.m11 * m.m33 - m.m01 * m.m13 * m.m32);
+	result -= m.m30 *
+		(m.m01 * m.m12 * m.m23 + m.m02 * m.m13 * m.m21 + m.m03 * m.m11 * m.m22
+		- m.m03 * m.m12 * m.m21 - m.m02 * m.m11 * m.m23 - m.m01 * m.m13 * m.m22);
+	return result;
+}
+
+inline mat4 Mat4Adjugate(const mat4 &m)
+{
+	mat4 result;
+	result.m00 = m.m11 * m.m22 * m.m33 + m.m12 * m.m23 * m.m31 + m.m13 * m.m21 * m.m32
+				- m.m13 * m.m22 * m.m31 - m.m12 * m.m21 * m.m33 - m.m11 * m.m23 * m.m32;
+	result.m01 = -m.m01 * m.m12 * m.m33 - m.m02 * m.m23 * m.m31 - m.m03 * m.m21 * m.m32
+				+ m.m03 * m.m12 * m.m31 + m.m02 * m.m21 * m.m33 + m.m01 * m.m23 * m.m32;
+	result.m02 = m.m01 * m.m12 * m.m33 + m.m02 * m.m13 * m.m31 + m.m03 * m.m11 * m.m32
+				- m.m03 * m.m12 * m.m31 - m.m02 * m.m11 * m.m33 - m.m01 * m.m13 * m.m32;
+	result.m03 = -m.m01 * m.m12 * m.m23 - m.m02 * m.m13 * m.m21 - m.m03 * m.m11 * m.m22
+				+ m.m03 * m.m12 * m.m21 + m.m02 * m.m11 * m.m23 + m.m01 * m.m13 * m.m22;
+
+	result.m10 = -m.m10 * m.m22 * m.m33 - m.m12 * m.m23 * m.m30 - m.m13 * m.m20 * m.m32
+				+ m.m13 * m.m22 * m.m30 + m.m12 * m.m20 * m.m33 + m.m10 * m.m23 * m.m32;
+	result.m11 = m.m00 * m.m22 * m.m33 + m.m02 * m.m23 * m.m30 + m.m03 * m.m20 * m.m32
+				- m.m03 * m.m22 * m.m30 - m.m02 * m.m20 * m.m33 - m.m00 * m.m23 * m.m32;
+	result.m12 = -m.m00 * m.m12 * m.m33 - m.m02 * m.m13 * m.m30 - m.m03 * m.m10 * m.m32
+				+ m.m03 * m.m12 * m.m30 + m.m02 * m.m10 * m.m33 + m.m00 * m.m13 * m.m32;
+	result.m13 = m.m00 * m.m12 * m.m23 + m.m02 * m.m13 * m.m20 + m.m03 * m.m10 * m.m22
+				- m.m03 * m.m12 * m.m20 - m.m02 * m.m10 * m.m23 - m.m00 * m.m13 * m.m22;
+
+	result.m20 = m.m10 * m.m21 * m.m33 + m.m11 * m.m23 * m.m30 + m.m13 * m.m20 * m.m31
+				- m.m13 * m.m21 * m.m30 - m.m11 * m.m20 * m.m33 - m.m10 * m.m23 * m.m31;
+	result.m21 = -m.m00 * m.m21 * m.m33 - m.m01 * m.m23 * m.m30 - m.m03 * m.m20 * m.m31
+				+ m.m03 * m.m21 * m.m30 + m.m01 * m.m20 * m.m33 + m.m00 * m.m23 * m.m31;
+	result.m22 = m.m00 * m.m11 * m.m33 + m.m01 * m.m13 * m.m30 + m.m03 * m.m10 * m.m31
+				- m.m03 * m.m11 * m.m30 - m.m01 * m.m10 * m.m33 - m.m00 * m.m13 * m.m31;
+	result.m23 = -m.m00 * m.m11 * m.m23 - m.m01 * m.m13 * m.m20 - m.m03 * m.m10 * m.m21
+				+ m.m03 * m.m11 * m.m20 + m.m01 * m.m10 * m.m23 + m.m00 * m.m13 * m.m21;
+
+	result.m30 = -m.m10 * m.m21 * m.m32 - m.m11 * m.m22 * m.m30 - m.m12 * m.m20 * m.m31
+				+ m.m12 * m.m21 * m.m30 + m.m11 * m.m20 * m.m32 + m.m10 * m.m22 * m.m31;
+	result.m31 = m.m00 * m.m21 * m.m32 + m.m01 * m.m22 * m.m30 + m.m02 * m.m20 * m.m31
+				- m.m02 * m.m21 * m.m30 - m.m01 * m.m20 * m.m32 - m.m00 * m.m22 * m.m31;
+	result.m32 = -m.m00 * m.m11 * m.m32 - m.m01 * m.m12 * m.m30 - m.m02 * m.m10 * m.m31
+				+ m.m02 * m.m11 * m.m30 + m.m01 * m.m10 * m.m32 + m.m00 * m.m12 * m.m31;
+	result.m33 = m.m00 * m.m11 * m.m22 + m.m01 * m.m12 * m.m20 + m.m02 * m.m10 * m.m21
+				- m.m02 * m.m11 * m.m20 - m.m01 * m.m10 * m.m22 - m.m00 * m.m12 * m.m21;
+	return result;
+}
+
 inline mat4 Mat4Transpose(const mat4 &a)
 {
 	mat4 result;

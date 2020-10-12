@@ -52,6 +52,7 @@ struct Skeleton
 	u8 jointCount;
 	char **ids;
 	mat4 *bindPoses;
+	u8 *jointParents;
 };
 
 struct AnimationChannel
@@ -68,6 +69,8 @@ struct Animation
 	AnimationChannel *channels;
 };
 
+typedef XMLElement* XMLElementPtr;
+
 DECLARE_ARRAY(u16);
 DECLARE_ARRAY(int);
 DECLARE_ARRAY(f32);
@@ -75,6 +78,7 @@ DECLARE_ARRAY(v3);
 DECLARE_ARRAY(v2);
 DECLARE_ARRAY(mat4);
 DECLARE_ARRAY(SkinnedPosition);
+DECLARE_DYNAMIC_ARRAY(XMLElementPtr);
 DECLARE_DYNAMIC_ARRAY(RawVertex);
 DECLARE_DYNAMIC_ARRAY(AnimationChannel);
 
@@ -447,6 +451,11 @@ int ReadCollada(const char *filename)
 		skeleton.bindPoses = (mat4 *)malloc(sizeof(f32) * count);
 		ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), (f32 *)skeleton.bindPoses,
 				count);
+
+		for (int i = 0; i < count / 16; ++i)
+		{
+			skeleton.bindPoses[i] = Mat4Transpose(skeleton.bindPoses[i]);
+		}
 	}
 	DeferredFree(skeleton.bindPoses);
 
@@ -492,6 +501,11 @@ int ReadCollada(const char *filename)
 				skinnedPos->jointIndices[j] = 0;
 				skinnedPos->jointWeights[j] = 0;
 			}
+
+			f32 weightTotal = 
+					skinnedPos->jointWeights[0] + skinnedPos->jointWeights[1] +
+					skinnedPos->jointWeights[2] + skinnedPos->jointWeights[3];
+			ASSERT(weightTotal > 0.99999f && weightTotal < 1.000001f);
 		}
 	}
 
@@ -502,16 +516,6 @@ int ReadCollada(const char *filename)
 		const bool hasUvs = uvsOffset >= 0;
 		const bool hasNormals = normalsOffset >= 0;
 
-		// TODO something better than n*m map for when things get big?
-		const int normalsCount = hasNormals ? normals.size : 1;
-		const int uvsCount = hasUvs ? uvs.size : 1;
-		const int mapSize = normalsCount * uvsCount * positions.size;
-		Array_u16 vertexIndexMap;
-		ArrayInit_u16(&vertexIndexMap, mapSize);
-		memset(vertexIndexMap.data, 0xFFFF, sizeof(u16) * mapSize);
-		vertexIndexMap.size = mapSize;
-		DeferredFree(vertexIndexMap.data);
-
 		finalVertices.capacity = 32;
 		DynamicArrayInit_RawVertex(&finalVertices);
 
@@ -520,63 +524,126 @@ int ReadCollada(const char *filename)
 		for (int i = 0; i < triangleIndicesCount * 3; ++i)
 		{
 			const int posIdx = triangleIndices[i * attrCount + verticesOffset];
-			const int uvIdx = hasUvs * triangleIndices[i * attrCount + uvsOffset];
-			const int norIdx = hasNormals * triangleIndices[i * attrCount + normalsOffset];
 			SkinnedPosition pos = skinnedPositions[posIdx];
 
+			int uvIdx = 0;
 			v2 uv = {};
 			if (hasUvs)
+			{
+				uvIdx = triangleIndices[i * attrCount + uvsOffset];
 				uv = uvs[uvIdx];
+			}
 
+			int norIdx = 0;
 			v3 nor = {};
 			if (hasNormals)
-				nor = normals[norIdx];
-
-			const int mapIdx = (posIdx * normalsCount + norIdx) * uvsCount + uvIdx;
-			if (vertexIndexMap[mapIdx] == 0xFFFF)
 			{
-				RawVertex newVertex = { pos, uv, nor };
+				norIdx = triangleIndices[i * attrCount + normalsOffset];
+				nor = normals[norIdx];
+			}
 
-				// Check it's different than every other vertex!
-				for (u32 vertIdx = 0; vertIdx < finalVertices.size; ++vertIdx)
+			RawVertex newVertex = { pos, uv, nor };
+
+			// TODO hash map if this n^2 thing gets too slow
+			u16 index = 0xFFFF;
+			for (u32 vertIdx = 0; vertIdx < finalVertices.size; ++vertIdx)
+			{
+				RawVertex v = finalVertices[vertIdx];
+				if (memcmp(&v, &newVertex, sizeof(RawVertex)) == 0)
 				{
-					RawVertex v = finalVertices[vertIdx];
-					ASSERT(memcmp(&v, &newVertex, sizeof(RawVertex)) != 0);
+					index = (u16)vertIdx;
 				}
+			}
 
+			if (index == 0xFFFF)
+			{
 				// Push back vertex
 				u16 newVertexIdx = (u16)DynamicArrayAdd_RawVertex(&finalVertices);
 				finalVertices[newVertexIdx] = newVertex;
-
-				vertexIndexMap[mapIdx] = newVertexIdx;
 				finalIndices[finalIndices.size++] = newVertexIdx;
-
-#if 0
-				v3 pp = newVertex.skinnedPos.pos;
-				v2 uu = newVertex.uv;
-				v3 nn = newVertex.normal;
-				printf("Idx: %d {%.02f, %.02f, %.02f} {%.02f, %.02f} {%.02f, %.02f, %.02f}\n",
-						newVertexIdx, pp.x, pp.y, pp.z, uu.x, uu.y, nn.x, nn.y, nn.z);
-#endif
 			}
 			else
 			{
-				const u16 newVertexIdx = vertexIndexMap[mapIdx];
-				finalIndices[finalIndices.size++] = newVertexIdx;
-
-#if 0
-				v3 pp = finalVertices[newVertexIdx].skinnedPos.pos;
-				v2 uu = finalVertices[newVertexIdx].uv;
-				v3 nn = finalVertices[newVertexIdx].normal;
-				printf("Idx: %d {%.02f, %.02f, %.02f} {%.02f, %.02f} {%.02f, %.02f, %.02f}\n",
-						newVertexIdx, pp.x, pp.y, pp.z, uu.x, uu.y, nn.x, nn.y, nn.z);
-#endif
+				finalIndices[finalIndices.size++] = index;
 			}
 		}
 	}
 
 	printf("Ended up with %d unique vertices and %d indices\n", finalVertices.size,
 			finalIndices.size);
+
+	// JOINT HIERARCHY
+	{
+		skeleton.jointParents = (u8 *)malloc(skeleton.jointCount);
+		memset(skeleton.jointParents, 0xFFFF, skeleton.jointCount);
+
+		XMLElement *sceneEl = rootEl->FirstChildElement("library_visual_scenes")
+			->FirstChildElement("visual_scene");
+		printf("Found visual scene %s\n", sceneEl->FindAttribute("id")->Value());
+		XMLElement *nodeEl = sceneEl->FirstChildElement("node");
+
+		DynamicArray_XMLElementPtr stack;
+		stack.capacity = 16;
+		DynamicArrayInit_XMLElementPtr(&stack);
+		DeferredFree(stack.data);
+
+		bool checkChildren = true;
+		while (nodeEl != nullptr)
+		{
+			if (checkChildren)
+			{
+				XMLElement *childEl = nodeEl->FirstChildElement("node");
+				if (childEl)
+				{
+					const char *type = nodeEl->FindAttribute("type")->Value();
+					if (strcmp(type, "JOINT") == 0)
+					{
+						// Push joint to stack!
+						stack[DynamicArrayAdd_XMLElementPtr(&stack)] = nodeEl;
+
+						const char *childType = childEl->FindAttribute("type")->Value();
+						if (strcmp(childType, "JOINT") == 0)
+						{
+							// Save parent ID
+							const char *parentName = nodeEl->FindAttribute("sid")->Value();
+							const char *childName = childEl->FindAttribute("sid")->Value();
+
+							u8 jointIdx = 0xFF;
+							u8 parentJointIdx = 0xFF;
+							for (int i = 0; i < skeleton.jointCount; ++i)
+							{
+								if (strcmp(skeleton.ids[i], parentName) == 0)
+									parentJointIdx = (u8)i;
+								else if (strcmp(skeleton.ids[i], childName) == 0)
+									jointIdx = (u8)i;
+							}
+							ASSERT(jointIdx != 0xFF);
+							ASSERT(parentJointIdx != 0xFF);
+							skeleton.jointParents[jointIdx] = parentJointIdx;
+						}
+					}
+
+					nodeEl = childEl;
+					continue;
+				}
+			}
+
+			XMLElement *siblingEl = nodeEl->NextSiblingElement("node");
+			if (siblingEl)
+			{
+				nodeEl = siblingEl;
+				checkChildren = true;
+				continue;
+			}
+
+			// Pop from stack!
+			if (stack.size == 0)
+				break;
+
+			nodeEl = stack[--stack.size];
+			checkChildren = false;
+		}
+	}
 
 	// ANIMATIONS
 	Animation animation = {};
@@ -673,6 +740,11 @@ int ReadCollada(const char *filename)
 			channel.transforms = (mat4 *)malloc(sizeof(f32) * count);
 			ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), (f32 *)channel.transforms,
 					count);
+
+			for (int i = 0; i < count / 16; ++i)
+			{
+				channel.transforms[i] = Mat4Transpose(channel.transforms[i]);
+			}
 		}
 
 		// Get joint id
@@ -776,6 +848,7 @@ int ReadCollada(const char *filename)
 			// Write skeleton
 			WriteFile(newFile, &skeleton.jointCount, sizeof(u32), &bytesWritten, NULL);
 			WriteFile(newFile, skeleton.bindPoses, sizeof(mat4) * skeleton.jointCount, &bytesWritten, NULL);
+			WriteFile(newFile, skeleton.jointParents, skeleton.jointCount, &bytesWritten, NULL);
 
 			// Write animations
 			// Write animation count

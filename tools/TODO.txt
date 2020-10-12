@@ -1,9 +1,7 @@
 # TODO
 
-- Properly save joint hierarchy
 - Implement meta file system
 - Use meta file system to gather animations from multiple .dae files
-- Check if duplicate vertex deletion is working properly
 
 # Low priority/later
 - Frame allocator instead of malloc everywhere
