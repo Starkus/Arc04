@@ -168,7 +168,7 @@ void StartGame()
 
 		// Skinned mesh
 		{
-			SDL_RWops *file = SDL_RWFromFile("data/colladatest.bin", "rb");
+			SDL_RWops *file = SDL_RWFromFile("data/Sparkus.bin", "rb");
 			const u64 fileSize = SDL_RWsize(file);
 			u8 *fileBuffer = (u8 *)malloc(fileSize);
 			SDL_RWread(file, fileBuffer, sizeof(u8), fileSize);
@@ -196,10 +196,14 @@ void StartGame()
 			u8 *jointParents = (u8 *)malloc(jointCount);
 			memcpy(jointParents, fileScan, jointCount);
 			fileScan += jointCount;
+			mat4 *restPoses = (mat4 *)malloc(sizeof(mat4) * jointCount);
+			memcpy(restPoses, fileScan, sizeof(mat4) * jointCount);
+			fileScan += sizeof(mat4) * jointCount;
 
 			skinnedMesh.jointCount = jointCount;
 			skinnedMesh.bindPoses = bindPoses;
 			skinnedMesh.jointParents = jointParents;
+			skinnedMesh.restPoses = restPoses;
 
 			u32 animationCount = *(u32 *)fileScan;
 			fileScan += sizeof(u32);
@@ -388,6 +392,7 @@ void StartGame()
 		gameState.player.entity = playerEnt;
 		playerEnt->fw = { 0.0f, 1.0f, 0.0f };
 		playerEnt->mesh = &playerMesh;
+		playerEnt->mesh = 0; // !!!!!!!!!!!
 
 		LoadOBJAsPoints("data/monkey_collision.obj", &playerEnt->collisionPoints,
 				&playerEnt->collisionPointCount);
@@ -570,7 +575,7 @@ void StartGame()
 					player->entity->fw = worldInputDir;
 				}
 
-				const f32 playerSpeed = 3.0f;
+				const f32 playerSpeed = 5.0f;
 				player->entity->pos += worldInputDir * playerSpeed * deltaTime;
 
 				// Jump
@@ -759,6 +764,9 @@ void StartGame()
 			for (u32 entityIdx = 0; entityIdx < gameState.entityCount; ++entityIdx)
 			{
 				Entity *entity = &gameState.entities[entityIdx];
+				if (!entity->mesh)
+					continue;
+
 				const v3 pos = entity->pos;
 				const v3 fw = entity->fw;
 				const v3 right = V3Cross(entity->fw, {0,0,1});
@@ -843,121 +851,125 @@ void StartGame()
 			{
 				glUniformMatrix4fv(modelUniform, 1, false, MAT4_IDENTITY.m);
 
-				mat4 joints[32];
-				for (int i = 0; i < 32; ++i)
+				mat4 joints[128];
+				for (int i = 0; i < 128; ++i)
 				{
 					joints[i] = MAT4_IDENTITY;
 				}
 
-				static f32 animationTime = 0;
-				f32 timeScale = 15;
-				u32 animationFrame = (u32)(animationTime * timeScale);
-
 				Animation *animation = &skinnedMesh.animations[0];
-				for (u32 channelIdx = 0; channelIdx < animation->channelCount; ++channelIdx)
+
+				f32 firstTimestamp = animation->timestamps[0];
+				f32 lastTimestamp = animation->timestamps[animation->frameCount - 1];
+				static f32 animationTime = firstTimestamp;
+
+				int currentFrame = -1;
+				for (u32 i = 0; i < animation->frameCount; ++i)
 				{
-					AnimationChannel *channel = &animation->channels[channelIdx];
-					const u32 frame = animationFrame;
-					const u32 jointIdx = channel->jointIndex;
+					if (currentFrame == -1 && animationTime < animation->timestamps[i])
+						currentFrame = i - 1;
+				}
+				f32 prevStamp = animation->timestamps[currentFrame];
+				f32 nextStamp = animation->timestamps[currentFrame + 1];
+				f32 lerpWindow = nextStamp - prevStamp;
+				f32 lerpTime = animationTime - prevStamp;
+				f32 lerpT = lerpTime / lerpWindow;
+
+				for (u32 jointIdx = 0; jointIdx < skinnedMesh.jointCount; ++jointIdx)
+				{
+					// Find channel for joint
+					AnimationChannel *channel = 0;
+					for (u32 chanIdx = 0; chanIdx < animation->channelCount; ++chanIdx)
+					{
+						if (animation->channels[chanIdx].jointIndex == jointIdx)
+						{
+							channel = &animation->channels[chanIdx];
+							break;
+						}
+					}
 
 					mat4 transform = MAT4_IDENTITY;
 
-#if 0
-					ASSERT(Mat4Determinant(skinnedMesh.bindPoses[jointIdx]) == 1.0f);
-					transform = Mat4Multiply(skinnedMesh.bindPoses[jointIdx], transform);
-					transform = Mat4Multiply(channel->transforms[frame], transform);
-					transform = Mat4Multiply(Mat4Adjugate(skinnedMesh.bindPoses[jointIdx]), transform);
-#endif
+					// Stack to apply transforms in reverse order
+					u32 stack[32];
+					int stackSize = 1;
+					stack[0] = jointIdx;
 
 					u8 parentJoint = skinnedMesh.jointParents[jointIdx];
-					u8 stack[32];
-					int stackSize = 0;
-					while (1)
+					while (parentJoint != 0xFF)
 					{
-						if (parentJoint == 0xFF)
-							break;
-
-#if 0
-						// Find channel for parent joint
-						AnimationChannel *parentChannel = 0;
-						for (u32 chanIdx = 0; chanIdx < animation->channelCount; ++chanIdx)
-						{
-							if (animation->channels[chanIdx].jointIndex == parentJoint)
-							{
-								parentChannel = &animation->channels[chanIdx];
-								break;
-							}
-						}
-
-						const mat4 &invBindPose = skinnedMesh.bindPoses[parentJoint];
-						const mat4 &jointTransform = parentChannel->transforms[animationFrame];
-						ASSERT(Mat4Determinant(invBindPose) == 1.0f);
-						//transform = Mat4Multiply(Mat4Adjugate(invBindPose), transform);
-						transform = Mat4Multiply(jointTransform, transform);
-						transform = Mat4Multiply(invBindPose, transform);
-#endif
-
 						stack[stackSize++] = parentJoint;
 						parentJoint = skinnedMesh.jointParents[parentJoint];
 					}
+					bool first = true;
 					while (stackSize)
 					{
-						u8 joint = stack[--stackSize];
+						const u32 currentJoint = stack[--stackSize];
 
-#if 1
-						// Find channel for parent joint
-						AnimationChannel *parentChannel = 0;
+						// Find channel for current joint
+						AnimationChannel *currentChannel = 0;
 						for (u32 chanIdx = 0; chanIdx < animation->channelCount; ++chanIdx)
 						{
-							if (animation->channels[chanIdx].jointIndex == joint)
+							if (animation->channels[chanIdx].jointIndex == currentJoint)
 							{
-								parentChannel = &animation->channels[chanIdx];
+								currentChannel = &animation->channels[chanIdx];
 								break;
 							}
 						}
 
-						const mat4 &invBindPose = skinnedMesh.bindPoses[joint];
-						const mat4 &jointTransform = parentChannel->transforms[animationFrame];
-						ASSERT(Mat4Determinant(invBindPose) == 1.0f);
-						//transform = Mat4Multiply(Mat4Adjugate(invBindPose), transform);
-						transform = Mat4Multiply(jointTransform, transform);
-						//transform = Mat4Multiply(invBindPose, transform);
-#endif
+						if (currentChannel == nullptr)
+						{
+							// If this joint has no channel, it must not be moving at all,
+							// even considering parents
+							transform = Mat4Multiply(skinnedMesh.restPoses[currentJoint], transform);
+							first = false;
+							continue;
+						}
+
+						// Dumb linear interpolation of matrices
+						f32 t = lerpT;
+						mat4 a = currentChannel->transforms[currentFrame];
+						mat4 b = currentChannel->transforms[currentFrame + 1];
+						mat4 T;
+						for (int mi = 0; mi < 16; ++mi)
+						{
+							T.m[mi] = a.m[mi] * (1-t) + b.m[mi] * t;
+						}
+
+						if (first)
+						{
+							transform = T;
+							first = false;
+						}
+						else
+						{
+							transform = Mat4Multiply(T, transform);
+						}
 					}
-
-					const mat4 &invBindPose = skinnedMesh.bindPoses[jointIdx];
-					const mat4 &jointTransform = channel->transforms[animationFrame];
-					ASSERT(Mat4Determinant(invBindPose) == 1.0f);
-					//transform = Mat4Multiply(Mat4Adjugate(invBindPose), transform);
-					transform = Mat4Multiply(jointTransform, transform);
-					transform = Mat4Multiply(invBindPose, transform);
-
-#if 0
-					int asdJoint = 2;
-						AnimationChannel *asdChannel = 0;
-						for (u32 chanIdx = 0; chanIdx < animation->channelCount; ++chanIdx)
-						{
-							if (animation->channels[chanIdx].jointIndex == asdJoint)
-							{
-								asdChannel = &animation->channels[chanIdx];
-								break;
-							}
-						}
-
-					transform = MAT4_IDENTITY;
-					//mat4 adj = Mat4Adjugate(skinnedMesh.bindPoses[asdJoint]);
-					transform = Mat4Multiply(adj, transform);
-					transform = Mat4Multiply(asdChannel->transforms[frame], transform);
-					//transform = Mat4Multiply(skinnedMesh.bindPoses[asdJoint], transform);
-#endif
+					transform = Mat4Multiply(skinnedMesh.bindPoses[jointIdx], transform);
 
 					joints[jointIdx] = transform;
 				}
 				animationTime += deltaTime;
-				if (animationTime * timeScale >= animation->frameCount)
-					animationTime = 0;
+				if (animationTime >= lastTimestamp)
+					animationTime = firstTimestamp;
 
-				glUniformMatrix4fv(jointsUniform, 32, false, joints[0].m);
+				Entity *player = gameState.player.entity;
+				const v3 pos = player->pos;
+				const v3 fw = player->fw;
+				const v3 right = V3Cross(player->fw, {0,0,1});
+				const v3 up = V3Cross(right, fw);
+				// TODO pull out function?
+				const mat4 model =
+				{
+					right.x,	right.y,	right.z,	0.0f,
+					fw.x,		fw.y,		fw.z,		0.0f,
+					up.x,		up.y,		up.z,		0.0f,
+					pos.x,		pos.y,		pos.z,		1.0f
+				};
+				glUniformMatrix4fv(modelUniform, 1, false, model.m);
+
+				glUniformMatrix4fv(jointsUniform, 128, false, joints[0].m);
 
 				glBindVertexArray(skinnedMesh.deviceMesh.vao);
 				glDrawElements(GL_TRIANGLES, skinnedMesh.deviceMesh.indexCount, GL_UNSIGNED_SHORT, NULL);

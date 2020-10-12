@@ -53,6 +53,7 @@ struct Skeleton
 	char **ids;
 	mat4 *bindPoses;
 	u8 *jointParents;
+	mat4 *restPoses;
 };
 
 struct AnimationChannel
@@ -572,10 +573,20 @@ int ReadCollada(const char *filename)
 	printf("Ended up with %d unique vertices and %d indices\n", finalVertices.size,
 			finalIndices.size);
 
+	// Rewind triangles
+	for (int i = 0; i < triangleIndicesCount; ++i)
+	{
+		u16 tmp = finalIndices[i * 3 + 1];
+		finalIndices[i * 3 + 1] = finalIndices[i * 3 + 2];
+		finalIndices[i * 3 + 2] = tmp;
+	}
+
 	// JOINT HIERARCHY
 	{
 		skeleton.jointParents = (u8 *)malloc(skeleton.jointCount);
 		memset(skeleton.jointParents, 0xFFFF, skeleton.jointCount);
+
+		skeleton.restPoses = (mat4 *)malloc(sizeof(mat4) * skeleton.jointCount);
 
 		XMLElement *sceneEl = rootEl->FirstChildElement("library_visual_scenes")
 			->FirstChildElement("visual_scene");
@@ -590,6 +601,52 @@ int ReadCollada(const char *filename)
 		bool checkChildren = true;
 		while (nodeEl != nullptr)
 		{
+			const char *nodeType = nodeEl->FindAttribute("type")->Value();
+			if (checkChildren && strcmp(nodeType, "JOINT") == 0)
+			{
+				XMLElement *child = nodeEl;
+				const char *childName = child->FindAttribute("sid")->Value();
+
+				u8 jointIdx = 0xFF;
+				for (int i = 0; i < skeleton.jointCount; ++i)
+				{
+					if (strcmp(skeleton.ids[i], childName) == 0)
+						jointIdx = (u8)i;
+				}
+				ASSERT(jointIdx != 0xFF);
+
+				if (stack.size)
+				{
+					XMLElement *parent = stack[stack.size - 1];
+					const char *parentType = parent->FindAttribute("type")->Value();
+					if (strcmp(parentType, "JOINT") == 0)
+					{
+						// Save parent ID
+						const char *parentName = parent->FindAttribute("sid")->Value();
+
+						u8 parentJointIdx = 0xFF;
+						for (int i = 0; i < skeleton.jointCount; ++i)
+						{
+							if (strcmp(skeleton.ids[i], parentName) == 0)
+								parentJointIdx = (u8)i;
+							else if (strcmp(skeleton.ids[i], childName) == 0)
+								jointIdx = (u8)i;
+						}
+						ASSERT(parentJointIdx != 0xFF);
+
+						skeleton.jointParents[jointIdx] = parentJointIdx;
+
+						printf("Joint %s has parent %s\n", childName, parentName);
+					}
+				}
+
+				XMLElement *matrixEl = nodeEl->FirstChildElement("matrix");
+				const char *matrixStr = matrixEl->FirstChild()->ToText()->Value();
+				mat4 restPose;
+				ReadStringToFloats(matrixStr, (f32 *)&restPose, 16);
+				skeleton.restPoses[jointIdx] = Mat4Transpose(restPose);
+			}
+
 			if (checkChildren)
 			{
 				XMLElement *childEl = nodeEl->FirstChildElement("node");
@@ -600,27 +657,6 @@ int ReadCollada(const char *filename)
 					{
 						// Push joint to stack!
 						stack[DynamicArrayAdd_XMLElementPtr(&stack)] = nodeEl;
-
-						const char *childType = childEl->FindAttribute("type")->Value();
-						if (strcmp(childType, "JOINT") == 0)
-						{
-							// Save parent ID
-							const char *parentName = nodeEl->FindAttribute("sid")->Value();
-							const char *childName = childEl->FindAttribute("sid")->Value();
-
-							u8 jointIdx = 0xFF;
-							u8 parentJointIdx = 0xFF;
-							for (int i = 0; i < skeleton.jointCount; ++i)
-							{
-								if (strcmp(skeleton.ids[i], parentName) == 0)
-									parentJointIdx = (u8)i;
-								else if (strcmp(skeleton.ids[i], childName) == 0)
-									jointIdx = (u8)i;
-							}
-							ASSERT(jointIdx != 0xFF);
-							ASSERT(parentJointIdx != 0xFF);
-							skeleton.jointParents[jointIdx] = parentJointIdx;
-						}
 					}
 
 					nodeEl = childEl;
@@ -768,7 +804,7 @@ int ReadCollada(const char *filename)
 					break;
 				}
 			}
-			channel.jointIndex;
+			channel.jointIndex = 0xFF;
 			for (int i = 0; i < skeleton.jointCount; ++i)
 			{
 				if (strcmp(skeleton.ids[i], jointIdBuffer) == 0)
@@ -778,6 +814,7 @@ int ReadCollada(const char *filename)
 					break;
 				}
 			}
+			//ASSERT(channel.jointIndex != 0xFF);
 			printf("Channel thought to target joint \"%s\", ID %d\n", jointIdBuffer,
 					channel.jointIndex);
 		}
@@ -849,6 +886,7 @@ int ReadCollada(const char *filename)
 			WriteFile(newFile, &skeleton.jointCount, sizeof(u32), &bytesWritten, NULL);
 			WriteFile(newFile, skeleton.bindPoses, sizeof(mat4) * skeleton.jointCount, &bytesWritten, NULL);
 			WriteFile(newFile, skeleton.jointParents, skeleton.jointCount, &bytesWritten, NULL);
+			WriteFile(newFile, skeleton.restPoses, sizeof(mat4) * skeleton.jointCount, &bytesWritten, NULL);
 
 			// Write animations
 			// Write animation count

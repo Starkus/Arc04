@@ -35,7 +35,7 @@ layout (location = 4) in vec4 weights;\n\
 uniform mat4 model;\n\
 uniform mat4 view;\n\
 uniform mat4 projection;\n\
-uniform mat4 joints[32];\n\
+uniform mat4 joints[128];\n\
 out vec3 vertexColor;\n\
 \n\
 void main()\n\
@@ -54,7 +54,7 @@ void main()\n\
 \n\
 	gl_Position = projection * view * model * vec4(newPos.xyz, 1.0);\n\
 	vertexColor = newNor.xyz * 0.5 + vec3(0.5);\n\
-	vertexColor = weights.xyz + vec3(weights.w);\n\
+	//vertexColor = weights.xyz + vec3(weights.w);\n\
 }\n\
 ";
 
@@ -93,6 +93,7 @@ struct SkeletalMesh
 	u8 jointCount;
 	mat4 *bindPoses;
 	u8 *jointParents;
+	mat4 *restPoses;
 	u32 animationCount;
 	Animation *animations;
 };
