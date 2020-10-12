@@ -1,9 +1,6 @@
 # TODO
 
 - Sort tool files/build setup properly
-- Implement meta file system
-- Use meta file system to gather animations from multiple .dae files
 
 # Low priority/later
-- Frame allocator instead of malloc everywhere
 - More error handling/logging

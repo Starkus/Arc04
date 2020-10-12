@@ -118,12 +118,14 @@ union Controller
 		Button camLeft;
 		Button camRight;
 
-#if EPA_VISUAL_DEBUGGING
-		Button epaStepUp;
-		Button epaStepDown;
+#if DEBUG_BUILD
+		Button debugUp;
+		Button debugDown;
+		Button debugLeft;
+		Button debugRight;
 #endif
 	};
-	Button b[11];
+	Button b[13];
 };
 
 struct Entity
@@ -165,6 +167,8 @@ struct GameState
 	Entity entities[256];
 	LevelGeometry levelGeometry;
 	Player player;
+
+	int animationIdx;
 };
 
 #if DEBUG_BUILD

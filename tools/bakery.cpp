@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <stdio.h>
+#include <SDL.h>
 
 #include "tinyxml2.cpp"
 using namespace tinyxml2;
@@ -30,7 +31,8 @@ const char *dataDir = "../data/";
 enum ErrorCode
 {
 	ERROR_OK,
-	ERROR_COLLADA_NOROOT = XML_ERROR_COUNT
+	ERROR_META_NOROOT = XML_ERROR_COUNT,
+	ERROR_COLLADA_NOROOT
 };
 
 struct SkinnedPosition
@@ -98,7 +100,7 @@ void *StackAlloc(u64 size)
 void *StackRealloc(void *ptr, u64 newSize)
 {
 	//ASSERT(false);
-	printf("WARNING: STACK REALLOC\n");
+	SDL_Log("WARNING: STACK REALLOC\n");
 
 	void *newBlock = StackAlloc(newSize);
 	memcpy(newBlock, ptr, newSize);
@@ -135,7 +137,7 @@ void *FrameAlloc(u64 size)
 void *FrameRealloc(void *ptr, u64 newSize)
 {
 	//ASSERT(false);
-	printf("WARNING: FRAME REALLOC\n");
+	SDL_Log("WARNING: FRAME REALLOC\n");
 
 	void *newBlock = FrameAlloc(newSize);
 	memcpy(newBlock, ptr, newSize);
@@ -160,6 +162,7 @@ DECLARE_DYNAMIC_ARRAY(u16);
 DECLARE_DYNAMIC_ARRAY(XMLElementPtr);
 DECLARE_DYNAMIC_ARRAY(RawVertex);
 DECLARE_DYNAMIC_ARRAY(AnimationChannel);
+DECLARE_DYNAMIC_ARRAY(Animation);
 
 u32 HashRawVertex(const RawVertex &v)
 {
@@ -234,7 +237,8 @@ void ReadStringToInts(const char *text, int *buffer, int count)
 	}
 }
 
-int ReadCollada(const char *filename)
+int ReadColladaGeometry(const char *filename, DynamicArray_RawVertex &finalVertices,
+		Array_u16 &finalIndices, Skeleton &skeleton)
 {
 	XMLError error;
 
@@ -242,21 +246,21 @@ int ReadCollada(const char *filename)
 	error = doc.LoadFile(filename);
 	if (error != XML_SUCCESS)
 	{
-		printf("ERROR! Parsing XML file \"%s\" (%s)\n", filename, doc.ErrorStr());
+		SDL_Log("ERROR! Parsing XML file \"%s\" (%s)\n", filename, doc.ErrorStr());
 		return error;
 	}
 
 	XMLElement *rootEl = doc.FirstChildElement("COLLADA");
 	if (!rootEl)
 	{
-		printf("ERROR! Collada root node not found\n");
+		SDL_Log("ERROR! Collada root node not found\n");
 		return ERROR_COLLADA_NOROOT;
 	}
 
 	// GEOMETRY
 	XMLElement *geometryEl = rootEl->FirstChildElement("library_geometries")
 		->FirstChildElement("geometry");
-	printf("Found geometry %s\n", geometryEl->FindAttribute("name")->Value());
+	SDL_Log("Found geometry %s\n", geometryEl->FindAttribute("name")->Value());
 
 	XMLElement *meshEl = geometryEl->FirstChildElement("mesh");
 
@@ -409,7 +413,7 @@ int ReadCollada(const char *filename)
 	// SKIN
 	XMLElement *controllerEl = rootEl->FirstChildElement("library_controllers")
 		->FirstChildElement("controller");
-	printf("Found controller %s\n", controllerEl->FindAttribute("name")->Value());
+	SDL_Log("Found controller %s\n", controllerEl->FindAttribute("name")->Value());
 	XMLElement *skinEl = controllerEl->FirstChildElement("skin");
 
 	const char *jointsSourceName = 0;
@@ -490,7 +494,6 @@ int ReadCollada(const char *filename)
 		ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), weights, count);
 	}
 
-	Skeleton skeleton = {};
 	char *jointNamesBuffer = 0;
 	// Read joint names
 	{
@@ -588,8 +591,6 @@ int ReadCollada(const char *filename)
 	}
 
 	// Join positions and normals and eliminate duplicates
-	DynamicArray_RawVertex finalVertices;
-	Array_u16 finalIndices;
 	{
 		void *oldStackPtr = stackPtr;
 
@@ -608,7 +609,7 @@ int ReadCollada(const char *filename)
 		{
 			nOfBuckets *= 2;
 		}
-		printf("Going with %d buckets for %d indices\n", nOfBuckets, triangleIndicesCount * 3);
+		SDL_Log("Going with %d buckets for %d indices\n", nOfBuckets, triangleIndicesCount * 3);
 
 		DynamicArray_u16 *buckets = (DynamicArray_u16 *)StackAlloc(sizeof(DynamicArray_u16) * nOfBuckets);
 		for (int bucketIdx = 0; bucketIdx < nOfBuckets; ++bucketIdx)
@@ -682,15 +683,15 @@ int ReadCollada(const char *filename)
 			total += bucket.size;
 		}
 
-		printf("Vertex indexing collided %d times out of %d (%.02f%%)\n", collisions, total,
+		SDL_Log("Vertex indexing collided %d times out of %d (%.02f%%)\n", collisions, total,
 				100.0f * collisions / (f32)total);
 
-		printf("Vertex indexing used %.02fkb of stack\n", ((u8 *)stackPtr - (u8 *)oldStackPtr) /
+		SDL_Log("Vertex indexing used %.02fkb of stack\n", ((u8 *)stackPtr - (u8 *)oldStackPtr) /
 				1024.0f);
 		StackFree(oldStackPtr);
 	}
 
-	printf("Ended up with %d unique vertices and %d indices\n", finalVertices.size,
+	SDL_Log("Ended up with %d unique vertices and %d indices\n", finalVertices.size,
 			finalIndices.size);
 
 	// Rewind triangles
@@ -710,7 +711,7 @@ int ReadCollada(const char *filename)
 
 		XMLElement *sceneEl = rootEl->FirstChildElement("library_visual_scenes")
 			->FirstChildElement("visual_scene");
-		printf("Found visual scene %s\n", sceneEl->FindAttribute("id")->Value());
+		SDL_Log("Found visual scene %s\n", sceneEl->FindAttribute("id")->Value());
 		XMLElement *nodeEl = sceneEl->FirstChildElement("node");
 
 		DynamicArray_XMLElementPtr stack;
@@ -754,7 +755,7 @@ int ReadCollada(const char *filename)
 
 						skeleton.jointParents[jointIdx] = parentJointIdx;
 
-						//printf("Joint %s has parent %s\n", childName, parentName);
+						//SDL_Log("Joint %s has parent %s\n", childName, parentName);
 					}
 				}
 
@@ -799,19 +800,39 @@ int ReadCollada(const char *filename)
 		}
 	}
 
-	// ANIMATIONS
-	Animation animation = {};
+	return 0;
+}
 
+int ReadColladaAnimation(const char *filename, Animation &animation, Skeleton &skeleton)
+{
+	XMLError error;
+
+	tinyxml2::XMLDocument doc;
+	error = doc.LoadFile(filename);
+	if (error != XML_SUCCESS)
+	{
+		SDL_Log("ERROR! Parsing XML file \"%s\" (%s)\n", filename, doc.ErrorStr());
+		return error;
+	}
+
+	XMLElement *rootEl = doc.FirstChildElement("COLLADA");
+	if (!rootEl)
+	{
+		SDL_Log("ERROR! Collada root node not found\n");
+		return ERROR_COLLADA_NOROOT;
+	}
+
+	// ANIMATIONS
 	DynamicArray_AnimationChannel channels;
 	DynamicArrayInit_AnimationChannel(&channels, skeleton.jointCount, FrameAlloc);
 
 	XMLElement *animationEl = rootEl->FirstChildElement("library_animations")
 		->FirstChildElement("animation");
-	printf("Found animation container %s\n", animationEl->FindAttribute("id")->Value());
+	SDL_Log("Found animation container %s\n", animationEl->FindAttribute("id")->Value());
 	XMLElement *subAnimEl = animationEl->FirstChildElement("animation");
 	while (subAnimEl != nullptr)
 	{
-		//printf("Found animation %s\n", subAnimEl->FindAttribute("id")->Value());
+		//SDL_Log("Found animation %s\n", subAnimEl->FindAttribute("id")->Value());
 
 		XMLElement *channelEl = subAnimEl->FirstChildElement("channel");
 		const char *samplerSourceName = channelEl->FindAttribute("source")->Value() + 1;
@@ -932,7 +953,7 @@ int ReadCollada(const char *filename)
 				}
 			}
 			ASSERT(channel.jointIndex != 0xFF);
-			//printf("Channel thought to target joint \"%s\", ID %d\n", jointIdBuffer,
+			//SDL_Log("Channel thought to target joint \"%s\", ID %d\n", jointIdBuffer,
 					//channel.jointIndex);
 		}
 
@@ -944,29 +965,15 @@ int ReadCollada(const char *filename)
 	animation.channels = channels.data;
 	animation.channelCount = channels.size;
 
+	return 0;
+}
+
+int OutputSkinnedMesh(const char *filename, DynamicArray_RawVertex &finalVertices,
+		Array_u16 &finalIndices, Skeleton &skeleton, DynamicArray_Animation &animations)
+{
 	// Output!
 	{
-		char outputName[MAX_PATH];
-		strcpy(outputName, filename);
-		// Change extension
-		char *lastDot = 0;
-		for (char *scan = outputName; ; ++scan)
-		{
-			if (*scan == '.')
-			{
-				lastDot = scan;
-			}
-			else if (*scan == 0)
-			{
-				if (!lastDot)
-					lastDot = scan;
-				break;
-			}
-		}
-		strcpy(lastDot, ".bin\0");
-		printf("Output name: %s\n", outputName);
-
-		HANDLE newFile = CreateFileA(outputName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
+		HANDLE newFile = CreateFileA(filename, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
 				FILE_ATTRIBUTE_NORMAL, NULL);
 		DWORD bytesWritten;
 		{
@@ -1006,47 +1013,143 @@ int ReadCollada(const char *filename)
 			WriteFile(newFile, skeleton.restPoses, sizeof(mat4) * skeleton.jointCount, &bytesWritten, NULL);
 
 			// Write animations
-			// Write animation count
-			const u32 animationCount = 1;
-			WriteFile(newFile, &animationCount, sizeof(u32), &bytesWritten, NULL);
+			WriteFile(newFile, &animations.size, sizeof(u32), &bytesWritten, NULL);
 
-			WriteFile(newFile, &animation.frameCount, sizeof(u32), &bytesWritten, NULL);
-			WriteFile(newFile, animation.timestamps, sizeof(f32) * animation.frameCount, &bytesWritten, NULL);
-
-			WriteFile(newFile, &animation.channelCount, sizeof(u32), &bytesWritten, NULL);
-			for (u32 channelIdx = 0; channelIdx < animation.channelCount; ++channelIdx)
+			for (u32 animIdx = 0; animIdx < animations.size; ++animIdx)
 			{
-				AnimationChannel *channel = &animation.channels[channelIdx];
-				WriteFile(newFile, &channel->jointIndex, sizeof(u32), &bytesWritten, NULL);
-				WriteFile(newFile, channel->transforms, sizeof(mat4) * animation.frameCount, &bytesWritten, NULL);
+				Animation *animation = &animations[animIdx];
+				WriteFile(newFile, &animation->frameCount, sizeof(u32), &bytesWritten, NULL);
+				WriteFile(newFile, animation->timestamps, sizeof(f32) * animation->frameCount, &bytesWritten, NULL);
+
+				WriteFile(newFile, &animation->channelCount, sizeof(u32), &bytesWritten, NULL);
+				for (u32 channelIdx = 0; channelIdx < animation->channelCount; ++channelIdx)
+				{
+					AnimationChannel *channel = &animation->channels[channelIdx];
+					WriteFile(newFile, &channel->jointIndex, sizeof(u32), &bytesWritten, NULL);
+					WriteFile(newFile, channel->transforms, sizeof(mat4) * animation->frameCount, &bytesWritten, NULL);
+				}
 			}
 		}
 		CloseHandle(newFile);
 	}
 
-	printf("Used %.02fkb of frame allocator\n", ((u8 *)framePtr - (u8 *)frameMem) / 1024.0f);
-	FrameFree(0);
+	return 0;
+}
+
+int ReadMeta(const char *filename)
+{
+	XMLError xmlError;
+
+	tinyxml2::XMLDocument doc;
+	xmlError = doc.LoadFile(filename);
+	if (xmlError != XML_SUCCESS)
+	{
+		SDL_Log("ERROR! Parsing XML file \"%s\" (%s)\n", filename, doc.ErrorStr());
+		return xmlError;
+	}
+
+	XMLElement *rootEl = doc.FirstChildElement("meta");
+	if (!rootEl)
+	{
+		SDL_Log("ERROR! Meta root node not found\n");
+		return ERROR_META_NOROOT;
+	}
+
+	DynamicArray_RawVertex finalVertices = {};
+	Array_u16 finalIndices = {};
+	Skeleton skeleton = {};
+	DynamicArray_Animation animations = {};
+
+	DynamicArrayInit_Animation(&animations, 16, FrameAlloc);
+
+	const char *type = rootEl->FindAttribute("type")->Value();
+	SDL_Log("Meta type: %s\n", type);
+
+	XMLElement *geometryEl = rootEl->FirstChildElement("geometry");
+	while (geometryEl != nullptr)
+	{
+		const char *geomFile = geometryEl->FirstChild()->ToText()->Value();
+		SDL_Log("Found geometry file: %s\n", geomFile);
+
+		char fullname[MAX_PATH];
+		sprintf(fullname, "%s%s", dataDir, geomFile);
+
+		int error = ReadColladaGeometry(fullname, finalVertices, finalIndices, skeleton);
+		if (error)
+			return error;
+
+		geometryEl = geometryEl->NextSiblingElement("geometry");
+	}
+
+	XMLElement *animationEl = rootEl->FirstChildElement("animation");
+	while (animationEl != nullptr)
+	{
+		const char *animFile = animationEl->FirstChild()->ToText()->Value();
+		SDL_Log("Found animation file: %s\n", animFile);
+
+		char fullname[MAX_PATH];
+		sprintf(fullname, "%s%s", dataDir, animFile);
+
+		Animation &animation = animations[DynamicArrayAdd_Animation(&animations, FrameRealloc)];
+		animation = {};
+		int error = ReadColladaAnimation(fullname, animation, skeleton);
+		if (error)
+			return error;
+
+		animationEl = animationEl->NextSiblingElement("animation");
+	}
+
+	// Output
+	{
+		char outputName[MAX_PATH];
+		strcpy(outputName, filename);
+		// Change extension
+		char *lastDot = 0;
+		for (char *scan = outputName; ; ++scan)
+		{
+			if (*scan == '.')
+			{
+				lastDot = scan;
+			}
+			else if (*scan == 0)
+			{
+				if (!lastDot)
+					lastDot = scan;
+				break;
+			}
+		}
+		strcpy(lastDot, ".bin\0");
+		SDL_Log("Output name: %s\n", outputName);
+
+		int error = OutputSkinnedMesh(outputName, finalVertices, finalIndices, skeleton, animations);
+	}
 
 	return 0;
 }
 
 int main(int argc, char **argv)
 {
+	SDL_Init(0);
+
 	StackInit();
 	FrameInit();
 
 	int error = 0;
 
 	char colladaWildcard[MAX_PATH];
-	sprintf(colladaWildcard, "%s*.dae", dataDir);
+	sprintf(colladaWildcard, "%s*.meta", dataDir);
 	WIN32_FIND_DATA findData;
 	HANDLE searchHandle = FindFirstFileA(colladaWildcard, &findData);
 	char fullName[MAX_PATH];
 	while (1)
 	{
 		sprintf(fullName, "%s%s", dataDir, findData.cFileName);
-		printf("\nDetected file %s\n------------------------------\n", fullName);
-		error = ReadCollada(fullName);
+		SDL_Log("\nDetected file %s\n------------------------------\n", fullName);
+		error = ReadMeta(fullName);
+
+		SDL_Log("Used %.02fkb of frame allocator\n", ((u8 *)framePtr - (u8 *)frameMem) / 1024.0f);
+		FrameFree(0);
+
 		if (error != 0)
 			return error;
 

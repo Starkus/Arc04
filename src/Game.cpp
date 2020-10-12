@@ -210,7 +210,6 @@ void StartGame()
 
 			skinnedMesh.animationCount = animationCount;
 			skinnedMesh.animations = (Animation *)malloc(sizeof(Animation) * animationCount);
-			SDL_Log("%d animations\n", animationCount);
 
 			for (u32 animIdx = 0; animIdx < animationCount; ++animIdx)
 			{
@@ -511,12 +510,18 @@ void StartGame()
 							checkButton(c.camRight);
 							break;
 
-#if EPA_VISUAL_DEBUGGING
+#if DEBUG_BUILD
+						case SDLK_h:
+							checkButton(c.debugUp);
+							break;
 						case SDLK_j:
-							checkButton(c.epaStepUp);
+							checkButton(c.debugDown);
 							break;
 						case SDLK_k:
-							checkButton(c.epaStepDown);
+							checkButton(c.debugUp);
+							break;
+						case SDLK_l:
+							checkButton(c.debugDown);
 							break;
 #endif
 					}
@@ -541,6 +546,19 @@ void StartGame()
 			}
 			DRAW_AA_DEBUG_CUBE(v3{}, 0.05f); // Draw origin
 #endif
+
+			if (gameState.controller.debugUp.endedDown && gameState.controller.debugUp.changed)
+			{
+				++gameState.animationIdx;
+				if (gameState.animationIdx >= (i32)skinnedMesh.animationCount)
+					gameState.animationIdx = 0;
+			}
+			if (gameState.controller.debugDown.endedDown && gameState.controller.debugDown.changed)
+			{
+				--gameState.animationIdx;
+				if (gameState.animationIdx < 0)
+					gameState.animationIdx = skinnedMesh.animationCount;
+			}
 
 			if (gameState.controller.camUp.endedDown)
 				gameState.camPitch += 1.0f * deltaTime;
@@ -857,7 +875,7 @@ void StartGame()
 					joints[i] = MAT4_IDENTITY;
 				}
 
-				Animation *animation = &skinnedMesh.animations[0];
+				Animation *animation = &skinnedMesh.animations[gameState.animationIdx];
 
 				f32 firstTimestamp = animation->timestamps[0];
 				f32 lastTimestamp = animation->timestamps[animation->frameCount - 1];
