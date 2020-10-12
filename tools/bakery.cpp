@@ -79,9 +79,20 @@ DECLARE_ARRAY(v3);
 DECLARE_ARRAY(v2);
 DECLARE_ARRAY(mat4);
 DECLARE_ARRAY(SkinnedPosition);
+DECLARE_DYNAMIC_ARRAY(u16);
 DECLARE_DYNAMIC_ARRAY(XMLElementPtr);
 DECLARE_DYNAMIC_ARRAY(RawVertex);
 DECLARE_DYNAMIC_ARRAY(AnimationChannel);
+
+u32 HashRawVertex(const RawVertex &v)
+{
+	u32 result = 0;
+	for (u32 counter = 0; counter < sizeof(RawVertex); counter++)
+	{
+		result = ((u8 *)&v)[counter] + (result << 6) + (result << 16) - result;
+	}
+	return result;
+}
 
 void ReadStringToFloats(const char *text, f32 *buffer, int count)
 {
@@ -522,16 +533,24 @@ int ReadCollada(const char *filename)
 
 		ArrayInit_u16(&finalIndices, triangleIndicesCount * 3);
 
-		for (int i = 0; i < triangleIndicesCount * 3; ++i)
+		const int nOfBuckets = 128;
+		DynamicArray_u16 *buckets = (DynamicArray_u16 *)malloc(sizeof(DynamicArray_u16) * nOfBuckets);
+		for (int bucketIdx = 0; bucketIdx < nOfBuckets; ++bucketIdx)
 		{
-			const int posIdx = triangleIndices[i * attrCount + verticesOffset];
+			buckets[bucketIdx].capacity = 32;
+			DynamicArrayInit_u16(&buckets[bucketIdx]);
+		}
+
+		for (int triangleIdx = 0; triangleIdx < triangleIndicesCount * 3; ++triangleIdx)
+		{
+			const int posIdx = triangleIndices[triangleIdx * attrCount + verticesOffset];
 			SkinnedPosition pos = skinnedPositions[posIdx];
 
 			int uvIdx = 0;
 			v2 uv = {};
 			if (hasUvs)
 			{
-				uvIdx = triangleIndices[i * attrCount + uvsOffset];
+				uvIdx = triangleIndices[triangleIdx * attrCount + uvsOffset];
 				uv = uvs[uvIdx];
 			}
 
@@ -539,20 +558,23 @@ int ReadCollada(const char *filename)
 			v3 nor = {};
 			if (hasNormals)
 			{
-				norIdx = triangleIndices[i * attrCount + normalsOffset];
+				norIdx = triangleIndices[triangleIdx * attrCount + normalsOffset];
 				nor = normals[norIdx];
 			}
 
 			RawVertex newVertex = { pos, uv, nor };
 
-			// TODO hash map if this n^2 thing gets too slow
 			u16 index = 0xFFFF;
-			for (u32 vertIdx = 0; vertIdx < finalVertices.size; ++vertIdx)
+			const u32 hash = HashRawVertex(newVertex);
+			DynamicArray_u16 &bucket = (buckets[hash & (nOfBuckets - 1)]);
+			for (u32 i = 0; i < bucket.size; ++i)
 			{
-				RawVertex v = finalVertices[vertIdx];
-				if (memcmp(&v, &newVertex, sizeof(RawVertex)) == 0)
+				u16 vertexIndex = bucket[i];
+				RawVertex *other = &finalVertices[vertexIndex];
+				if (memcmp(other, &newVertex, sizeof(RawVertex)) == 0)
 				{
-					index = (u16)vertIdx;
+					index = vertexIndex;
+					break;
 				}
 			}
 
@@ -562,6 +584,9 @@ int ReadCollada(const char *filename)
 				u16 newVertexIdx = (u16)DynamicArrayAdd_RawVertex(&finalVertices);
 				finalVertices[newVertexIdx] = newVertex;
 				finalIndices[finalIndices.size++] = newVertexIdx;
+
+				// Add to map
+				bucket[DynamicArrayAdd_u16(&bucket)] = newVertexIdx;
 			}
 			else
 			{
@@ -814,7 +839,7 @@ int ReadCollada(const char *filename)
 					break;
 				}
 			}
-			//ASSERT(channel.jointIndex != 0xFF);
+			ASSERT(channel.jointIndex != 0xFF);
 			printf("Channel thought to target joint \"%s\", ID %d\n", jointIdBuffer,
 					channel.jointIndex);
 		}
