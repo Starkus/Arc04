@@ -1,8 +1,8 @@
 #include <windows.h>
 #include <stdio.h>
-#include <SDL.h>
+#include <SDL/SDL.h>
 
-#include "tinyxml2.cpp"
+#include "tinyxml/tinyxml2.cpp"
 using namespace tinyxml2;
 
 #include "General.h"
@@ -180,6 +180,7 @@ void *FrameRealloc(void *ptr, u64 newSize)
 }
 void FrameFree(void *ptr)
 {
+	(void) ptr;
 }
 void FrameWipe()
 {
@@ -725,8 +726,7 @@ int ReadColladaController(const char *filename, Skeleton *skeleton, WeightData *
 	return 0;
 }
 
-int ConstructSkinnedMesh(const char *filename, const RawGeometry *geometry,
-		const WeightData *weightData,
+int ConstructSkinnedMesh(const RawGeometry *geometry, const WeightData *weightData,
 		DynamicArray_RawVertex &finalVertices, Array_u16 &finalIndices)
 {
 	const u32 vertexTotal = geometry->positions.size;
@@ -1209,7 +1209,7 @@ int ReadMeta(const char *filename)
 			if (error)
 				return error;
 
-			ConstructSkinnedMesh(fullname, &rawGeometry, nullptr, finalVertices,
+			ConstructSkinnedMesh(&rawGeometry, nullptr, finalVertices,
 					finalIndices);
 
 			geometryEl = geometryEl->NextSiblingElement("geometry");
@@ -1246,7 +1246,7 @@ int ReadMeta(const char *filename)
 			if (error)
 				return error;
 
-			ConstructSkinnedMesh(fullname, &rawGeometry, &weightData, finalVertices,
+			ConstructSkinnedMesh(&rawGeometry, &weightData, finalVertices,
 					finalIndices);
 
 			geometryEl = geometryEl->NextSiblingElement("geometry");
@@ -1374,6 +1374,7 @@ int ReadMeta(const char *filename)
 
 int main(int argc, char **argv)
 {
+	(void) argc, argv;
 	SDL_Init(0);
 
 	StackInit();

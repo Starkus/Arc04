@@ -43,6 +43,7 @@ Compiler('Compiler_x64')
 						+ ' /wd4127' // conditional expression is constant
 						+ ' /wd4201' // nonstandard extension used : nameless struct/union
 						+ ' /wd4307' // 'operator' : integral constant overflow
+						+ ' /wd4996' // shut up with the unsafe functions goddamnit
 
 .CompilerIncludePaths = ' /I"$VSIncludePath$"'
 					+ ' /I"$WindowsSDKIncludePath$\ucrt"'

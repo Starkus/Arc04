@@ -1,6 +1,7 @@
 // Project Config
 .GameName = 'game'
 .SourcePath = 'src'
+.ToolsSourcePath = 'tools'
 .OutputPath = 'build'
 .BinPath = 'bin'
 .SolutionPath = 'solution'
@@ -17,6 +18,7 @@ ForEach(.BuildType in .BuildTypes)
 {
 	Using(.BuildType)
 
+	// Game
 	ObjectList('GameSource_$BuildTypeName$')
 	{
 		.CompilerOptions = '$ExeCompilerOptions$'
@@ -38,6 +40,29 @@ ForEach(.BuildType in .BuildTypes)
 
 	// Add to all targets
 	^AllTargets + 'Game_$BuildTypeName$'
+
+	// Bakery
+	ObjectList('BakerySource_$BuildTypeName$')
+	{
+		.CompilerOptions = '$ExeCompilerOptions$'
+		.CompilerInputFiles = '$ToolsSourcePath$/Bakery.cpp'
+		.CompilerOutputPath = '$OutputPath$/$BuildTypeName$'
+	}
+
+	Executable('Bakery_$BuildTypeName$')
+	{
+		.LinkerOptions = .ExeLinkerOptions
+		.LinkerOutput = '$BinPath$/Bakery$BuildTypeSufix$.exe'
+		.Libraries = {
+			'BakerySource_$BuildTypeName$',
+			'$ExternalLibrariesPath$/SDL2.lib',
+			'$ExternalLibrariesPath$/SDL2main.lib',
+		}
+		.PreBuildDependencies = 'Copy_Libs'
+	}
+
+	// Add to all targets
+	^AllTargets + 'Bakery_$BuildTypeName$'
 }
 
 Alias('all') { .Targets = .AllTargets }
