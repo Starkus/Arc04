@@ -1,6 +1,8 @@
 # TODO
 
-- Sort tool files/build setup properly
+- File headers and better data organization inside binary files (offsets to the big blobs and shared
+	header structs).
 
 # Low priority/later
 - More error handling/logging
+- Daemon that detects data changes and rebuilds?

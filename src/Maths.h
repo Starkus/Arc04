@@ -31,6 +31,16 @@ inline f32 Tan(f32 theta)
 	return tanf(theta);
 }
 
+inline f32 Asin(f32 n)
+{
+	return asinf(n);
+}
+
+inline f32 Acos(f32 n)
+{
+	return acosf(n);
+}
+
 inline f32 Atan2(f32 a, f32 b)
 {
 	return atan2f(a, b);
@@ -219,6 +229,69 @@ inline v3 V3Normalize(const v3 &a)
 	return result;
 }
 
+inline v4 operator+(const v4 &a, const v4 &b)
+{
+	const v4 result = { a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w };
+	return result;
+}
+
+inline v4 operator-(const v4 &a, const v4 &b)
+{
+	const v4 result = { a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w };
+	return result;
+}
+
+inline v4 operator-(const v4 &v)
+{
+	const v4 result = { -v.x, -v.y, -v.z, -v.w };
+	return result;
+}
+
+inline v4 operator*(const v4 &a, f32 b)
+{
+	const v4 result = { a.x * b, a.y * b, a.z * b, a.w * b };
+	return result;
+}
+
+inline v4 operator/(const v4 &a, f32 b)
+{
+	const v4 result = { a.x / b, a.y / b, a.z / b, a.w / b };
+	return result;
+}
+
+inline v4 operator*=(v4 &a, f32 b)
+{
+	a = { a.x * b, a.y * b, a.z * b, a.w * b };
+	return a;
+}
+
+inline v4 operator/=(v4 &a, f32 b)
+{
+	a = { a.x / b, a.y / b, a.z / b, a.w / b };
+	return a;
+}
+
+inline f32 V4Dot(const v4 &a, const v4 &b)
+{
+	return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+}
+
+inline f32 V4SqrLen(const v4 &a)
+{
+	return V4Dot(a, a);
+}
+
+inline f32 V4Length(const v4 &a)
+{
+	return Sqrt(V4SqrLen(a));
+}
+
+inline v4 V4Normalize(const v4 &a)
+{
+	v4 result = a / V4Length(a);
+	return result;
+}
+
 inline f32 Mat4Determinant(const mat4 &m)
 {
 	f32 result = m.m00 *
@@ -335,6 +408,109 @@ inline v4 Mat4TransformV4(const mat4 &m, const v4 &v)
 	result.z = v.x * m.m02 + v.y * m.m12 + v.z * m.m22 + v.w * m.m32;
 	result.w = v.x * m.m03 + v.y * m.m13 + v.z * m.m23 + v.w * m.m33;
 	return result;
+}
+
+inline mat4 Mat4FromQuaternion(const v4 &q)
+{
+	mat4 result;
+	result.m00 = 1 - 2*q.y*q.y - 2*q.z*q.z;
+	result.m01 = 2*q.x*q.y + 2*q.z*q.w;
+	result.m02 = 2*q.x*q.z - 2*q.y*q.w;
+	result.m03 = 0;
+
+	result.m10 = 2*q.x*q.y - 2*q.z*q.w;
+	result.m11 = 1 - 2*q.x*q.x - 2*q.z*q.z;
+	result.m12 = 2*q.y*q.z + 2*q.x*q.w;
+	result.m13 = 0;
+
+	result.m20 = 2*q.x*q.z + 2*q.y*q.w;
+	result.m21 = 2*q.y*q.z - 2*q.x*q.w;
+	result.m22 = 1 - 2*q.x*q.x - 2*q.y*q.y;
+	result.m23 = 0;
+
+	result.m30 = 0;
+	result.m31 = 0;
+	result.m32 = 0;
+	result.m33 = 1;
+	return result;
+}
+
+inline v4 QuaternionFromRotationMatrix(const mat4 &m)
+{
+	v4 result;
+	f32 t;
+	if (m.m22 < 0)
+	{
+		if (m.m00 > m.m11)
+		{
+			t = 1 + m.m00 - m.m11 - m.m22;
+			result = { t, m.m01 + m.m10, m.m20 + m.m02, m.m12 - m.m21 };
+		}
+		else
+		{
+			t = 1 - m.m00 + m.m11 - m.m22;
+			result = { m.m01 + m.m10, t, m.m12 + m.m21, m.m20 - m.m02 };
+		}
+	}
+	else
+	{
+		if (m.m00 < -m.m11)
+		{
+			t = 1 - m.m00 - m.m11 + m.m22;
+			result = { m.m20 + m.m02, m.m12 + m.m21, t, m.m01 - m.m10 };
+		}
+		else
+		{
+			t = 1 + m.m00 + m.m11 + m.m22;
+			result = { m.m12 - m.m21, m.m20 - m.m02, m.m01 - m.m10, t };
+		}
+	}
+	result *= 0.5f / Sqrt(t);
+	return result;
+}
+
+// NOTE: m is passed by copy on purpose here
+inline void Mat4Decompose(mat4 m, v3 *translation, v3 *scale, v4 *rotation)
+{
+	*translation = { m.m30, m.m31, m.m32 };
+	m.m30 = 0;
+	m.m31 = 0;
+	m.m32 = 0;
+	*scale =
+	{
+		Sqrt(m.m00 * m.m00 + m.m10 * m.m10 + m.m20 * m.m20),
+		Sqrt(m.m01 * m.m01 + m.m11 * m.m11 + m.m21 * m.m21),
+		Sqrt(m.m02 * m.m02 + m.m12 * m.m12 + m.m22 * m.m22)
+	};
+	m.m00 /= scale->x;
+	m.m10 /= scale->x;
+	m.m20 /= scale->x;
+	m.m01 /= scale->y;
+	m.m11 /= scale->y;
+	m.m21 /= scale->y;
+	m.m02 /= scale->z;
+	m.m12 /= scale->z;
+	m.m22 /= scale->z;
+	*rotation = QuaternionFromRotationMatrix(m);
+}
+
+inline mat4 Mat4Compose(const v3 &translation, const v3 &scale, const v4 &rotation)
+{
+	mat4 m;
+	m = Mat4FromQuaternion(rotation);
+	m.m00 *= scale.x;
+	m.m10 *= scale.x;
+	m.m20 *= scale.x;
+	m.m01 *= scale.y;
+	m.m11 *= scale.y;
+	m.m21 *= scale.y;
+	m.m02 *= scale.z;
+	m.m12 *= scale.z;
+	m.m22 *= scale.z;
+	m.m30 = translation.x;
+	m.m31 = translation.y;
+	m.m32 = translation.z;
+	return m;
 }
 
 #endif

@@ -171,6 +171,8 @@ struct GameState
 	Player player;
 
 	int animationIdx;
+	f32 animationTime;
+	bool loopAnimation;
 };
 
 #if DEBUG_BUILD

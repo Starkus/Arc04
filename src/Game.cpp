@@ -306,6 +306,9 @@ void StartGame()
 
 		ReadPoints("data/monkey_collision.bin", &playerEnt->collisionPoints,
 			&playerEnt->collisionPointCount);
+
+		gameState.animationIdx = 0;
+		gameState.loopAnimation = true;
 	}
 
 	// Init camera
@@ -513,6 +516,10 @@ void StartGame()
 				{
 					player->vel.z = 15.0f;
 					player->state = PLAYERSTATE_AIR;
+
+					gameState.animationIdx = 1;
+					gameState.animationTime = 0;
+					gameState.loopAnimation = false;
 				}
 
 				// Gravity
@@ -625,7 +632,14 @@ void StartGame()
 				}
 			}
 
-			player->state = touchedGround ? PLAYERSTATE_GROUNDED : PLAYERSTATE_AIR;
+			PlayerState newState = touchedGround ? PLAYERSTATE_GROUNDED : PLAYERSTATE_AIR;
+			if (newState != player->state)
+			{
+				gameState.animationIdx = newState == PLAYERSTATE_GROUNDED ? 0 : 1;
+				gameState.animationTime = 0;
+				gameState.loopAnimation = newState == PLAYERSTATE_GROUNDED ? true : false;
+				player->state = newState;
+			}
 
 			gameState.camPos = player->entity->pos;
 
@@ -786,20 +800,18 @@ void StartGame()
 
 				Animation *animation = &skinnedMesh.animations[gameState.animationIdx];
 
-				f32 firstTimestamp = animation->timestamps[0];
 				f32 lastTimestamp = animation->timestamps[animation->frameCount - 1];
-				static f32 animationTime = firstTimestamp;
 
 				int currentFrame = -1;
 				for (u32 i = 0; i < animation->frameCount; ++i)
 				{
-					if (currentFrame == -1 && animationTime < animation->timestamps[i])
+					if (currentFrame == -1 && gameState.animationTime <= animation->timestamps[i])
 						currentFrame = i - 1;
 				}
 				f32 prevStamp = animation->timestamps[currentFrame];
 				f32 nextStamp = animation->timestamps[currentFrame + 1];
 				f32 lerpWindow = nextStamp - prevStamp;
-				f32 lerpTime = animationTime - prevStamp;
+				f32 lerpTime = gameState.animationTime - prevStamp;
 				f32 lerpT = lerpTime / lerpWindow;
 
 				for (u32 jointIdx = 0; jointIdx < skinnedMesh.jointCount; ++jointIdx)
@@ -853,15 +865,37 @@ void StartGame()
 							continue;
 						}
 
-						// Dumb linear interpolation of matrices
-						f32 t = lerpT;
 						mat4 a = currentChannel->transforms[currentFrame];
 						mat4 b = currentChannel->transforms[currentFrame + 1];
 						mat4 T;
+#if 0
+						// Dumb linear interpolation of matrices
 						for (int mi = 0; mi < 16; ++mi)
 						{
-							T.m[mi] = a.m[mi] * (1-t) + b.m[mi] * t;
+							T.m[mi] = a.m[mi] * (1-lerpT) + b.m[mi] * lerpT;
 						}
+#else
+						v3 aTranslation;
+						v3 aScale;
+						v4 aQuat;
+						Mat4Decompose(a, &aTranslation, &aScale, &aQuat);
+
+						v3 bTranslation;
+						v3 bScale;
+						v4 bQuat;
+						Mat4Decompose(b, &bTranslation, &bScale, &bQuat);
+
+						f32 aWeight = (1 - lerpT);
+						f32 bWeight = lerpT;
+						bool invertRot = V4Dot(aQuat, bQuat) < 0;
+
+						v3 rTranslation = aTranslation * aWeight + bTranslation * lerpT;
+						v3 rScale = aScale * aWeight + bScale * lerpT;
+						v4 rQuat = aQuat * aWeight + bQuat * (invertRot ? -bWeight : bWeight);
+						rQuat = V4Normalize(rQuat);
+
+						T = Mat4Compose(rTranslation, rScale, rQuat);
+#endif
 
 						if (first)
 						{
@@ -877,9 +911,14 @@ void StartGame()
 
 					joints[jointIdx] = transform;
 				}
-				animationTime += deltaTime;
-				if (animationTime >= lastTimestamp)
-					animationTime = firstTimestamp;
+				gameState.animationTime += deltaTime;
+				if (gameState.animationTime >= lastTimestamp)
+				{
+					if (gameState.loopAnimation)
+						gameState.animationTime = 0;
+					else
+						gameState.animationTime = lastTimestamp;
+				}
 
 				Entity *player = gameState.player.entity;
 				const v3 pos = player->pos;
