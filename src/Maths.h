@@ -13,6 +13,11 @@ inline f32 Fmod(f32 n, f32 d)
 	return fmodf(n, d);
 }
 
+inline f32 Sign(f32 n)
+{
+	return f32(n > 0) - f32(n < 0);
+}
+
 inline f32 Sin(f32 theta)
 {
 	return sinf(theta);

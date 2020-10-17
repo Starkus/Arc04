@@ -107,34 +107,133 @@ bool RayTriangleIntersection(v3 rayOrigin, v3 rayDir, const Triangle &triangle, 
 	return true;
 }
 
-inline v3 FurthestInDirection(const v3 *points, u32 pointCount, v3 dir)
+inline v3 FurthestInDirection(Entity *entity, v3 dir)
 {
-	f32 maxDist = -INFINITY;
-	v3 result = {};
-
-	const v3 *scan = points;
-	for (u32 i = 0; i < pointCount; ++i)
+	Collider *c = &entity->collider;
+	ColliderType type = c->type;
+	switch(type)
 	{
-		v3 p = *scan++;
-		f32 dot = V3Dot(p, dir);
-		if (dot > maxDist)
+	case COLLIDER_CONVEX_HULL:
+	{
+		f32 maxDist = -INFINITY;
+		v3 result = {};
+
+		// @Speed: inverse-transform direction, pick a point, and then transform only that // point!
+		const v3 worldUp = { 0, 0, 1 };
+		const v3 pos = entity->pos;
+		const v3 fw = entity->fw;
+		const v3 right = V3Normalize(V3Cross(fw, worldUp));
+		const v3 up = V3Cross(right, fw);
+		mat4 modelMatrix =
 		{
-			maxDist = dot;
-			result = p;
+			right.x,	right.y,	right.z,	0.0f,
+			fw.x,		fw.y,		fw.z,		0.0f,
+			up.x,		up.y,		up.z,		0.0f,
+			pos.x,		pos.y,		pos.z,		1.0f
+		};
+
+		u32 pointCount = c->convexHull.collisionPointCount;
+		v3 *points = (v3 *)malloc(pointCount * sizeof(v3));
+
+		// Compute all points
+		{
+			for (u32 i = 0; i < pointCount; ++i)
+			{
+				v3 p = c->convexHull.collisionPoints[i];
+				v4 v = { p.x, p.y, p.z, 1.0f };
+				v = Mat4TransformV4(modelMatrix, v);
+				points[i] = { v.x, v.y, v.z };
+			}
 		}
+
+		const v3 *scan = points;
+		for (u32 i = 0; i < pointCount; ++i)
+		{
+			v3 p = *scan++;
+			f32 dot = V3Dot(p, dir);
+			if (dot > maxDist)
+			{
+				maxDist = dot;
+				result = p;
+			}
+		}
+
+		return result;
+	}
+	case COLLIDER_SPHERE:
+	{
+		return entity->pos + c->sphere.offset + V3Normalize(dir) * c->sphere.radius;
+	}
+	case COLLIDER_CYLINDER:
+	{
+		v3 result = entity->pos + c->cylinder.offset;
+
+		f32 halfH = c->cylinder.height * 0.5f;
+		f32 lat = Sqrt(dir.x * dir.x + dir.y * dir.y);
+		if (lat == 0)
+		{
+			// If direction is parallel to cylinder the answer is trivial
+			result.z += Sign(dir.z) * halfH;
+			return result;
+		}
+
+		// Project dir into cylinder wall
+		v3 d = dir / lat;
+		d = d * c->cylinder.radius;
+
+		// Crop d if it goes out the top/bottom
+		if (d.z > halfH)
+		{
+			d.z = halfH;
+		}
+		else if (d.z < -halfH)
+		{
+			d.z = -halfH;
+		}
+
+		return result + d;
+	}
+	case COLLIDER_CAPSULE:
+	{
+		v3 result = entity->pos + c->cylinder.offset;
+
+		f32 halfH = c->cylinder.height * 0.5f;
+		f32 lat = Sqrt(dir.x * dir.x + dir.y * dir.y);
+		if (lat == 0)
+		{
+			// If direction is parallel to cylinder the answer is trivial
+			result.z += Sign(dir.z) * (halfH + c->capsule.radius);
+			return result;
+		}
+
+		// Project dir into cylinder wall
+		v3 d = dir / lat;
+		d = d * c->cylinder.radius;
+
+		// If it goes out the top, return furthest point from top sphere
+		if (d.z > halfH)
+			return result + v3{ 0, 0, halfH } + V3Normalize(dir) * c->capsule.radius;
+		// Analogue for bottom
+		else if (d.z < -halfH)
+			return result - v3{ 0, 0, halfH } + V3Normalize(dir) * c->capsule.radius;
+		// Else just return the vector projected to the wall
+		else
+			return result + d;
+	}
 	}
 
-	return result;
+	ASSERT(false);
+	return {};
 }
 
-inline v3 GJKSupport(const v3 *vA, u32 vACount, const v3 *vB, u32 vBCount, v3 dir)
+inline v3 GJKSupport(Entity *vA, Entity *vB, v3 dir)
 {
-	v3 va = FurthestInDirection(vA, vACount, dir);
-	v3 vb = FurthestInDirection(vB, vBCount, -dir);
+	v3 va = FurthestInDirection(vA, dir);
+	v3 vb = FurthestInDirection(vB, -dir);
 	return va - vb;
 }
 
-GJKResult GJKTest(const v3 *vA, u32 vACount, const v3 *vB, u32 vBCount)
+GJKResult GJKTest(Entity *vA, Entity *vB)
 {
 #if GJK_VISUAL_DEBUGGING
 	if (g_GJKSteps[0] == nullptr)
@@ -150,7 +249,7 @@ GJKResult GJKTest(const v3 *vA, u32 vACount, const v3 *vB, u32 vBCount)
 	int foundPointsCount = 1;
 	v3 testDir = { 0, 1, 0 }; // Random initial test direction
 
-	result.points[0] = GJKSupport(vB, vBCount, vA, vACount, testDir);
+	result.points[0] = GJKSupport(vB, vA, testDir);
 	testDir = -result.points[0];
 
 	for (int iterations = 0; result.hit && foundPointsCount < 4; ++iterations)
@@ -173,7 +272,7 @@ GJKResult GJKTest(const v3 *vA, u32 vACount, const v3 *vB, u32 vBCount)
 			break;
 		}
 
-		v3 a = GJKSupport(vB, vBCount, vA, vACount, testDir);
+		v3 a = GJKSupport(vB, vA, testDir);
 		if (V3Dot(testDir, a) < 0)
 		{
 			result.hit = false;
@@ -453,7 +552,7 @@ GJKResult GJKTest(const v3 *vA, u32 vACount, const v3 *vB, u32 vBCount)
 	return result;
 }
 
-v3 ComputeDepenetration(GJKResult gjkResult, const v3 *vA, u32 vACount, const v3 *vB, u32 vBCount)
+v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB)
 {
 #if EPA_VISUAL_DEBUGGING
 	if (g_polytopeSteps[0] == nullptr)
@@ -553,7 +652,7 @@ v3 ComputeDepenetration(GJKResult gjkResult, const v3 *vA, u32 vACount, const v3
 
 		// Expand polytope!
 		v3 testDir = V3Cross(closestFeature.c - closestFeature.a, closestFeature.b - closestFeature.a);
-		v3 newPoint = GJKSupport(vB, vBCount, vA, vACount, testDir);
+		v3 newPoint = GJKSupport(vB, vA, testDir);
 		EPALOG("Found new point { %.02f, %.02f. %.02f } while looking in direction { %.02f, %.02f. %.02f }\n",
 				newPoint.x, newPoint.y, newPoint.z, testDir.x, testDir.y, testDir.z);
 #if EPA_VISUAL_DEBUGGING

@@ -2,7 +2,11 @@
 
 - Use custom allocators in game too
 - Import and draw textures
-- Colliders other than convex hulls
+- BVH and octree for level triangles
+- Non axis aligned colliders
+- Import different geometries separately from a single .dae
+- Import scenes/levels from .dae
+- Don't use working directory to look for data files in Bakery
 
 # Low priority/later
 - More error handling/logging

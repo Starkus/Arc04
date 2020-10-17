@@ -142,13 +142,44 @@ union Controller
 	Button b[13];
 };
 
+enum ColliderType
+{
+	COLLIDER_CONVEX_HULL,
+	COLLIDER_SPHERE,
+	COLLIDER_CYLINDER,
+	COLLIDER_CAPSULE
+};
+
+struct Collider
+{
+	ColliderType type;
+	union
+	{
+		struct
+		{
+			v3 *collisionPoints;
+			u32 collisionPointCount;
+		} convexHull;
+		struct
+		{
+			f32 radius;
+			v3 offset;
+		} sphere;
+		struct
+		{
+			f32 radius;
+			f32 height;
+			v3 offset;
+		} cylinder, capsule;
+	};
+};
+
 struct Entity
 {
 	v3 pos;
 	v3 fw;
 	DeviceMesh *mesh;
-	v3 *collisionPoints;
-	u32 collisionPointCount;
+	Collider collider;
 };
 
 struct LevelGeometry
