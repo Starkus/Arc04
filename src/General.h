@@ -24,6 +24,21 @@ typedef uint64_t u64;
 typedef float f32;
 typedef double f64;
 
+#define U8_MAX 0xFF
+#define U16_MAX 0xFFFF
+#define U32_MAX 0xFFFFFFFF
+#define U64_MAX 0xFFFFFFFFFFFFFFFF
+
+#define I8_MIN ((i8)0xFF)
+#define I16_MIN ((i16)0xFFFF)
+#define I32_MIN ((i32)0xFFFFFFFF)
+#define I64_MIN ((i64)0xFFFFFFFFFFFFFFFF)
+
+#define I8_MAX ((i8)0x7F)
+#define I16_MAX ((i16)0x7FFF)
+#define I32_MAX ((i32)0x7FFFFFFF)
+#define I64_MAX ((i64)0x7FFFFFFFFFFFFFFF)
+
 #define DEBUG_BUILD 1
 #define DEBUG_ONLY(a) a
 

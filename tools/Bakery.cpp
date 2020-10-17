@@ -8,184 +8,17 @@ using namespace tinyxml2;
 #include "General.h"
 #include "Maths.h"
 #include "Containers.h"
+#include "BakeryInterop.h"
+#include "Bakery.h"
+
+namespace game
+{
 #include "Geometry.h"
-
-const char *dataDir = "../data/";
-
-enum ErrorCode
-{
-	ERROR_OK,
-	ERROR_META_NOROOT = XML_ERROR_COUNT,
-	ERROR_COLLADA_NOROOT,
-	ERROR_META_WRONG_TYPE
 };
 
-enum MetaType
-{
-	METATYPE_INVALID = -1,
-	METATYPE_MESH,
-	METATYPE_SKINNED_MESH,
-	METATYPE_TRIANGLE_DATA,
-	METATYPE_POINTS,
-	METATYPE_COUNT
-};
+#include "Memory.cpp"
 
-const char *MetaTypeNames[] =
-{
-	"MESH",
-	"SKINNED_MESH",
-	"TRIANGLE_DATA",
-	"POINTS"
-};
-
-struct SkinnedPosition
-{
-	v3 pos;
-	u8 jointIndices[4];
-	f32 jointWeights[4];
-};
-
-struct RawVertex
-{
-	SkinnedPosition skinnedPos;
-	v2 uv;
-	v3 normal;
-};
-
-struct Skeleton
-{
-	u8 jointCount;
-	char **ids;
-	mat4 *bindPoses;
-	u8 *jointParents;
-	mat4 *restPoses;
-};
-
-struct AnimationChannel
-{
-	u8 jointIndex;
-	mat4 *transforms;
-};
-
-struct Animation
-{
-	u32 frameCount;
-	f32 *timestamps;
-	u32 channelCount;
-	AnimationChannel *channels;
-};
-
-typedef XMLElement* XMLElementPtr;
-
-// STACK
-const u64 stackSize = 128 * 1024 * 1024;
-void *stackMem;
-void *stackPtr;
-void StackInit()
-{
-	stackMem = malloc(stackSize);
-	stackPtr = stackMem;
-}
-void StackFinalize()
-{
-	free(stackMem);
-}
-void *StackAlloc(u64 size)
-{
-	ASSERT((u8 *)stackPtr + size < (u8 *)stackMem + stackSize); // Out of memory!
-	void *result;
-
-	result = stackPtr;
-	stackPtr = (u8 *)stackPtr + size;
-
-	return result;
-}
-void *StackRealloc(void *ptr, u64 newSize)
-{
-	//ASSERT(false);
-	//SDL_Log("WARNING: STACK REALLOC\n");
-
-	void *newBlock = StackAlloc(newSize);
-	memcpy(newBlock, ptr, newSize);
-	return newBlock;
-}
-void StackFree(void *ptr)
-{
-	stackPtr = ptr;
-}
-
-DECLARE_ARRAY(u16);
-DECLARE_ARRAY(int);
-DECLARE_ARRAY(f32);
-DECLARE_ARRAY(v3);
-DECLARE_ARRAY(v2);
-DECLARE_ARRAY(mat4);
-DECLARE_ARRAY(SkinnedPosition);
-DECLARE_DYNAMIC_ARRAY(u16);
-DECLARE_DYNAMIC_ARRAY(XMLElementPtr);
-DECLARE_DYNAMIC_ARRAY(RawVertex);
-DECLARE_DYNAMIC_ARRAY(AnimationChannel);
-DECLARE_DYNAMIC_ARRAY(Animation);
-
-struct RawGeometry
-{
-	Array_v3 positions;
-	Array_v2 uvs;
-	Array_v3 normals;
-	Array_int triangleIndices;
-	int verticesOffset;
-	int normalsOffset;
-	int uvsOffset;
-	int triangleCount;
-};
-
-struct WeightData
-{
-	f32 *weights;
-	int *weightCounts;
-	int *weightIndices;
-};
-
-// FRAME
-const u64 frameSize = 256 * 1024 * 1024;
-void *frameMem;
-void *framePtr;
-void FrameInit()
-{
-	frameMem = malloc(stackSize);
-	framePtr = frameMem;
-}
-void FrameFinalize()
-{
-	free(frameMem);
-}
-void *FrameAlloc(u64 size)
-{
-	ASSERT((u8 *)framePtr + size < (u8 *)frameMem + stackSize); // Out of memory!
-	void *result;
-
-	result = framePtr;
-	framePtr = (u8 *)framePtr + size;
-
-	return result;
-}
-void *FrameRealloc(void *ptr, u64 newSize)
-{
-	//ASSERT(false);
-	//SDL_Log("WARNING: FRAME REALLOC\n");
-
-	void *newBlock = FrameAlloc(newSize);
-	memcpy(newBlock, ptr, newSize);
-	return newBlock;
-}
-void FrameFree(void *ptr)
-{
-	(void) ptr;
-}
-void FrameWipe()
-{
-	framePtr = frameMem;
-}
+#define RW_ALIGN(fileHandle) SDL_RWseek(fileHandle, SDL_RWtell(fileHandle) & 0b11, RW_SEEK_CUR)
 
 u32 HashRawVertex(const RawVertex &v)
 {
@@ -282,25 +115,8 @@ void ReadStringToInts(const char *text, int *buffer, int count)
 	}
 }
 
-int ReadColladaGeometry(const char *filename, RawGeometry *result)
+ErrorCode ReadColladaGeometry(XMLElement *rootEl, RawGeometry *result)
 {
-	XMLError error;
-
-	tinyxml2::XMLDocument doc;
-	error = doc.LoadFile(filename);
-	if (error != XML_SUCCESS)
-	{
-		SDL_Log("ERROR! Parsing XML file \"%s\" (%s)\n", filename, doc.ErrorStr());
-		return error;
-	}
-
-	XMLElement *rootEl = doc.FirstChildElement("COLLADA");
-	if (!rootEl)
-	{
-		SDL_Log("ERROR! Collada root node not found\n");
-		return ERROR_COLLADA_NOROOT;
-	}
-
 	*result = {};
 
 	// GEOMETRY
@@ -415,7 +231,7 @@ int ReadColladaGeometry(const char *filename, RawGeometry *result)
 	{
 		XMLElement *arrayEl = positionsSource->FirstChildElement("float_array");
 		int positionsCount = arrayEl->FindAttribute("count")->IntValue();
-		ArrayInit_v3(&result->positions, positionsCount / 3);
+		ArrayInit_v3(&result->positions, positionsCount / 3, FrameAlloc);
 		ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), (f32 *)result->positions.data,
 				positionsCount);
 		result->positions.size = positionsCount / 3;
@@ -427,7 +243,7 @@ int ReadColladaGeometry(const char *filename, RawGeometry *result)
 	{
 		XMLElement *arrayEl = normalsSource->FirstChildElement("float_array");
 		int normalsCount = arrayEl->FindAttribute("count")->IntValue();
-		ArrayInit_v3(&result->normals, normalsCount / 3);
+		ArrayInit_v3(&result->normals, normalsCount / 3, FrameAlloc);
 		ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), (f32 *)result->normals.data, normalsCount);
 		result->normals.size = normalsCount / 3;
 	}
@@ -438,7 +254,7 @@ int ReadColladaGeometry(const char *filename, RawGeometry *result)
 	{
 		XMLElement *arrayEl = uvsSource->FirstChildElement("float_array");
 		int uvsCount = arrayEl->FindAttribute("count")->IntValue();
-		ArrayInit_v2(&result->uvs, uvsCount / 2);
+		ArrayInit_v2(&result->uvs, uvsCount / 2, FrameAlloc);
 		ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), (f32 *)result->uvs.data, uvsCount);
 		result->uvs.size = uvsCount / 2;
 	}
@@ -448,34 +264,16 @@ int ReadColladaGeometry(const char *filename, RawGeometry *result)
 	{
 		const int totalIndexCount = result->triangleCount * 3 * attrCount;
 
-		ArrayInit_int(&result->triangleIndices, totalIndexCount);
+		ArrayInit_int(&result->triangleIndices, totalIndexCount, FrameAlloc);
 		ReadStringToInts(triangleIndicesSource->FirstChild()->ToText()->Value(),
 				result->triangleIndices.data, totalIndexCount);
 		result->triangleIndices.size = totalIndexCount;
 	}
-	return 0;
+	return ERROR_OK;
 }
 
-int ReadColladaController(const char *filename, Skeleton *skeleton, WeightData *weightData)
+ErrorCode ReadColladaController(XMLElement *rootEl, Skeleton *skeleton, WeightData *weightData)
 {
-	XMLError error;
-
-	tinyxml2::XMLDocument doc;
-	error = doc.LoadFile(filename);
-	if (error != XML_SUCCESS)
-	{
-		SDL_Log("ERROR! Parsing XML file \"%s\" (%s)\n", filename, doc.ErrorStr());
-		return error;
-	}
-
-	XMLElement *rootEl = doc.FirstChildElement("COLLADA");
-	if (!rootEl)
-	{
-		SDL_Log("ERROR! Collada root node not found\n");
-		return ERROR_COLLADA_NOROOT;
-	}
-
-	// SKIN
 	XMLElement *controllerEl = rootEl->FirstChildElement("library_controllers")
 		->FirstChildElement("controller");
 	SDL_Log("Found controller %s\n", controllerEl->FindAttribute("name")->Value());
@@ -723,16 +521,18 @@ int ReadColladaController(const char *filename, Skeleton *skeleton, WeightData *
 		}
 	}
 
-	return 0;
+	return ERROR_OK;
 }
 
 int ConstructSkinnedMesh(const RawGeometry *geometry, const WeightData *weightData,
 		DynamicArray_RawVertex &finalVertices, Array_u16 &finalIndices)
 {
+	void *oldStackPtr = stackPtr;
+
 	const u32 vertexTotal = geometry->positions.size;
 
 	Array_SkinnedPosition skinnedPositions;
-	ArrayInit_SkinnedPosition(&skinnedPositions, vertexTotal);
+	ArrayInit_SkinnedPosition(&skinnedPositions, vertexTotal, StackAlloc);
 	for (u32 i = 0; i < vertexTotal; ++i)
 	{
 		SkinnedPosition *skinnedPos = &skinnedPositions[skinnedPositions.size++];
@@ -771,13 +571,13 @@ int ConstructSkinnedMesh(const RawGeometry *geometry, const WeightData *weightDa
 
 	// Join positions and normals and eliminate duplicates
 	{
-		void *oldStackPtr = stackPtr;
+		void *oldStackPtrJoin = stackPtr;
 
 		const bool hasUvs = geometry->uvsOffset >= 0;
 		const bool hasNormals = geometry->normalsOffset >= 0;
 		const int attrCount = 1 + hasUvs + hasNormals;
 
-		ArrayInit_u16(&finalIndices, geometry->triangleCount * 3);
+		ArrayInit_u16(&finalIndices, geometry->triangleCount * 3, FrameAlloc);
 
 		// We make the number of buckets the next power of 2 after the count
 		// to minimize collisions with a reasonable amount of memory.
@@ -868,7 +668,7 @@ int ConstructSkinnedMesh(const RawGeometry *geometry, const WeightData *weightDa
 
 		SDL_Log("Vertex indexing used %.02fkb of stack\n", ((u8 *)stackPtr - (u8 *)oldStackPtr) /
 				1024.0f);
-		StackFree(oldStackPtr);
+		StackFree(oldStackPtrJoin);
 	}
 
 	SDL_Log("Ended up with %d unique vertices and %d indices\n", finalVertices.size,
@@ -882,29 +682,13 @@ int ConstructSkinnedMesh(const RawGeometry *geometry, const WeightData *weightDa
 		finalIndices[i * 3 + 2] = tmp;
 	}
 
+	StackFree(oldStackPtr);
+
 	return 0;
 }
 
-int ReadColladaAnimation(const char *filename, Animation &animation, Skeleton &skeleton)
+ErrorCode ReadColladaAnimation(XMLElement *rootEl, Animation &animation, Skeleton &skeleton)
 {
-	XMLError error;
-
-	tinyxml2::XMLDocument doc;
-	error = doc.LoadFile(filename);
-	if (error != XML_SUCCESS)
-	{
-		SDL_Log("ERROR! Parsing XML file \"%s\" (%s)\n", filename, doc.ErrorStr());
-		return error;
-	}
-
-	XMLElement *rootEl = doc.FirstChildElement("COLLADA");
-	if (!rootEl)
-	{
-		SDL_Log("ERROR! Collada root node not found\n");
-		return ERROR_COLLADA_NOROOT;
-	}
-
-	// ANIMATIONS
 	DynamicArray_AnimationChannel channels;
 	DynamicArrayInit_AnimationChannel(&channels, skeleton.jointCount, FrameAlloc);
 
@@ -1054,7 +838,7 @@ int ReadColladaAnimation(const char *filename, Animation &animation, Skeleton &s
 	animation.channels = channels.data;
 	animation.channelCount = channels.size;
 
-	return 0;
+	return ERROR_OK;
 }
 
 int OutputMesh(const char *filename, DynamicArray_RawVertex &finalVertices, Array_u16 &finalIndices)
@@ -1063,20 +847,31 @@ int OutputMesh(const char *filename, DynamicArray_RawVertex &finalVertices, Arra
 	{
 		SDL_RWops *newFile = SDL_RWFromFile(filename, "wb");
 		{
-			SDL_RWwrite(newFile, &finalVertices.size, sizeof(finalVertices.size), 1);
-			SDL_RWwrite(newFile, &finalIndices.size, sizeof(finalIndices.size), 1);
+			u64 vertexBlobSize = sizeof(game::Vertex) * finalVertices.size;
+
+			BakeryMeshHeader header;
+			header.vertexCount = finalVertices.size;
+			header.indexCount = finalIndices.size;
+			header.vertexBlobOffset = sizeof(header);
+			header.indexBlobOffset = header.vertexBlobOffset + vertexBlobSize;
+
+			SDL_RWwrite(newFile, &header, sizeof(header), 1);
+
+			ASSERT(SDL_RWtell(newFile) == (i64)header.vertexBlobOffset);
 
 			// Write vertex data
 			for (u32 i = 0; i < finalVertices.size; ++i)
 			{
 				RawVertex *rawVertex = &finalVertices[i];
-				Vertex gameVertex;
+				game::Vertex gameVertex;
 				gameVertex.pos = rawVertex->skinnedPos.pos;
 				gameVertex.uv = rawVertex->uv;
 				gameVertex.nor = rawVertex->normal;
 
 				SDL_RWwrite(newFile, &gameVertex, sizeof(gameVertex), 1);
 			}
+
+			ASSERT(SDL_RWtell(newFile) == (i64)header.indexBlobOffset);
 
 			// Write indices
 			for (u32 i = 0; i < finalIndices.size; ++i)
@@ -1094,63 +889,108 @@ int OutputMesh(const char *filename, DynamicArray_RawVertex &finalVertices, Arra
 int OutputSkinnedMesh(const char *filename, DynamicArray_RawVertex &finalVertices,
 		Array_u16 &finalIndices, Skeleton &skeleton, DynamicArray_Animation &animations)
 {
-	// Output!
+	void *oldStackPtr = stackPtr;
+
+	SDL_RWops *newFile = SDL_RWFromFile(filename, "wb");
+	
+	BakerySkinnedMeshHeader header;
+	header.vertexCount = finalVertices.size;
+	header.indexCount = finalIndices.size;
+	header.jointCount = skeleton.jointCount;
+	header.animationCount = animations.size;
+	SDL_RWseek(newFile, sizeof(header), RW_SEEK_SET);
+
+	// Write vertex data
+	header.vertexBlobOffset = SDL_RWtell(newFile);
+	for (u32 i = 0; i < finalVertices.size; ++i)
 	{
-		SDL_RWops *newFile = SDL_RWFromFile(filename, "wb");
+		RawVertex *rawVertex = &finalVertices[i];
+		game::SkinnedVertex gameVertex;
+		gameVertex.pos = rawVertex->skinnedPos.pos;
+		gameVertex.uv = rawVertex->uv;
+		gameVertex.nor = rawVertex->normal;
+		for (int j = 0; j < 4; ++j)
 		{
-			SDL_RWwrite(newFile, &finalVertices.size, sizeof(finalVertices.size), 1);
-			SDL_RWwrite(newFile, &finalIndices.size, sizeof(finalIndices.size), 1);
-
-			// Write vertex data
-			for (u32 i = 0; i < finalVertices.size; ++i)
-			{
-				RawVertex *rawVertex = &finalVertices[i];
-				SkinnedVertex gameVertex;
-				gameVertex.pos = rawVertex->skinnedPos.pos;
-				gameVertex.uv = rawVertex->uv;
-				gameVertex.nor = rawVertex->normal;
-				for (int j = 0; j < 4; ++j)
-				{
-					gameVertex.indices[j] = rawVertex->skinnedPos.jointIndices[j];
-					gameVertex.weights[j] = rawVertex->skinnedPos.jointWeights[j];
-				}
-
-				SDL_RWwrite(newFile, &gameVertex, sizeof(gameVertex), 1);
-			}
-
-			// Write indices
-			for (u32 i = 0; i < finalIndices.size; ++i)
-			{
-				u16 outputIdx = finalIndices[i];
-				SDL_RWwrite(newFile, &outputIdx, sizeof(outputIdx), 1);
-			}
-
-			// Write skeleton
-			SDL_RWwrite(newFile, &skeleton.jointCount, sizeof(u32), 1);
-			SDL_RWwrite(newFile, skeleton.bindPoses, sizeof(mat4) * skeleton.jointCount, 1);
-			SDL_RWwrite(newFile, skeleton.jointParents, skeleton.jointCount, 1);
-			SDL_RWwrite(newFile, skeleton.restPoses, sizeof(mat4) * skeleton.jointCount, 1);
-
-			// Write animations
-			SDL_RWwrite(newFile, &animations.size, sizeof(u32), 1);
-
-			for (u32 animIdx = 0; animIdx < animations.size; ++animIdx)
-			{
-				Animation *animation = &animations[animIdx];
-				SDL_RWwrite(newFile, &animation->frameCount, sizeof(u32), 1);
-				SDL_RWwrite(newFile, animation->timestamps, sizeof(u32) * animation->frameCount, 1);
-
-				SDL_RWwrite(newFile, &animation->channelCount, sizeof(u32), 1);
-				for (u32 channelIdx = 0; channelIdx < animation->channelCount; ++channelIdx)
-				{
-					AnimationChannel *channel = &animation->channels[channelIdx];
-					SDL_RWwrite(newFile, &channel->jointIndex, sizeof(u32), 1);
-					SDL_RWwrite(newFile, channel->transforms, sizeof(mat4) * animation->frameCount, 1);
-				}
-			}
+			gameVertex.indices[j] = rawVertex->skinnedPos.jointIndices[j];
+			gameVertex.weights[j] = rawVertex->skinnedPos.jointWeights[j];
 		}
-		SDL_RWclose(newFile);
+
+		SDL_RWwrite(newFile, &gameVertex, sizeof(gameVertex), 1);
 	}
+
+	RW_ALIGN(newFile);
+
+	// Write indices
+	header.indexBlobOffset = SDL_RWtell(newFile);
+	for (u32 i = 0; i < finalIndices.size; ++i)
+	{
+		u16 outputIdx = finalIndices[i];
+		SDL_RWwrite(newFile, &outputIdx, sizeof(outputIdx), 1);
+	}
+
+	RW_ALIGN(newFile);
+
+	// Write skeleton
+	header.bindPosesBlobOffset = SDL_RWtell(newFile);
+	SDL_RWwrite(newFile, skeleton.bindPoses, sizeof(mat4) * skeleton.jointCount, 1);
+	RW_ALIGN(newFile);
+
+	header.jointParentsBlobOffset = SDL_RWtell(newFile);
+	SDL_RWwrite(newFile, skeleton.jointParents, skeleton.jointCount, 1);
+	RW_ALIGN(newFile);
+
+	header.restPosesBlobOffset = SDL_RWtell(newFile);
+	SDL_RWwrite(newFile, skeleton.restPoses, sizeof(mat4) * skeleton.jointCount, 1);
+	RW_ALIGN(newFile);
+
+	// Write animations
+	Array_BakerySkinnedMeshAnimationHeader animationHeaders;
+	ArrayInit_BakerySkinnedMeshAnimationHeader(&animationHeaders, animations.size, StackAlloc);
+	for (u32 animIdx = 0; animIdx < animations.size; ++animIdx)
+	{
+		Animation *animation = &animations[animIdx];
+
+		BakerySkinnedMeshAnimationHeader *animationHeader = &animationHeaders[animIdx];
+		animationHeader->frameCount = animation->frameCount;
+		animationHeader->channelCount = animation->channelCount;
+
+		animationHeader->timestampsBlobOffset = SDL_RWtell(newFile);
+		SDL_RWwrite(newFile, animation->timestamps, sizeof(u32) * animation->frameCount, 1);
+
+		Array_BakerySkinnedMeshAnimationChannelHeader channelHeaders;
+		ArrayInit_BakerySkinnedMeshAnimationChannelHeader(&channelHeaders, animation->channelCount,
+				StackAlloc);
+		for (u32 channelIdx = 0; channelIdx < animation->channelCount; ++channelIdx)
+		{
+			AnimationChannel *channel = &animation->channels[channelIdx];
+
+			BakerySkinnedMeshAnimationChannelHeader *channelHeader = &channelHeaders[channelIdx];
+			channelHeader->jointIndex = channel->jointIndex;
+			channelHeader->transformsBlobOffset = SDL_RWtell(newFile);
+			SDL_RWwrite(newFile, channel->transforms, sizeof(mat4) * animation->frameCount, 1);
+		}
+
+		animationHeader->channelsBlobOffset = SDL_RWtell(newFile);
+		for (u32 channelIdx = 0; channelIdx < animation->channelCount; ++channelIdx)
+		{
+			BakerySkinnedMeshAnimationChannelHeader *channelHeader = &channelHeaders[channelIdx];
+			SDL_RWwrite(newFile, channelHeader, sizeof(*channelHeader), 1);
+		}
+	}
+
+	header.animationBlobOffset = SDL_RWtell(newFile);
+	for (u32 animIdx = 0; animIdx < animations.size; ++animIdx)
+	{
+		BakerySkinnedMeshAnimationHeader *animationHeader = &animationHeaders[animIdx];
+		SDL_RWwrite(newFile, animationHeader, sizeof(*animationHeader), 1);
+	}
+
+	SDL_RWseek(newFile, 0, RW_SEEK_SET);
+	SDL_RWwrite(newFile, &header, sizeof(header), 1);
+
+	SDL_RWclose(newFile);
+
+	StackFree(oldStackPtr);
 
 	return 0;
 }
@@ -1211,9 +1051,24 @@ int ReadMeta(const char *filename)
 			char fullname[MAX_PATH];
 			sprintf(fullname, "%s%s", dataDir, geomFile);
 
+			tinyxml2::XMLDocument dataDoc;
+			xmlError = dataDoc.LoadFile(fullname);
+			if (xmlError != XML_SUCCESS)
+			{
+				SDL_Log("ERROR! Parsing XML file \"%s\" (%s)\n", fullname, dataDoc.ErrorStr());
+				return xmlError;
+			}
+
+			XMLElement *dataRootEl = dataDoc.FirstChildElement("COLLADA");
+			if (!dataRootEl)
+			{
+				SDL_Log("ERROR! Collada root node not found\n");
+				return ERROR_COLLADA_NOROOT;
+			}
+
 			RawGeometry rawGeometry;
-			int error = ReadColladaGeometry(fullname, &rawGeometry);
-			if (error)
+			ErrorCode error = ReadColladaGeometry(dataRootEl, &rawGeometry);
+			if (error != ERROR_OK)
 				return error;
 
 			ConstructSkinnedMesh(&rawGeometry, nullptr, finalVertices,
@@ -1243,13 +1098,28 @@ int ReadMeta(const char *filename)
 			char fullname[MAX_PATH];
 			sprintf(fullname, "%s%s", dataDir, geomFile);
 
+			tinyxml2::XMLDocument dataDoc;
+			xmlError = dataDoc.LoadFile(fullname);
+			if (xmlError != XML_SUCCESS)
+			{
+				SDL_Log("ERROR! Parsing XML file \"%s\" (%s)\n", fullname, dataDoc.ErrorStr());
+				return xmlError;
+			}
+
+			XMLElement *dataRootEl = dataDoc.FirstChildElement("COLLADA");
+			if (!dataRootEl)
+			{
+				SDL_Log("ERROR! Collada root node not found\n");
+				return ERROR_COLLADA_NOROOT;
+			}
+
 			RawGeometry rawGeometry;
-			int error = ReadColladaGeometry(fullname, &rawGeometry);
+			int error = ReadColladaGeometry(dataRootEl, &rawGeometry);
 			if (error)
 				return error;
 
 			WeightData weightData;
-			error = ReadColladaController(fullname, &skeleton, &weightData);
+			error = ReadColladaController(dataRootEl, &skeleton, &weightData);
 			if (error)
 				return error;
 
@@ -1268,9 +1138,24 @@ int ReadMeta(const char *filename)
 			char fullname[MAX_PATH];
 			sprintf(fullname, "%s%s", dataDir, animFile);
 
+			tinyxml2::XMLDocument dataDoc;
+			xmlError = dataDoc.LoadFile(fullname);
+			if (xmlError != XML_SUCCESS)
+			{
+				SDL_Log("ERROR! Parsing XML file \"%s\" (%s)\n", fullname, dataDoc.ErrorStr());
+				return xmlError;
+			}
+
+			XMLElement *dataRootEl = dataDoc.FirstChildElement("COLLADA");
+			if (!dataRootEl)
+			{
+				SDL_Log("ERROR! Collada root node not found\n");
+				return ERROR_COLLADA_NOROOT;
+			}
+
 			Animation &animation = animations[DynamicArrayAdd_Animation(&animations, FrameRealloc)];
 			animation = {};
-			int error = ReadColladaAnimation(fullname, animation, skeleton);
+			ErrorCode error = ReadColladaAnimation(dataRootEl, animation, skeleton);
 			if (error)
 				return error;
 
@@ -1297,8 +1182,23 @@ int ReadMeta(const char *filename)
 		char fullname[MAX_PATH];
 		sprintf(fullname, "%s%s", dataDir, geomFile);
 
+		tinyxml2::XMLDocument dataDoc;
+		xmlError = dataDoc.LoadFile(fullname);
+		if (xmlError != XML_SUCCESS)
+		{
+			SDL_Log("ERROR! Parsing XML file \"%s\" (%s)\n", fullname, dataDoc.ErrorStr());
+			return xmlError;
+		}
+
+		XMLElement *dataRootEl = dataDoc.FirstChildElement("COLLADA");
+		if (!dataRootEl)
+		{
+			SDL_Log("ERROR! Collada root node not found\n");
+			return ERROR_COLLADA_NOROOT;
+		}
+
 		RawGeometry rawGeometry;
-		int error = ReadColladaGeometry(fullname, &rawGeometry);
+		int error = ReadColladaGeometry(dataRootEl, &rawGeometry);
 		if (error)
 			return error;
 
@@ -1308,8 +1208,13 @@ int ReadMeta(const char *filename)
 
 		SDL_RWops *file = SDL_RWFromFile(outputName, "wb");
 
+		BakeryTriangleDataHeader header;
+
 		const u32 triangleCount = rawGeometry.triangleCount;
-		SDL_RWwrite(file, &triangleCount, sizeof(u32), 1);
+		header.triangleCount = triangleCount;
+		header.trianglesBlobOffset = sizeof(header);
+
+		SDL_RWwrite(file, &header, sizeof(header), 1);
 
 		int attrCount = 1;
 		if (rawGeometry.normalsOffset >= 0)
@@ -1330,15 +1235,10 @@ int ReadMeta(const char *filename)
 			int ai = rawGeometry.triangleIndices[(i * 3 + 0) * attrCount + rawGeometry.verticesOffset];
 			int bi = rawGeometry.triangleIndices[(i * 3 + 2) * attrCount + rawGeometry.verticesOffset];
 			int ci = rawGeometry.triangleIndices[(i * 3 + 1) * attrCount + rawGeometry.verticesOffset];
-			//SDL_Log("Triangle: %d %d %d\n", ai, bi, ci);
 
 			triangle.a = rawGeometry.positions[ai];
 			triangle.b = rawGeometry.positions[bi];
 			triangle.c = rawGeometry.positions[ci];
-			//SDL_Log("Triangle: [%.02f,%.02f,%.02f] [%.02f,%.02f,%.02f] [%.02f,%.02f,%.02f]\n",
-					//a.x, a.y, a.z,
-					//b.x, b.y, b.z,
-					//c.x, c.y, c.z);
 
 			triangle.normal = V3Normalize(V3Cross(triangle.c - triangle.a, triangle.b - triangle.a));
 
@@ -1357,8 +1257,23 @@ int ReadMeta(const char *filename)
 		char fullname[MAX_PATH];
 		sprintf(fullname, "%s%s", dataDir, geomFile);
 
+		tinyxml2::XMLDocument dataDoc;
+		xmlError = dataDoc.LoadFile(fullname);
+		if (xmlError != XML_SUCCESS)
+		{
+			SDL_Log("ERROR! Parsing XML file \"%s\" (%s)\n", fullname, dataDoc.ErrorStr());
+			return xmlError;
+		}
+
+		XMLElement *dataRootEl = dataDoc.FirstChildElement("COLLADA");
+		if (!dataRootEl)
+		{
+			SDL_Log("ERROR! Collada root node not found\n");
+			return ERROR_COLLADA_NOROOT;
+		}
+
 		RawGeometry rawGeometry;
-		int error = ReadColladaGeometry(fullname, &rawGeometry);
+		ErrorCode error = ReadColladaGeometry(dataRootEl, &rawGeometry);
 		if (error)
 			return error;
 
@@ -1369,7 +1284,12 @@ int ReadMeta(const char *filename)
 		SDL_RWops *file = SDL_RWFromFile(outputName, "wb");
 
 		const u32 pointCount = rawGeometry.positions.size;
-		SDL_RWwrite(file, &pointCount, sizeof(u32), 1);
+
+		BakeryPointsHeader header;
+		header.pointCount = pointCount;
+		header.pointsBlobOffset = sizeof(header);
+
+		SDL_RWwrite(file, &header, sizeof(header), 1);
 		SDL_RWwrite(file, rawGeometry.positions.data, sizeof(v3), pointCount);
 
 		SDL_RWclose(file);
@@ -1417,3 +1337,5 @@ int main(int argc, char **argv)
 
 	return error;
 }
+
+#undef RW_ALIGN

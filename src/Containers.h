@@ -19,9 +19,9 @@ struct Array_##_TYPE \
 	} \
 }; \
 \
-inline void ArrayInit_##_TYPE(Array_##_TYPE *array, u32 capacity) \
+inline void ArrayInit_##_TYPE(Array_##_TYPE *array, u32 capacity, void *(*allocFunc)(u64)) \
 { \
-	array->data = (_TYPE *)malloc(sizeof(_TYPE) * capacity); \
+	array->data = (_TYPE *)allocFunc(sizeof(_TYPE) * capacity); \
 	array->size = 0; \
 	array->capacity_ = capacity; \
 }

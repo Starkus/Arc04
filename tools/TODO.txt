@@ -1,7 +1,8 @@
 # TODO
 
-- File headers and better data organization inside binary files (offsets to the big blobs and shared
-	header structs).
+- Use custom allocators in game too
+- Import and draw textures
+- Colliders other than convex hulls
 
 # Low priority/later
 - More error handling/logging

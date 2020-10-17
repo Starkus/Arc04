@@ -1,7 +1,3 @@
-#include "General.h"
-#include "Geometry.h"
-#include "Collision.h"
-
 #if EPA_LOGGING
 #define EPALOG(...) SDL_Log(__VA_ARGS__)
 #else
@@ -14,14 +10,20 @@
 #define EPAERROR(...)
 #endif
 
-struct Face
+struct GJKResult
+{
+	bool hit;
+	v3 points[4];
+};
+
+struct EPAFace
 {
 	v3 a;
 	v3 b;
 	v3 c;
 };
 
-struct Edge
+struct EPAEdge
 {
 	v3 a;
 	v3 b;
@@ -40,11 +42,11 @@ Vertex *g_polytopeSteps[16];
 int g_polytopeStepCounts[16];
 v3 g_epaNewPoint[16];
 
-void GenPolytopeMesh(Face *polytopeData, int faceCount, Vertex *buffer)
+void GenPolytopeMesh(EPAFace *polytopeData, int faceCount, Vertex *buffer)
 {
 	for (int faceIdx = 0; faceIdx < faceCount; ++faceIdx)
 	{
-		Face *face = &polytopeData[faceIdx];
+		EPAFace *face = &polytopeData[faceIdx];
 		v3 normal = V3Normalize(V3Cross(face->c - face->a, face->b - face->a));
 		normal = normal * 0.5f + v3{ 0.5f, 0.5f, 0.5f };
 		buffer[faceIdx * 3 + 0] = { face->a, {}, normal };
@@ -465,7 +467,7 @@ v3 ComputeDepenetration(GJKResult gjkResult, const v3 *vA, u32 vACount, const v3
 
 	// By now we should have the tetrahedron from GJK
 	// TODO dynamic array?
-	Face polytope[256];
+	EPAFace polytope[256];
 	int polytopeCount = 0;
 
 	// Make all faces from tetrahedron
@@ -483,7 +485,7 @@ v3 ComputeDepenetration(GJKResult gjkResult, const v3 *vA, u32 vACount, const v3
 		polytopeCount = 4;
 	}
 
-	Face closestFeature;
+	EPAFace closestFeature;
 	f32 lastLeastDistance = -1.0f;
 	const int maxIterations = 64;
 	for (int epaStep = 0; epaStep < maxIterations; ++epaStep)
@@ -500,13 +502,13 @@ v3 ComputeDepenetration(GJKResult gjkResult, const v3 *vA, u32 vACount, const v3
 #endif
 
 		// Find closest feature to origin in polytope
-		Face newClosestFeature = {};
+		EPAFace newClosestFeature = {};
 		int validFacesFound = 0;
 		f32 leastDistance = INFINITY;
 		EPALOG("Looking for closest feature\n");
 		for (int faceIdx = 0; faceIdx < polytopeCount; ++faceIdx)
 		{
-			Face *face = &polytope[faceIdx];
+			EPAFace *face = &polytope[faceIdx];
 			v3 normal = V3Normalize(V3Cross(face->c - face->a, face->b - face->a));
 			f32 distToOrigin = V3Dot(normal, face->a);
 			if (distToOrigin >= leastDistance)
@@ -579,12 +581,12 @@ v3 ComputeDepenetration(GJKResult gjkResult, const v3 *vA, u32 vACount, const v3
 			ASSERT(false);
 			break;
 		}
-		Edge holeEdges[256];
+		EPAEdge holeEdges[256];
 		int holeEdgesCount = 0;
 		int oldPolytopeCount = polytopeCount;
 		for (int faceIdx = 0; faceIdx < polytopeCount; )
 		{
-			Face *face = &polytope[faceIdx];
+			EPAFace *face = &polytope[faceIdx];
 			v3 normal = V3Cross(face->c - face->a, face->b - face->a);
 			// Ignore if not facing new point
 			if (V3Dot(normal, newPoint - face->a) <= 0)
@@ -594,7 +596,7 @@ v3 ComputeDepenetration(GJKResult gjkResult, const v3 *vA, u32 vACount, const v3
 			}
 
 			// Add/remove edges to the hole (XOR)
-			Edge faceEdges[3] =
+			EPAEdge faceEdges[3] =
 			{
 				{ face->a, face->b },
 				{ face->b, face->c },
@@ -602,12 +604,12 @@ v3 ComputeDepenetration(GJKResult gjkResult, const v3 *vA, u32 vACount, const v3
 			};
 			for (int edgeIdx = 0; edgeIdx < 3; ++edgeIdx)
 			{
-				const Edge &edge = faceEdges[edgeIdx];
+				const EPAEdge &edge = faceEdges[edgeIdx];
 				// If it's already on the list, remove it
 				bool found = false;
 				for (int holeEdgeIdx = 0; holeEdgeIdx < holeEdgesCount; ++holeEdgeIdx)
 				{
-					const Edge &holeEdge = holeEdges[holeEdgeIdx];
+					const EPAEdge &holeEdge = holeEdges[holeEdgeIdx];
 					if ((edge.a == holeEdge.a && edge.b == holeEdge.b) ||
 						(edge.a == holeEdge.b && edge.b == holeEdge.a))
 					{
@@ -644,8 +646,8 @@ v3 ComputeDepenetration(GJKResult gjkResult, const v3 *vA, u32 vACount, const v3
 
 		for (int holeEdgeIdx = 0; holeEdgeIdx < holeEdgesCount; ++holeEdgeIdx)
 		{
-			const Edge &holeEdge = holeEdges[holeEdgeIdx];
-			Face newFace = { holeEdge.a, holeEdge.b, newPoint };
+			const EPAEdge &holeEdge = holeEdges[holeEdgeIdx];
+			EPAFace newFace = { holeEdge.a, holeEdge.b, newPoint };
 			polytope[polytopeCount++] = newFace;
 		}
 		EPALOG("Added %d faces to fill the hole. Polytope now has %d faces\n",

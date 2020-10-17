@@ -1,6 +1,3 @@
-#ifndef _MATH
-#define _MATH
-
 #include "General.h"
 #include <math.h> // MSVC math intrinsics
 
@@ -512,5 +509,3 @@ inline mat4 Mat4Compose(const v3 &translation, const v3 &scale, const v4 &rotati
 	m.m32 = translation.z;
 	return m;
 }
-
-#endif

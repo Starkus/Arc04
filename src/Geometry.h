@@ -1,9 +1,3 @@
-#ifndef _GEOMETRY
-#define _GEOMETRY
-
-#include "General.h"
-#include "Maths.h"
-
 struct Vertex
 {
 	v3 pos;
@@ -27,5 +21,3 @@ struct Triangle
 	v3 c;
 	v3 normal;
 };
-
-#endif
