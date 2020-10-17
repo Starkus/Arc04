@@ -1,3 +1,7 @@
 # 3dvania
 ## Build
-Run shell.bat (just once) and build.bat
+Run setup.bat (just once) and fbuild.exe
+## Compile data
+Run bin/bakery.exe to process the game data
+## Run
+Run bin/game.exe
