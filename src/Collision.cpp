@@ -8,6 +8,12 @@
 #define EPALOG(...)
 #endif
 
+#if EPA_ERROR_LOGGING
+#define EPAERROR(...) SDL_Log(__VA_ARGS__)
+#else
+#define EPAERROR(...)
+#endif
+
 struct Face
 {
 	v3 a;
@@ -21,17 +27,25 @@ struct Edge
 	v3 b;
 };
 
+#if GJK_VISUAL_DEBUGGING
+bool g_writeGJKGeom = true;
+Vertex *g_GJKSteps[64];
+int g_GJKStepCounts[64];
+v3 g_GJKNewPoint[64];
+#endif
+
 #if EPA_VISUAL_DEBUGGING
 bool g_writePolytopeGeom = true;
 Vertex *g_polytopeSteps[16];
 int g_polytopeStepCounts[16];
+v3 g_epaNewPoint[16];
 
 void GenPolytopeMesh(Face *polytopeData, int faceCount, Vertex *buffer)
 {
 	for (int faceIdx = 0; faceIdx < faceCount; ++faceIdx)
 	{
 		Face *face = &polytopeData[faceIdx];
-		v3 normal = V3Cross(face->c - face->a, face->b - face->a);
+		v3 normal = V3Normalize(V3Cross(face->c - face->a, face->b - face->a));
 		normal = normal * 0.5f + v3{ 0.5f, 0.5f, 0.5f };
 		buffer[faceIdx * 3 + 0] = { face->a, {}, normal };
 		buffer[faceIdx * 3 + 1] = { face->b, {}, normal };
@@ -120,6 +134,14 @@ inline v3 GJKSupport(const v3 *vA, u32 vACount, const v3 *vB, u32 vBCount, v3 di
 
 GJKResult GJKTest(const v3 *vA, u32 vACount, const v3 *vB, u32 vBCount)
 {
+#if GJK_VISUAL_DEBUGGING
+	if (g_GJKSteps[0] == nullptr)
+	{
+		for (int i = 0; i < ArrayCount(g_GJKSteps); ++i)
+			g_GJKSteps[i] = (Vertex *)malloc(sizeof(Vertex) * 12);
+	}
+#endif
+
 	GJKResult result;
 	result.hit = true;
 
@@ -131,9 +153,21 @@ GJKResult GJKTest(const v3 *vA, u32 vACount, const v3 *vB, u32 vBCount)
 
 	for (int iterations = 0; result.hit && foundPointsCount < 4; ++iterations)
 	{
+#if GJK_VISUAL_DEBUGGING
+		int i_ = iterations;
+		if (g_writeGJKGeom)
+		{
+			g_GJKStepCounts[i_] = 0;
+		}
+#endif
+
 		if (iterations >= 50)
 		{
-			ASSERT(false);
+			EPAERROR("GJK ERROR! Reached iteration limit!\n");
+			//ASSERT(false);
+#if GJK_VISUAL_DEBUGGING
+			g_writeGJKGeom = false;
+#endif
 			break;
 		}
 
@@ -143,6 +177,13 @@ GJKResult GJKTest(const v3 *vA, u32 vACount, const v3 *vB, u32 vBCount)
 			result.hit = false;
 			break;
 		}
+
+#if GJK_VISUAL_DEBUGGING
+		if (g_writeGJKGeom && iterations)
+		{
+			g_GJKNewPoint[iterations - 1] = a;
+		}
+#endif
 
 		switch (foundPointsCount)
 		{
@@ -163,6 +204,20 @@ GJKResult GJKTest(const v3 *vA, u32 vACount, const v3 *vB, u32 vBCount)
 				const v3 nor = V3Cross(ac, ab);
 				v3 abNor = V3Cross(nor, ab);
 				v3 acNor = V3Cross(ac, nor);
+
+#if GJK_VISUAL_DEBUGGING
+				if (g_writeGJKGeom)
+				{
+					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
+						{ a, v2{}, v3{1,0,0} };
+					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
+						{ b, v2{}, v3{1,0,0} };
+					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
+						{ c, v2{}, v3{1,0,0} };
+					ASSERT(g_GJKStepCounts[i_] == 3);
+				}
+#endif
+
 				if (V3Dot(acNor, -a) > 0)
 				{
 					result.points[0] = a;
@@ -215,10 +270,57 @@ GJKResult GJKTest(const v3 *vA, u32 vACount, const v3 *vB, u32 vBCount)
 				const v3 adbNor = V3Cross(ab, ad);
 				const v3 acdNor = V3Cross(ad, ac);
 
+#if GJK_VISUAL_DEBUGGING
+				if (g_writeGJKGeom)
+				{
+					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
+						{ b, v2{}, v3{1,0,0} };
+					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
+						{ d, v2{}, v3{1,0,0} };
+					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
+						{ c, v2{}, v3{1,0,0} };
+
+					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
+						{ a, v2{}, v3{0,1,0} };
+					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
+						{ b, v2{}, v3{0,1,0} };
+					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
+						{ c, v2{}, v3{0,1,0} };
+
+					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
+						{ a, v2{}, v3{0,0,1} };
+					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
+						{ d, v2{}, v3{0,0,1} };
+					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
+						{ b, v2{}, v3{0,0,1} };
+
+					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
+						{ a, v2{}, v3{1,0,1} };
+					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
+						{ c, v2{}, v3{1,0,1} };
+					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
+						{ d, v2{}, v3{1,0,1} };
+
+					ASSERT(g_GJKStepCounts[i_] == 3 * 4);
+				}
+#endif
+
 				// Assert normals point outside
-				ASSERT(V3Dot(d - a, abcNor) <= 0);
-				ASSERT(V3Dot(c - a, adbNor) <= 0);
-				ASSERT(V3Dot(b - a, acdNor) <= 0);
+				if (V3Dot(d - a, abcNor) > 0)
+				{
+					EPAERROR("EPA ERROR: ABC normal facing inward! (dot=%f)\n",
+							V3Dot(d - a, abcNor));
+				}
+				if (V3Dot(c - a, adbNor) > 0)
+				{
+					EPAERROR("EPA ERROR: ADB normal facing inward! (dot=%f)\n",
+							V3Dot(d - a, abcNor));
+				}
+				if (V3Dot(b - a, acdNor) > 0)
+				{
+					EPAERROR("EPA ERROR: ACD normal facing inward! (dot=%f)\n",
+							V3Dot(d - a, abcNor));
+				}
 
 				if (V3Dot(abcNor, -a) > 0)
 				{
@@ -426,11 +528,11 @@ v3 ComputeDepenetration(GJKResult gjkResult, const v3 *vA, u32 vACount, const v3
 		if (leastDistance == INFINITY)
 		{
 			//ASSERT(false);
-			EPALOG("ERROR: Couldn't find closest feature!");
+			EPAERROR("EPA ERROR: Couldn't find closest feature!");
 			// Collision is probably on the very edge, we don't need depenetration
 			break;
 		}
-		else if (leastDistance <= lastLeastDistance)
+		else if (leastDistance <= lastLeastDistance + 0.0001f)
 		{
 			// We tried to expand in this direction but failed! So we are at the edge of
 			// the Minkowski difference
@@ -452,9 +554,29 @@ v3 ComputeDepenetration(GJKResult gjkResult, const v3 *vA, u32 vACount, const v3
 		v3 newPoint = GJKSupport(vB, vBCount, vA, vACount, testDir);
 		EPALOG("Found new point { %.02f, %.02f. %.02f } while looking in direction { %.02f, %.02f. %.02f }\n",
 				newPoint.x, newPoint.y, newPoint.z, testDir.x, testDir.y, testDir.z);
-		if (V3Dot(testDir, newPoint - closestFeature.a) <= 0)
+#if EPA_VISUAL_DEBUGGING
+		if (g_writePolytopeGeom)
+			g_epaNewPoint[epaStep] = newPoint;
+#endif
+		// Without a little epsilon here we can sometimes pick a point that's already part of the
+		// polytope, resulting in weird artifacts later on. I guess we could manually check for that
+		// but this should be good enough.
+		const f32 epsilon = 0.000001f;
+		if (V3Dot(testDir, newPoint - closestFeature.a) <= epsilon)
 		{
 			EPALOG("Done! Couldn't find a closer point\n");
+			break;
+		}
+		else if (V3Dot(testDir, newPoint - closestFeature.b) <= epsilon)
+		{
+			EPAERROR("EPA ERROR! Redundant check triggered (B)\n");
+			ASSERT(false);
+			break;
+		}
+		else if (V3Dot(testDir, newPoint - closestFeature.c) <= epsilon)
+		{
+			EPAERROR("EPA ERROR! Redundant check triggered (C)\n");
+			ASSERT(false);
 			break;
 		}
 		Edge holeEdges[256];
@@ -506,11 +628,15 @@ v3 ComputeDepenetration(GJKResult gjkResult, const v3 *vA, u32 vACount, const v3
 		EPALOG("Presumably left a hole with %d edges\n", holeEdgesCount);
 		if (deletedFaces > 1 && holeEdgesCount >= deletedFaces * 3)
 		{
-			EPALOG("ERROR! Multiple holes were made on the polytope!\n");
+			EPAERROR("EPA ERROR! Multiple holes were made on the polytope!\n");
 #if EPA_VISUAL_DEBUGGING
-			GenPolytopeMesh(polytope, polytopeCount, g_polytopeSteps[epaStep + 1]);
-			g_polytopeStepCounts[epaStep + 1] = polytopeCount;
-			g_writePolytopeGeom = false;
+			if (g_writePolytopeGeom)
+			{
+				GenPolytopeMesh(polytope, polytopeCount, g_polytopeSteps[epaStep + 1]);
+				g_polytopeStepCounts[epaStep + 1] = polytopeCount;
+				g_epaNewPoint[epaStep + 1] = newPoint;
+				g_writePolytopeGeom = false;
+			}
 #endif
 		}
 		oldPolytopeCount = polytopeCount;
@@ -520,10 +646,6 @@ v3 ComputeDepenetration(GJKResult gjkResult, const v3 *vA, u32 vACount, const v3
 		{
 			const Edge &holeEdge = holeEdges[holeEdgeIdx];
 			Face newFace = { holeEdge.a, holeEdge.b, newPoint };
-			// Assert it's facing the right direction
-			// If this assert starts failing we can just rewind the triangles
-			const v3 normal = V3Cross(newFace.c - newFace.a, newFace.b - newFace.a);
-			ASSERT(V3Dot(normal, newFace.a) >= 0);
 			polytope[polytopeCount++] = newFace;
 		}
 		EPALOG("Added %d faces to fill the hole. Polytope now has %d faces\n",
@@ -534,6 +656,14 @@ v3 ComputeDepenetration(GJKResult gjkResult, const v3 *vA, u32 vACount, const v3
 			closestFeature.b - closestFeature.a));
 	return closestFeatureNor * V3Dot(closestFeatureNor, closestFeature.a);
 }
+
+#if GJK_VISUAL_DEBUGGING
+void GetGJKStepGeometry(int step, Vertex **buffer, u32 *count)
+{
+	*count = g_GJKStepCounts[step];
+	*buffer = g_GJKSteps[step];
+}
+#endif
 
 #if EPA_VISUAL_DEBUGGING
 void GetEPAStepGeometry(int step, Vertex **buffer, u32 *count)

@@ -25,6 +25,7 @@ void main()\n\
 	vec3 lightDir = normalize(vec3(1, 0.7, 1.3));\n\
 	float light = dot(normal, lightDir);\n\
 	fragColor = vec4(light * 0.5 + 0.5);\n\
+	//fragColor = vec4(normal, 0) * 0.5 + vec4(0.5);\n\
 }\n\
 ";
 
@@ -57,6 +58,17 @@ void main()\n\
 \n\
 	gl_Position = projection * view * model * vec4(newPos.xyz, 1.0);\n\
 	normal = (model * vec4(newNor.xyz, 0)).xyz;\n\
+}\n\
+";
+
+const GLchar *debugDrawFragShaderSource = "\
+#version 330 core\n\
+in vec3 normal;\n\
+out vec4 fragColor;\n\
+\n\
+void main()\n\
+{\n\
+	fragColor = vec4(normal, 0) * 0.5 + vec4(0.5);\n\
 }\n\
 ";
 

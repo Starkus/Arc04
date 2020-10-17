@@ -79,7 +79,7 @@ void StartGame()
 
 	DeviceMesh anvilMesh, cubeMesh;
 	SkeletalMesh skinnedMesh = {};
-	GLuint program, skinnedMeshProgram;
+	GLuint program, skinnedMeshProgram, debugDrawProgram;
 	{
 		// Backface culling
 		glEnable(GL_CULL_FACE);
@@ -129,8 +129,10 @@ void StartGame()
 
 			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
 			glEnableVertexAttribArray(0);
-			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, nor));
+			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, uv));
 			glEnableVertexAttribArray(1);
+			glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, nor));
+			glEnableVertexAttribArray(2);
 		}
 
 		// Debug geometry buffer
@@ -145,8 +147,10 @@ void StartGame()
 
 			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
 			glEnableVertexAttribArray(0);
-			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, nor));
+			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, uv));
 			glEnableVertexAttribArray(1);
+			glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, nor));
+			glEnableVertexAttribArray(2);
 		}
 
 		// Skinned mesh
@@ -227,7 +231,28 @@ void StartGame()
 				char msg[256];
 				GLsizei len;
 				glGetProgramInfoLog(skinnedMeshProgram, sizeof(msg), &len, msg);
-				SDL_Log("Error linking shader program: %s", msg);
+				SDL_Log("Error linking shader skinned mesh program: %s", msg);
+			}
+		}
+#endif
+
+#if defined(DEBUG_BUILD)
+		GLuint debugDrawVertexShader = vertexShader;
+		GLuint debugDrawFragmentShader = LoadShader(debugDrawFragShaderSource, GL_FRAGMENT_SHADER);
+
+		debugDrawProgram = glCreateProgram();
+		glAttachShader(debugDrawProgram, debugDrawVertexShader);
+		glAttachShader(debugDrawProgram, debugDrawFragmentShader);
+		glLinkProgram(debugDrawProgram);
+		{
+			GLint status;
+			glGetProgramiv(debugDrawProgram, GL_LINK_STATUS, &status);
+			if (status != GL_TRUE)
+			{
+				char msg[256];
+				GLsizei len;
+				glGetProgramInfoLog(debugDrawProgram, sizeof(msg), &len, msg);
+				SDL_Log("Error linking shader debug draw program: %s", msg);
 			}
 		}
 #endif
@@ -255,8 +280,14 @@ void StartGame()
 		glUniformMatrix4fv(projUniform, 1, false, proj.m);
 
 		glUseProgram(skinnedMeshProgram);
-		GLuint projUniformAlt = glGetUniformLocation(skinnedMeshProgram, "projection");
-		glUniformMatrix4fv(projUniformAlt, 1, false, proj.m);
+		projUniform = glGetUniformLocation(skinnedMeshProgram, "projection");
+		glUniformMatrix4fv(projUniform, 1, false, proj.m);
+
+#if DEBUG_BUILD
+		glUseProgram(debugDrawProgram);
+		projUniform = glGetUniformLocation(debugDrawProgram, "projection");
+		glUniformMatrix4fv(projUniform, 1, false, proj.m);
+#endif
 	}
 
 	GameState gameState = {};
@@ -445,14 +476,14 @@ void StartGame()
 
 		// Update
 		{
-#if EPA_VISUAL_DEBUGGING
-			if (gameState.controller.epaStepUp.endedDown && gameState.controller.epaStepUp.changed)
+#if GJK_VISUAL_DEBUGGING || EPA_VISUAL_DEBUGGING
+			if (gameState.controller.debugUp.endedDown && gameState.controller.debugUp.changed)
 			{
 				g_currentPolytopeStep++;
 				if (g_currentPolytopeStep >= 16)
 					g_currentPolytopeStep = 16;
 			}
-			if (gameState.controller.epaStepDown.endedDown && gameState.controller.epaStepDown.changed)
+			if (gameState.controller.debugDown.endedDown && gameState.controller.debugDown.changed)
 			{
 				g_currentPolytopeStep--;
 				if (g_currentPolytopeStep < 0)
@@ -643,21 +674,22 @@ void StartGame()
 
 			gameState.camPos = player->entity->pos;
 
-#if DEBUG_BUILD
-			// Draw a cube for each entity
-			for (u32 entityIdx = 0; entityIdx < gameState.entityCount; ++entityIdx)
-			{
-				Entity *entity = &gameState.entities[entityIdx];
-				v3 up = { 0, 0, 1 };
-				DRAW_DEBUG_CUBE(entity->pos, entity->fw, up, 1.0f);
-			}
-#endif
+#if GJK_VISUAL_DEBUGGING
+			debugGeometryBuffer.vertexCount = 0;
+			Vertex *gjkVertices;
+			u32 gjkFaceCount;
+			GetGJKStepGeometry(g_currentPolytopeStep, &gjkVertices, &gjkFaceCount);
+			DrawDebugTriangles(gjkVertices, gjkFaceCount);
 
+			DRAW_AA_DEBUG_CUBE(g_GJKNewPoint[g_currentPolytopeStep], 0.03f);
+#endif
 #if EPA_VISUAL_DEBUGGING
 			Vertex *epaVertices;
 			u32 epaFaceCount;
 			GetEPAStepGeometry(g_currentPolytopeStep, &epaVertices, &epaFaceCount);
 			DrawDebugTriangles(epaVertices, epaFaceCount * 3);
+
+			DRAW_AA_DEBUG_CUBE(g_epaNewPoint[g_currentPolytopeStep], 0.03f);
 #endif
 		}
 
@@ -734,53 +766,6 @@ void StartGame()
 				glBindVertexArray(level->renderMesh.vao);
 				glDrawElements(GL_TRIANGLES, level->renderMesh.indexCount, GL_UNSIGNED_SHORT, NULL);
 			}
-
-#if 0//DEBUG_BUILD
-			// Debug draws
-			{
-				glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-				for (u32 i = 0; i < debugCubeCount; ++i)
-				{
-					DebugCube *cube = &debugCubes[i];
-
-					v3 pos = cube->pos;
-					v3 fw = cube->fw * cube->scale;
-					v3 right = V3Normalize(V3Cross(cube->fw, cube->up));
-					v3 up = V3Cross(right, cube->fw) * cube->scale;
-					right *= cube->scale;
-					mat4 model =
-					{
-						right.x,	right.y,	right.z,	0.0f,
-						fw.x,		fw.y,		fw.z,		0.0f,
-						up.x,		up.y,		up.z,		0.0f,
-						pos.x,		pos.y,		pos.z,		1.0f
-					};
-					glUniformMatrix4fv(modelUniform, 1, false, model.m);
-					glBindVertexArray(cubeMesh.vao);
-					glDrawElements(GL_TRIANGLES, cubeMesh.indexCount, GL_UNSIGNED_SHORT, NULL);
-				}
-
-				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-			}
-
-			// Debug meshes
-			{
-				//glDisable(GL_CULL_FACE);
-				glUniformMatrix4fv(modelUniform, 1, false, MAT4_IDENTITY.m);
-
-				glBindVertexArray(debugGeometryBuffer.vao);
-
-				glBindBuffer(GL_ARRAY_BUFFER, debugGeometryBuffer.deviceBuffer);
-				glBufferData(GL_ARRAY_BUFFER, debugGeometryBuffer.vertexCount * sizeof(Vertex),
-						debugGeometryBuffer.vertexData, GL_DYNAMIC_DRAW);
-
-				glDrawArrays(GL_TRIANGLES, 0, debugGeometryBuffer.vertexCount);
-
-				debugGeometryBuffer.vertexCount = 0;
-				glEnable(GL_CULL_FACE);
-			}
-#endif
 
 			// Skinned meshes
 			glUseProgram(skinnedMeshProgram);
@@ -940,6 +925,58 @@ void StartGame()
 				glBindVertexArray(skinnedMesh.deviceMesh.vao);
 				glDrawElements(GL_TRIANGLES, skinnedMesh.deviceMesh.indexCount, GL_UNSIGNED_SHORT, NULL);
 			}
+
+#if DEBUG_BUILD
+			glUseProgram(debugDrawProgram);
+			viewUniform = glGetUniformLocation(debugDrawProgram, "view");
+			modelUniform = glGetUniformLocation(debugDrawProgram, "model");
+
+			glUniformMatrix4fv(viewUniform, 1, false, view.m);
+			// Debug draws
+			{
+				glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+				for (u32 i = 0; i < debugCubeCount; ++i)
+				{
+					DebugCube *cube = &debugCubes[i];
+
+					v3 pos = cube->pos;
+					v3 fw = cube->fw * cube->scale;
+					v3 right = V3Normalize(V3Cross(cube->fw, cube->up));
+					v3 up = V3Cross(right, cube->fw) * cube->scale;
+					right *= cube->scale;
+					mat4 model =
+					{
+						right.x,	right.y,	right.z,	0.0f,
+						fw.x,		fw.y,		fw.z,		0.0f,
+						up.x,		up.y,		up.z,		0.0f,
+						pos.x,		pos.y,		pos.z,		1.0f
+					};
+					glUniformMatrix4fv(modelUniform, 1, false, model.m);
+					glBindVertexArray(cubeMesh.vao);
+					glDrawElements(GL_TRIANGLES, cubeMesh.indexCount, GL_UNSIGNED_SHORT, NULL);
+				}
+
+				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			}
+
+			// Debug meshes
+			{
+				glDisable(GL_CULL_FACE);
+				glUniformMatrix4fv(modelUniform, 1, false, MAT4_IDENTITY.m);
+
+				glBindVertexArray(debugGeometryBuffer.vao);
+
+				glBindBuffer(GL_ARRAY_BUFFER, debugGeometryBuffer.deviceBuffer);
+				glBufferData(GL_ARRAY_BUFFER, debugGeometryBuffer.vertexCount * sizeof(Vertex),
+						debugGeometryBuffer.vertexData, GL_DYNAMIC_DRAW);
+
+				glDrawArrays(GL_TRIANGLES, 0, debugGeometryBuffer.vertexCount);
+
+				debugGeometryBuffer.vertexCount = 0;
+				glEnable(GL_CULL_FACE);
+			}
+#endif
 
 			SDL_GL_SwapWindow(window);
 		}

@@ -98,8 +98,6 @@ void *ReadSkinnedMesh(const char *filename, SkeletalMesh *skinnedMesh, SkinnedVe
 			channel->jointIndex = jointIndex;
 			channel->transforms = transforms;
 		}
-
-		SDL_Log("%d frames\n", frameCount);
 	}
 
 	// The caller must free the buffer after copying data to the render device
