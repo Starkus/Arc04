@@ -1,4 +1,4 @@
-const char *dataDir = "../data/";
+const char *dataDir = "data/";
 
 // My macros don't work with "XmlElement*" as type =(
 typedef XMLElement* XMLElementPtr;
@@ -19,7 +19,8 @@ enum ErrorCode
 	ERROR_OK,
 	ERROR_META_NOROOT = XML_ERROR_COUNT,
 	ERROR_COLLADA_NOROOT,
-	ERROR_META_WRONG_TYPE
+	ERROR_META_WRONG_TYPE,
+	ERROR_NO_ELEMENT_WITH_ID
 };
 
 enum MetaType

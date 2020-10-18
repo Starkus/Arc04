@@ -1,4 +1,3 @@
-#include "General.h"
 #include <math.h> // MSVC math intrinsics
 
 const f32 PI = 3.1415926535897932384626433832795f;

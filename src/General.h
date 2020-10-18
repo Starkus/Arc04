@@ -48,4 +48,22 @@ typedef double f64;
 #define ASSERT(expr)
 #endif
 
+#if 0
+inline void Log(const char *format, ...)
+{
+	char buffer[256];
+	va_list args;
+	va_start(args, format);
+
+	//vprintf(format, args);
+
+	vsprintf(buffer, format, args);
+	OutputDebugStringA(buffer);
+
+	va_end(args);
+}
+#else
+#define Log(...) SDL_Log(__VA_ARGS__)
+#endif
+
 #define ArrayCount(array) (sizeof(array) / sizeof(array[0]))

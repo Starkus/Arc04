@@ -6,7 +6,7 @@ void FrameInit()
 {
 	frameMem = malloc(frameSize);
 	ASSERT(frameSize);
-	SDL_Log("Allocated %.02fmb of frame memory (%d bytes)\n", frameSize /
+	Log("Allocated %.02fmb of frame memory (%d bytes)\n", frameSize /
 			(1024.0f * 1024.0f), frameSize);
 	framePtr = frameMem;
 }
@@ -26,7 +26,7 @@ void *FrameAlloc(u64 size)
 }
 void *FrameRealloc(void *ptr, u64 newSize)
 {
-	//SDL_Log("WARNING: FRAME REALLOC\n");
+	//Log("WARNING: FRAME REALLOC\n");
 
 	void *newBlock = FrameAlloc(newSize);
 	memcpy(newBlock, ptr, newSize);
@@ -49,7 +49,7 @@ void StackInit()
 {
 	stackMem = malloc(stackSize);
 	ASSERT(stackMem);
-	SDL_Log("Allocated %.02fmb of stack memory (%d bytes)\n", stackSize /
+	Log("Allocated %.02fmb of stack memory (%d bytes)\n", stackSize /
 			(1024.0f * 1024.0f), stackSize);
 	stackPtr = stackMem;
 }
@@ -70,7 +70,7 @@ void *StackAlloc(u64 size)
 void *StackRealloc(void *ptr, u64 newSize)
 {
 	//ASSERT(false);
-	//SDL_Log("WARNING: STACK REALLOC\n");
+	//Log("WARNING: STACK REALLOC\n");
 
 	void *newBlock = StackAlloc(newSize);
 	memcpy(newBlock, ptr, newSize);

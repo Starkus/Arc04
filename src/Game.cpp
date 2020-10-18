@@ -27,7 +27,7 @@ GLuint LoadShader(const GLchar *shaderSource, GLuint shaderType)
 			char msg[256];
 			GLsizei len;
 			glGetShaderInfoLog(shader, sizeof(msg), &len, msg);
-			SDL_Log("Error compiling shader: %s", msg);
+			Log("Error compiling shader: %s", msg);
 		}
 	}
 #endif
@@ -69,11 +69,11 @@ void StartGame()
 
 	SDL_Window *window = SDL_CreateWindow("GAME", 16, 16, 960, 540, SDL_WINDOW_OPENGL);
 	if (window == nullptr)
-		SDL_Log("No window!");
+		Log("No window!");
 
 	SDL_GLContext glContext = SDL_GL_CreateContext(window);
 	if (glContext == nullptr)
-		SDL_Log("No context!");
+		Log("No context!");
 
 	LoadOpenGLProcs();
 
@@ -297,7 +297,7 @@ void StartGame()
 				char msg[256];
 				GLsizei len;
 				glGetProgramInfoLog(program, sizeof(msg), &len, msg);
-				SDL_Log("Error linking shader program: %s", msg);
+				Log("Error linking shader program: %s", msg);
 			}
 		}
 #endif
@@ -318,7 +318,7 @@ void StartGame()
 				char msg[256];
 				GLsizei len;
 				glGetProgramInfoLog(skinnedMeshProgram, sizeof(msg), &len, msg);
-				SDL_Log("Error linking shader skinned mesh program: %s", msg);
+				Log("Error linking shader skinned mesh program: %s", msg);
 			}
 		}
 #endif
@@ -339,7 +339,7 @@ void StartGame()
 				char msg[256];
 				GLsizei len;
 				glGetProgramInfoLog(debugDrawProgram, sizeof(msg), &len, msg);
-				SDL_Log("Error linking shader debug draw program: %s", msg);
+				Log("Error linking shader debug draw program: %s", msg);
 			}
 		}
 #endif
@@ -768,11 +768,6 @@ void StartGame()
 					v3 hit;
 					if (RayTriangleIntersection(origin, dir, triangle, &hit))
 					{
-						DRAW_AA_DEBUG_CUBE(hit, 2.0f);
-						DRAW_AA_DEBUG_CUBE(triangle.a, 0.1f);
-						DRAW_AA_DEBUG_CUBE(triangle.b, 0.1f);
-						DRAW_AA_DEBUG_CUBE(triangle.c, 0.1f);
-
 						player->entity->pos.z = hit.z;
 						touchedGround = true;
 						break;

@@ -49,7 +49,7 @@ void GetOutputFilename(const char *metaFilename, char *outputFilename)
 		}
 	}
 	strcpy(lastDot, ".bin\0");
-	SDL_Log("Output name: %s\n", outputFilename);
+	Log("Output name: %s\n", outputFilename);
 }
 
 void ReadStringToFloats(const char *text, f32 *buffer, int count)
@@ -115,14 +115,32 @@ void ReadStringToInts(const char *text, int *buffer, int count)
 	}
 }
 
-ErrorCode ReadColladaGeometry(XMLElement *rootEl, RawGeometry *result)
+ErrorCode ReadColladaGeometry(XMLElement *rootEl, const char *geometryId, RawGeometry *result)
 {
 	*result = {};
 
-	// GEOMETRY
 	XMLElement *geometryEl = rootEl->FirstChildElement("library_geometries")
 		->FirstChildElement("geometry");
-	SDL_Log("Found geometry %s\n", geometryEl->FindAttribute("name")->Value());
+
+	if (geometryId)
+	{
+		bool found = false;
+		while (geometryEl)
+		{
+			if (strcmp(geometryEl->FindAttribute("name")->Value(), geometryId) == 0)
+			{
+				found = true;
+				break;
+			}
+			geometryEl = geometryEl->NextSiblingElement("geometry");
+		}
+		if (!found)
+		{
+			Log("Error! couldn't find geometry with name \"%s\"\n", geometryId);
+			return ERROR_NO_ELEMENT_WITH_ID;
+		}
+	}
+	Log("Found geometry %s\n", geometryEl->FindAttribute("name")->Value());
 
 	XMLElement *meshEl = geometryEl->FirstChildElement("mesh");
 
@@ -272,11 +290,13 @@ ErrorCode ReadColladaGeometry(XMLElement *rootEl, RawGeometry *result)
 	return ERROR_OK;
 }
 
+// WeightData is what gets injected into the vertex data, Skeleton is the controller, contains
+// intrinsic joint information like bind poses
 ErrorCode ReadColladaController(XMLElement *rootEl, Skeleton *skeleton, WeightData *weightData)
 {
 	XMLElement *controllerEl = rootEl->FirstChildElement("library_controllers")
 		->FirstChildElement("controller");
-	SDL_Log("Found controller %s\n", controllerEl->FindAttribute("name")->Value());
+	Log("Found controller %s\n", controllerEl->FindAttribute("name")->Value());
 	XMLElement *skinEl = controllerEl->FirstChildElement("skin");
 
 	const char *jointsSourceName = 0;
@@ -432,7 +452,7 @@ ErrorCode ReadColladaController(XMLElement *rootEl, Skeleton *skeleton, WeightDa
 
 		XMLElement *sceneEl = rootEl->FirstChildElement("library_visual_scenes")
 			->FirstChildElement("visual_scene");
-		SDL_Log("Found visual scene %s\n", sceneEl->FindAttribute("id")->Value());
+		//Log("Found visual scene %s\n", sceneEl->FindAttribute("id")->Value());
 		XMLElement *nodeEl = sceneEl->FirstChildElement("node");
 
 		DynamicArray_XMLElementPtr stack;
@@ -476,7 +496,7 @@ ErrorCode ReadColladaController(XMLElement *rootEl, Skeleton *skeleton, WeightDa
 
 						skeleton->jointParents[jointIdx] = parentJointIdx;
 
-						//SDL_Log("Joint %s has parent %s\n", childName, parentName);
+						//Log("Joint %s has parent %s\n", childName, parentName);
 					}
 				}
 
@@ -589,7 +609,7 @@ int ConstructSkinnedMesh(const RawGeometry *geometry, const WeightData *weightDa
 		{
 			nOfBuckets *= 2;
 		}
-		SDL_Log("Going with %d buckets for %d indices\n", nOfBuckets, geometry->triangleCount * 3);
+		//Log("Going with %d buckets for %d indices\n", nOfBuckets, geometry->triangleCount * 3);
 
 		DynamicArray_u16 *buckets = (DynamicArray_u16 *)StackAlloc(sizeof(DynamicArray_u16) * nOfBuckets);
 		for (int bucketIdx = 0; bucketIdx < nOfBuckets; ++bucketIdx)
@@ -663,15 +683,17 @@ int ConstructSkinnedMesh(const RawGeometry *geometry, const WeightData *weightDa
 			total += bucket.size;
 		}
 
-		SDL_Log("Vertex indexing collided %d times out of %d (%.02f%%)\n", collisions, total,
+#if 0
+		Log("Vertex indexing collided %d times out of %d (%.02f%%)\n", collisions, total,
 				100.0f * collisions / (f32)total);
 
-		SDL_Log("Vertex indexing used %.02fkb of stack\n", ((u8 *)stackPtr - (u8 *)oldStackPtr) /
+		Log("Vertex indexing used %.02fkb of stack\n", ((u8 *)stackPtr - (u8 *)oldStackPtr) /
 				1024.0f);
+#endif
 		StackFree(oldStackPtrJoin);
 	}
 
-	SDL_Log("Ended up with %d unique vertices and %d indices\n", finalVertices.size,
+	Log("Ended up with %d unique vertices and %d indices\n", finalVertices.size,
 			finalIndices.size);
 
 	// Rewind triangles
@@ -694,11 +716,10 @@ ErrorCode ReadColladaAnimation(XMLElement *rootEl, Animation &animation, Skeleto
 
 	XMLElement *animationEl = rootEl->FirstChildElement("library_animations")
 		->FirstChildElement("animation");
-	SDL_Log("Found animation container %s\n", animationEl->FindAttribute("id")->Value());
 	XMLElement *subAnimEl = animationEl->FirstChildElement("animation");
 	while (subAnimEl != nullptr)
 	{
-		//SDL_Log("Found animation %s\n", subAnimEl->FindAttribute("id")->Value());
+		//Log("Found animation %s\n", subAnimEl->FindAttribute("id")->Value());
 
 		XMLElement *channelEl = subAnimEl->FirstChildElement("channel");
 		const char *samplerSourceName = channelEl->FindAttribute("source")->Value() + 1;
@@ -819,7 +840,7 @@ ErrorCode ReadColladaAnimation(XMLElement *rootEl, Animation &animation, Skeleto
 				}
 			}
 			ASSERT(channel.jointIndex != 0xFF);
-			//SDL_Log("Channel thought to target joint \"%s\", ID %d\n", jointIdBuffer,
+			//Log("Channel thought to target joint \"%s\", ID %d\n", jointIdBuffer,
 					//channel.jointIndex);
 		}
 
@@ -1003,14 +1024,14 @@ int ReadMeta(const char *filename)
 	xmlError = doc.LoadFile(filename);
 	if (xmlError != XML_SUCCESS)
 	{
-		SDL_Log("ERROR! Parsing XML file \"%s\" (%s)\n", filename, doc.ErrorStr());
+		Log("ERROR! Parsing XML file \"%s\" (%s)\n", filename, doc.ErrorStr());
 		return xmlError;
 	}
 
 	XMLElement *rootEl = doc.FirstChildElement("meta");
 	if (!rootEl)
 	{
-		SDL_Log("ERROR! Meta root node not found\n");
+		Log("ERROR! Meta root node not found\n");
 		return ERROR_META_NOROOT;
 	}
 
@@ -1022,7 +1043,7 @@ int ReadMeta(const char *filename)
 	DynamicArrayInit_Animation(&animations, 16, FrameAlloc);
 
 	const char *typeStr = rootEl->FindAttribute("type")->Value();
-	SDL_Log("Meta type: %s\n", typeStr);
+	Log("Meta type: %s\n", typeStr);
 
 	MetaType type = METATYPE_INVALID;
 	for (int i = 0; i < METATYPE_COUNT; ++i)
@@ -1034,7 +1055,7 @@ int ReadMeta(const char *filename)
 	}
 	if (type == METATYPE_INVALID)
 	{
-		SDL_Log("ERROR! Invalid meta type\n");
+		Log("ERROR! Invalid meta type\n");
 		return ERROR_META_WRONG_TYPE;
 	}
 
@@ -1046,7 +1067,13 @@ int ReadMeta(const char *filename)
 		while (geometryEl != nullptr)
 		{
 			const char *geomFile = geometryEl->FirstChild()->ToText()->Value();
-			SDL_Log("Found geometry file: %s\n", geomFile);
+
+			const char *geomName = 0;
+			const XMLAttribute *nameAttr = geometryEl->FindAttribute("id");
+			if (nameAttr)
+			{
+				geomName = nameAttr->Value();
+			}
 
 			char fullname[MAX_PATH];
 			sprintf(fullname, "%s%s", dataDir, geomFile);
@@ -1055,19 +1082,19 @@ int ReadMeta(const char *filename)
 			xmlError = dataDoc.LoadFile(fullname);
 			if (xmlError != XML_SUCCESS)
 			{
-				SDL_Log("ERROR! Parsing XML file \"%s\" (%s)\n", fullname, dataDoc.ErrorStr());
+				Log("ERROR! Parsing XML file \"%s\" (%s)\n", fullname, dataDoc.ErrorStr());
 				return xmlError;
 			}
 
 			XMLElement *dataRootEl = dataDoc.FirstChildElement("COLLADA");
 			if (!dataRootEl)
 			{
-				SDL_Log("ERROR! Collada root node not found\n");
+				Log("ERROR! Collada root node not found\n");
 				return ERROR_COLLADA_NOROOT;
 			}
 
 			RawGeometry rawGeometry;
-			ErrorCode error = ReadColladaGeometry(dataRootEl, &rawGeometry);
+			ErrorCode error = ReadColladaGeometry(dataRootEl, geomName, &rawGeometry);
 			if (error != ERROR_OK)
 				return error;
 
@@ -1093,7 +1120,14 @@ int ReadMeta(const char *filename)
 		while (geometryEl != nullptr)
 		{
 			const char *geomFile = geometryEl->FirstChild()->ToText()->Value();
-			SDL_Log("Found geometry file: %s\n", geomFile);
+			Log("Found geometry file: %s\n", geomFile);
+
+			const char *geomName = 0;
+			const XMLAttribute *nameAttr = geometryEl->FindAttribute("id");
+			if (nameAttr)
+			{
+				geomName = nameAttr->Value();
+			}
 
 			char fullname[MAX_PATH];
 			sprintf(fullname, "%s%s", dataDir, geomFile);
@@ -1102,19 +1136,19 @@ int ReadMeta(const char *filename)
 			xmlError = dataDoc.LoadFile(fullname);
 			if (xmlError != XML_SUCCESS)
 			{
-				SDL_Log("ERROR! Parsing XML file \"%s\" (%s)\n", fullname, dataDoc.ErrorStr());
+				Log("ERROR! Parsing XML file \"%s\" (%s)\n", fullname, dataDoc.ErrorStr());
 				return xmlError;
 			}
 
 			XMLElement *dataRootEl = dataDoc.FirstChildElement("COLLADA");
 			if (!dataRootEl)
 			{
-				SDL_Log("ERROR! Collada root node not found\n");
+				Log("ERROR! Collada root node not found\n");
 				return ERROR_COLLADA_NOROOT;
 			}
 
 			RawGeometry rawGeometry;
-			int error = ReadColladaGeometry(dataRootEl, &rawGeometry);
+			int error = ReadColladaGeometry(dataRootEl, geomName, &rawGeometry);
 			if (error)
 				return error;
 
@@ -1133,7 +1167,7 @@ int ReadMeta(const char *filename)
 		while (animationEl != nullptr)
 		{
 			const char *animFile = animationEl->FirstChild()->ToText()->Value();
-			SDL_Log("Found animation file: %s\n", animFile);
+			Log("Found animation file: %s\n", animFile);
 
 			char fullname[MAX_PATH];
 			sprintf(fullname, "%s%s", dataDir, animFile);
@@ -1142,14 +1176,14 @@ int ReadMeta(const char *filename)
 			xmlError = dataDoc.LoadFile(fullname);
 			if (xmlError != XML_SUCCESS)
 			{
-				SDL_Log("ERROR! Parsing XML file \"%s\" (%s)\n", fullname, dataDoc.ErrorStr());
+				Log("ERROR! Parsing XML file \"%s\" (%s)\n", fullname, dataDoc.ErrorStr());
 				return xmlError;
 			}
 
 			XMLElement *dataRootEl = dataDoc.FirstChildElement("COLLADA");
 			if (!dataRootEl)
 			{
-				SDL_Log("ERROR! Collada root node not found\n");
+				Log("ERROR! Collada root node not found\n");
 				return ERROR_COLLADA_NOROOT;
 			}
 
@@ -1177,7 +1211,14 @@ int ReadMeta(const char *filename)
 		XMLElement *geometryEl = rootEl->FirstChildElement("geometry");
 
 		const char *geomFile = geometryEl->FirstChild()->ToText()->Value();
-		SDL_Log("Found geometry file: %s\n", geomFile);
+		Log("Found geometry file: %s\n", geomFile);
+
+		const char *geomName = 0;
+		const XMLAttribute *nameAttr = geometryEl->FindAttribute("id");
+		if (nameAttr)
+		{
+			geomName = nameAttr->Value();
+		}
 
 		char fullname[MAX_PATH];
 		sprintf(fullname, "%s%s", dataDir, geomFile);
@@ -1186,19 +1227,19 @@ int ReadMeta(const char *filename)
 		xmlError = dataDoc.LoadFile(fullname);
 		if (xmlError != XML_SUCCESS)
 		{
-			SDL_Log("ERROR! Parsing XML file \"%s\" (%s)\n", fullname, dataDoc.ErrorStr());
+			Log("ERROR! Parsing XML file \"%s\" (%s)\n", fullname, dataDoc.ErrorStr());
 			return xmlError;
 		}
 
 		XMLElement *dataRootEl = dataDoc.FirstChildElement("COLLADA");
 		if (!dataRootEl)
 		{
-			SDL_Log("ERROR! Collada root node not found\n");
+			Log("ERROR! Collada root node not found\n");
 			return ERROR_COLLADA_NOROOT;
 		}
 
 		RawGeometry rawGeometry;
-		int error = ReadColladaGeometry(dataRootEl, &rawGeometry);
+		int error = ReadColladaGeometry(dataRootEl, geomName, &rawGeometry);
 		if (error)
 			return error;
 
@@ -1252,7 +1293,14 @@ int ReadMeta(const char *filename)
 		XMLElement *geometryEl = rootEl->FirstChildElement("geometry");
 
 		const char *geomFile = geometryEl->FirstChild()->ToText()->Value();
-		SDL_Log("Found geometry file: %s\n", geomFile);
+		Log("Found geometry file: %s\n", geomFile);
+
+		const char *geomName = 0;
+		const XMLAttribute *nameAttr = geometryEl->FindAttribute("id");
+		if (nameAttr)
+		{
+			geomName = nameAttr->Value();
+		}
 
 		char fullname[MAX_PATH];
 		sprintf(fullname, "%s%s", dataDir, geomFile);
@@ -1261,19 +1309,19 @@ int ReadMeta(const char *filename)
 		xmlError = dataDoc.LoadFile(fullname);
 		if (xmlError != XML_SUCCESS)
 		{
-			SDL_Log("ERROR! Parsing XML file \"%s\" (%s)\n", fullname, dataDoc.ErrorStr());
+			Log("ERROR! Parsing XML file \"%s\" (%s)\n", fullname, dataDoc.ErrorStr());
 			return xmlError;
 		}
 
 		XMLElement *dataRootEl = dataDoc.FirstChildElement("COLLADA");
 		if (!dataRootEl)
 		{
-			SDL_Log("ERROR! Collada root node not found\n");
+			Log("ERROR! Collada root node not found\n");
 			return ERROR_COLLADA_NOROOT;
 		}
 
 		RawGeometry rawGeometry;
-		ErrorCode error = ReadColladaGeometry(dataRootEl, &rawGeometry);
+		ErrorCode error = ReadColladaGeometry(dataRootEl, geomName, &rawGeometry);
 		if (error)
 			return error;
 
@@ -1309,6 +1357,8 @@ int main(int argc, char **argv)
 
 	int error = 0;
 
+	SDL_LogSetAllPriority(SDL_LOG_PRIORITY_VERBOSE);
+
 	char colladaWildcard[MAX_PATH];
 	sprintf(colladaWildcard, "%s*.meta", dataDir);
 	WIN32_FIND_DATA findData;
@@ -1317,24 +1367,24 @@ int main(int argc, char **argv)
 	while (1)
 	{
 		sprintf(fullName, "%s%s", dataDir, findData.cFileName);
-		SDL_Log("\nDetected file %s\n------------------------------\n", fullName);
+		Log("\nDetected file %s\n------------------------------\n", fullName);
 		error = ReadMeta(fullName);
 
-		SDL_Log("Used %.02fkb of frame allocator\n", ((u8 *)framePtr - (u8 *)frameMem) / 1024.0f);
+		//Log("Used %.02fkb of frame allocator\n", ((u8 *)framePtr - (u8 *)frameMem) / 1024.0f);
 		FrameWipe();
 
 		if (error != 0)
-			return error;
+			goto done;
 
 		if (!FindNextFileA(searchHandle, &findData))
 			break;
 	}
 
+done:
 	StackFinalize();
 	FrameFinalize();
 
 	SDL_Quit();
-
 	return error;
 }
 

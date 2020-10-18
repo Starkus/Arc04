@@ -1,11 +1,11 @@
 #if EPA_LOGGING
-#define EPALOG(...) SDL_Log(__VA_ARGS__)
+#define EPALOG(...) Log(__VA_ARGS__)
 #else
 #define EPALOG(...)
 #endif
 
 #if EPA_ERROR_LOGGING
-#define EPAERROR(...) SDL_Log(__VA_ARGS__)
+#define EPAERROR(...) Log(__VA_ARGS__)
 #else
 #define EPAERROR(...)
 #endif
