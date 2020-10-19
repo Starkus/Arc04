@@ -19,21 +19,40 @@ ForEach(.BuildType in .BuildTypes)
 	Using(.BuildType)
 
 	// Game
-	ObjectList('GameSource_$BuildTypeName$')
+	ObjectList('PlatformSource_$BuildTypeName$')
 	{
 		.CompilerOptions = '$ExeCompilerOptions$'
-		.CompilerInputFiles = '$SourcePath$/Game.cpp'
+		.CompilerInputFiles = {
+			'$SourcePath$/Platform.cpp',
+		}
 		.CompilerOutputPath = '$OutputPath$/$BuildTypeName$'
 	}
 
-	Executable('Game_$BuildTypeName$')
+	Executable('Platform_$BuildTypeName$')
 	{
 		.LinkerOptions = .ExeLinkerOptions
-		.LinkerOutput = '$BinPath$/$GameName$$BuildTypeSufix$.exe'
+		.LinkerOutput = '$BinPath$/Platform$BuildTypeSufix$.exe'
+		.Libraries = {
+			'PlatformSource_$BuildTypeName$',
+		}
+		.PreBuildDependencies = 'Copy_Libs'
+	}
+
+	// Game
+	ObjectList('GameSource_$BuildTypeName$')
+	{
+		.CompilerOptions = '$DllCompilerOptions$'
+		.CompilerInputFiles = {
+			'$SourcePath$/Game.cpp',
+		}
+		.CompilerOutputPath = '$OutputPath$/$BuildTypeName$'
+	}
+	DLL('Game_$BuildTypeName$')
+	{
+		.LinkerOptions = '$DllLinkerOptions$ -EXPORT:StartGame -EXPORT:UpdateAndRenderGame'
+		.LinkerOutput = '$BinPath$/$GameName$$BuildTypeSufix$.dll'
 		.Libraries = {
 			'GameSource_$BuildTypeName$',
-			'$ExternalLibrariesPath$/SDL2.lib',
-			'$ExternalLibrariesPath$/SDL2main.lib',
 		}
 		.PreBuildDependencies = 'Copy_Libs'
 	}

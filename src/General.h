@@ -48,6 +48,16 @@ typedef double f64;
 #define ASSERT(expr)
 #endif
 
+#define NOMANGLE extern "C"
+
+inline void Memcpy(void *dst, const void *src, u64 size)
+{
+	for (int i = 0; i < size; ++i)
+	{
+		((u8 *)dst)[i] = ((u8 *)src)[i];
+	}
+}
+
 #if 0
 inline void Log(const char *format, ...)
 {
@@ -63,7 +73,7 @@ inline void Log(const char *format, ...)
 	va_end(args);
 }
 #else
-#define Log(...) SDL_Log(__VA_ARGS__)
+#define Log(...) //SDL_Log(__VA_ARGS__)
 #endif
 
 #define ArrayCount(array) (sizeof(array) / sizeof(array[0]))

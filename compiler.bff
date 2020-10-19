@@ -65,7 +65,7 @@ Compiler('Compiler_x64')
 			+ ' /LIBPATH:"$WindowsSDKLibPath$\um\x64"'
 			+ ' /LIBPATH:$ExternalLibrariesPath$'
 
-.SystemLibraries = ' Shell32.lib'
+.SystemLibraries = ' Shell32.lib Gdi32.lib User32.lib Opengl32.lib'
 
 // Linker options
 
@@ -84,9 +84,11 @@ Compiler('Compiler_x64')
 
 	.Compiler = 'Compiler_x64'
 	.ExeCompilerOptions = .CommonCompilerOptions + ' /MTd /Z7 /Od /DDEBUG_BUILD'
+	.DllCompilerOptions = .CommonCompilerOptions + ' /LD /Z7 /Od /DDEBUG_BUILD'
 
 	.Linker = .Linker_x64
 	.ExeLinkerOptions = .CommonLinkerOptions + ' /DEBUG:FULL /OPT:REF,NOICF /SUBSYSTEM:WINDOWS,5.02'
+	.DllLinkerOptions = .CommonLinkerOptions + ' /DEBUG:FULL /OPT:REF,NOICF /DLL'
 ]
 
 .TestBuild =
@@ -96,9 +98,11 @@ Compiler('Compiler_x64')
 
 	.Compiler = 'Compiler_x64'
 	.ExeCompilerOptions = .CommonCompilerOptions + ' /MTd /O2 /Ob2 /Ot /Gy /Z7 /Zo /DDEBUG_BUILD'
+	.DllCompilerOptions = .CommonCompilerOptions + ' /LD /O2 /Ob2 /Ot /Gy /Z7 /Zo /DDEBUG_BUILD'
 
 	.Linker = .Linker_x64
 	.ExeLinkerOptions = .CommonLinkerOptions + ' /DEBUG:FASTLINK /OPT:REF,ICF /SUBSYSTEM:WINDOWS,5.02'
+	.DllLinkerOptions = .CommonLinkerOptions + ' /DEBUG:FASTLINK /OPT:REF,ICF /DLL'
 ]
 
 .ReleaseBuild =
@@ -108,9 +112,11 @@ Compiler('Compiler_x64')
 
 	.Compiler = 'Compiler_x64'
 	.ExeCompilerOptions = .CommonCompilerOptions + ' /MT /O2 /Ob2 /Ot /Gy'
+	.DllCompilerOptions = .CommonCompilerOptions + ' /LD /O2 /Ob2 /Ot /Gy'
 
 	.Linker = .Linker_x64
 	.ExeLinkerOptions = .CommonLinkerOptions + ' /OPT:REF,ICF /SUBSYSTEM:WINDOWS,5.02'
+	.DllLinkerOptions = .CommonLinkerOptions + ' /OPT:REF,ICF /DLL'
 ]
 
 .BuildTypes = { .DebugBuild, .TestBuild, .ReleaseBuild }

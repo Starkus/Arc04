@@ -1352,8 +1352,8 @@ int main(int argc, char **argv)
 	(void) argc, argv;
 	SDL_Init(0);
 
-	StackInit();
-	FrameInit();
+	stackMem = malloc(stackSize);
+	frameMem = malloc(frameSize);
 
 	int error = 0;
 
@@ -1381,8 +1381,8 @@ int main(int argc, char **argv)
 	}
 
 done:
-	StackFinalize();
-	FrameFinalize();
+	free(stackMem);
+	free(frameMem);
 
 	SDL_Quit();
 	return error;

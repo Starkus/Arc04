@@ -1,4 +1,4 @@
-const GLchar *vertexShaderSource = "\
+const char *vertexShaderSource = "\
 #version 330 core\n\
 layout (location = 0) in vec3 pos;\n\
 layout (location = 1) in vec2 uv;\n\
@@ -15,7 +15,7 @@ void main()\n\
 }\n\
 ";
 
-const GLchar *fragShaderSource = "\
+const char *fragShaderSource = "\
 #version 330 core\n\
 in vec3 normal;\n\
 out vec4 fragColor;\n\
@@ -29,7 +29,7 @@ void main()\n\
 }\n\
 ";
 
-const GLchar *skinVertexShaderSource = "\
+const char *skinVertexShaderSource = "\
 #version 330 core\n\
 layout (location = 0) in vec3 pos;\n\
 layout (location = 1) in vec2 uv;\n\
@@ -61,7 +61,7 @@ void main()\n\
 }\n\
 ";
 
-const GLchar *debugDrawFragShaderSource = "\
+const char *debugDrawFragShaderSource = "\
 #version 330 core\n\
 in vec3 normal;\n\
 out vec4 fragColor;\n\
@@ -216,6 +216,13 @@ struct GameState
 	int animationIdx;
 	f32 animationTime;
 	bool loopAnimation;
+
+	// @Cleanup: move to some Render Device Context or something?
+	void *frameMem, *stackMem, *transientMem;
+	void *platformReadEntireFile;
+	GLuint program, skinnedMeshProgram, debugDrawProgram;
+	DeviceMesh anvilMesh, cubeMesh, sphereMesh, cylinderMesh, capsuleMesh;
+	SkeletalMesh skinnedMesh;
 };
 
 #if DEBUG_BUILD
@@ -241,8 +248,10 @@ struct DebugGeometryBuffer
 DebugGeometryBuffer debugGeometryBuffer;
 void DrawDebugTriangles(Vertex* vertices, int count)
 {
-	memcpy(debugGeometryBuffer.vertexData + debugGeometryBuffer.vertexCount, vertices,
-			count * sizeof(Vertex));
+	for (int i = 0; i < count; ++i)
+	{
+		debugGeometryBuffer.vertexData[debugGeometryBuffer.vertexCount + i] = vertices[i];
+	}
 	debugGeometryBuffer.vertexCount += count;
 }
 

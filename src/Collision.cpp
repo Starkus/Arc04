@@ -109,6 +109,10 @@ bool RayTriangleIntersection(v3 rayOrigin, v3 rayDir, const Triangle &triangle, 
 
 inline v3 FurthestInDirection(Entity *entity, v3 dir)
 {
+	void *oldStackPtr = stackPtr;
+
+	v3 result = {};
+
 	Collider *c = &entity->collider;
 	ColliderType type = c->type;
 	switch(type)
@@ -116,7 +120,6 @@ inline v3 FurthestInDirection(Entity *entity, v3 dir)
 	case COLLIDER_CONVEX_HULL:
 	{
 		f32 maxDist = -INFINITY;
-		v3 result = {};
 
 		// @Speed: inverse-transform direction, pick a point, and then transform only that // point!
 		const v3 worldUp = { 0, 0, 1 };
@@ -133,7 +136,7 @@ inline v3 FurthestInDirection(Entity *entity, v3 dir)
 		};
 
 		u32 pointCount = c->convexHull.collisionPointCount;
-		v3 *points = (v3 *)malloc(pointCount * sizeof(v3));
+		v3 *points = (v3 *)StackAlloc(pointCount * sizeof(v3));
 
 		// Compute all points
 		{
@@ -157,16 +160,14 @@ inline v3 FurthestInDirection(Entity *entity, v3 dir)
 				result = p;
 			}
 		}
-
-		return result;
-	}
+	} break;
 	case COLLIDER_SPHERE:
 	{
-		return entity->pos + c->sphere.offset + V3Normalize(dir) * c->sphere.radius;
-	}
+		result = entity->pos + c->sphere.offset + V3Normalize(dir) * c->sphere.radius;
+	} break;
 	case COLLIDER_CYLINDER:
 	{
-		v3 result = entity->pos + c->cylinder.offset;
+		result = entity->pos + c->cylinder.offset;
 
 		f32 halfH = c->cylinder.height * 0.5f;
 		f32 lat = Sqrt(dir.x * dir.x + dir.y * dir.y);
@@ -174,28 +175,29 @@ inline v3 FurthestInDirection(Entity *entity, v3 dir)
 		{
 			// If direction is parallel to cylinder the answer is trivial
 			result.z += Sign(dir.z) * halfH;
-			return result;
 		}
-
-		// Project dir into cylinder wall
-		v3 d = dir / lat;
-		d = d * c->cylinder.radius;
-
-		// Crop d if it goes out the top/bottom
-		if (d.z > halfH)
+		else
 		{
-			d.z = halfH;
-		}
-		else if (d.z < -halfH)
-		{
-			d.z = -halfH;
-		}
+			// Project dir into cylinder wall
+			v3 d = dir / lat;
+			d = d * c->cylinder.radius;
 
-		return result + d;
-	}
+			// Crop d if it goes out the top/bottom
+			if (d.z > halfH)
+			{
+				d.z = halfH;
+			}
+			else if (d.z < -halfH)
+			{
+				d.z = -halfH;
+			}
+
+			result += d;
+		}
+	} break;
 	case COLLIDER_CAPSULE:
 	{
-		v3 result = entity->pos + c->cylinder.offset;
+		result = entity->pos + c->cylinder.offset;
 
 		f32 halfH = c->cylinder.height * 0.5f;
 		f32 lat = Sqrt(dir.x * dir.x + dir.y * dir.y);
@@ -203,27 +205,32 @@ inline v3 FurthestInDirection(Entity *entity, v3 dir)
 		{
 			// If direction is parallel to cylinder the answer is trivial
 			result.z += Sign(dir.z) * (halfH + c->capsule.radius);
-			return result;
 		}
-
-		// Project dir into cylinder wall
-		v3 d = dir / lat;
-		d = d * c->cylinder.radius;
-
-		// If it goes out the top, return furthest point from top sphere
-		if (d.z > halfH)
-			return result + v3{ 0, 0, halfH } + V3Normalize(dir) * c->capsule.radius;
-		// Analogue for bottom
-		else if (d.z < -halfH)
-			return result - v3{ 0, 0, halfH } + V3Normalize(dir) * c->capsule.radius;
-		// Else just return the vector projected to the wall
 		else
-			return result + d;
+		{
+			// Project dir into cylinder wall
+			v3 d = dir / lat;
+			d = d * c->cylinder.radius;
+
+			// If it goes out the top, return furthest point from top sphere
+			if (d.z > halfH)
+				result += v3{ 0, 0, halfH } + V3Normalize(dir) * c->capsule.radius;
+			// Analogue for bottom
+			else if (d.z < -halfH)
+				result -= v3{ 0, 0, halfH } + V3Normalize(dir) * c->capsule.radius;
+			// Else just return the vector projected to the wall
+			else
+				result += d;
+		}
+	} break;
+	default:
+	{
+		ASSERT(false);
 	}
 	}
 
-	ASSERT(false);
-	return {};
+	StackFree(oldStackPtr);
+	return result;
 }
 
 inline v3 GJKSupport(Entity *vA, Entity *vB, v3 dir)
