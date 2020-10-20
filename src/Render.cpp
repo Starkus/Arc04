@@ -46,7 +46,16 @@ DeviceMesh CreateDeviceMesh()
 	DeviceMesh result;
 	glGenVertexArrays(1, &result.vao);
 	glBindVertexArray(result.vao);
-	glGenBuffers(2, result.buffers);
+	glGenBuffers(1, result.buffers);
+	glBindBuffer(GL_ARRAY_BUFFER, result.vertexBuffer);
+
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, uv));
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, nor));
+	glEnableVertexAttribArray(2);
+
 	return result;
 }
 
@@ -55,64 +64,28 @@ DeviceMesh CreateDeviceIndexedMesh()
 	DeviceMesh result;
 	glGenVertexArrays(1, &result.vao);
 	glBindVertexArray(result.vao);
-	glGenBuffers(1, result.buffers);
+	glGenBuffers(2, result.buffers);
+	glBindBuffer(GL_ARRAY_BUFFER, result.vertexBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, result.indexBuffer);
+
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, uv));
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, nor));
+	glEnableVertexAttribArray(2);
+
 	return result;
 }
 
-void SendMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, bool dynamic)
+DeviceMesh CreateDeviceIndexedSkinnedMesh()
 {
-	glBindVertexArray(mesh->vao);
-
-	mesh->vertexCount = vertexCount;
-	glBindBuffer(GL_ARRAY_BUFFER, mesh->vertexBuffer);
-	glBufferData(GL_ARRAY_BUFFER, vertexCount * sizeof(Vertex), vertexData,
-			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
-
-	// @Cleanup: can this go in CreateDeviceMesh? Test once everything works.
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, uv));
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, nor));
-	glEnableVertexAttribArray(2);
-}
-
-void SendIndexedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, void *indexData,
-		u32 indexCount, bool dynamic)
-{
-	mesh->vertexCount = vertexCount; // @Cleanup: can we remove?
-	mesh->indexCount = indexCount;
-	glBindVertexArray(mesh->vao);
-
-	glGenBuffers(2, mesh->buffers);
-	glBindBuffer(GL_ARRAY_BUFFER, mesh->vertexBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * vertexCount, vertexData,
-			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->indexBuffer);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(u16) * indexCount, indexData,
-			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
-
-	// @Cleanup: can this go in CreateDeviceMesh? Test once everything works.
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, uv));
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, nor));
-	glEnableVertexAttribArray(2);
-}
-
-void SendIndexedSkinnedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, void *indexData,
-		u32 indexCount)
-{
-	mesh->vertexCount = vertexCount; // @Cleanup: can we remove?
-	mesh->indexCount = indexCount;
-	glBindVertexArray(mesh->vao);
-
-	glGenBuffers(2, mesh->buffers);
-	glBindBuffer(GL_ARRAY_BUFFER, mesh->vertexBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(SkinnedVertex) * vertexCount, vertexData, GL_STATIC_DRAW);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->indexBuffer);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(u16) * indexCount, indexData, GL_STATIC_DRAW);
+	DeviceMesh result;
+	glGenVertexArrays(1, &result.vao);
+	glBindVertexArray(result.vao);
+	glGenBuffers(2, result.buffers);
+	glBindBuffer(GL_ARRAY_BUFFER, result.vertexBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, result.indexBuffer);
 
 	// Position
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(SkinnedVertex),
@@ -134,6 +107,48 @@ void SendIndexedSkinnedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount,
 	glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(SkinnedVertex),
 			(GLvoid *)offsetof(SkinnedVertex, weights));
 	glEnableVertexAttribArray(4);
+
+	return result;
+}
+
+void SendMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, bool dynamic)
+{
+	glBindVertexArray(mesh->vao);
+
+	mesh->vertexCount = vertexCount;
+	glBindBuffer(GL_ARRAY_BUFFER, mesh->vertexBuffer);
+	glBufferData(GL_ARRAY_BUFFER, vertexCount * sizeof(Vertex), vertexData,
+			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
+}
+
+void SendIndexedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, void *indexData,
+		u32 indexCount, bool dynamic)
+{
+	mesh->vertexCount = vertexCount; // @Cleanup: can we remove?
+	mesh->indexCount = indexCount;
+	glBindVertexArray(mesh->vao);
+
+	glBindBuffer(GL_ARRAY_BUFFER, mesh->vertexBuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * vertexCount, vertexData,
+			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->indexBuffer);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(u16) * indexCount, indexData,
+			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
+}
+
+void SendIndexedSkinnedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, void *indexData,
+		u32 indexCount, bool dynamic)
+{
+	mesh->vertexCount = vertexCount; // @Cleanup: can we remove?
+	mesh->indexCount = indexCount;
+	glBindVertexArray(mesh->vao);
+
+	glBindBuffer(GL_ARRAY_BUFFER, mesh->vertexBuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(SkinnedVertex) * vertexCount, vertexData,
+			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->indexBuffer);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(u16) * indexCount, indexData,
+			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
 }
 
 DeviceShader LoadShader(const GLchar *shaderSource, ShaderType shaderType)

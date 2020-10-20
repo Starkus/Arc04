@@ -1355,11 +1355,11 @@ int main(int argc, char **argv)
 	SDL_Init(0);
 
 	stackMem = malloc(stackSize);
+	stackPtr = stackMem;
 	frameMem = malloc(frameSize);
+	framePtr = frameMem;
 
 	int error = 0;
-
-	SDL_LogSetAllPriority(SDL_LOG_PRIORITY_VERBOSE);
 
 	char colladaWildcard[MAX_PATH];
 	sprintf(colladaWildcard, "%s*.meta", dataDir);

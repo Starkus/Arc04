@@ -24,7 +24,7 @@ PLATFORM_LOG(Log)
 	OutputDebugStringA(buffer);
 
 	DWORD bytesWritten;
-	WriteFile(hStdout, buffer, strlen(buffer), &bytesWritten, nullptr);
+	WriteFile(hStdout, buffer, (DWORD)strlen(buffer), &bytesWritten, nullptr);
 
 	va_end(args);
 }
@@ -240,6 +240,7 @@ void Win32Start(HINSTANCE hInstance)
 	platformCode.RenderMesh = RenderMesh;
 	platformCode.CreateDeviceMesh = CreateDeviceMesh;
 	platformCode.CreateDeviceIndexedMesh = CreateDeviceIndexedMesh;
+	platformCode.CreateDeviceIndexedSkinnedMesh = CreateDeviceIndexedSkinnedMesh;
 	platformCode.SendMesh = SendMesh;
 	platformCode.SendIndexedMesh = SendIndexedMesh;
 	platformCode.SendIndexedSkinnedMesh = SendIndexedSkinnedMesh;

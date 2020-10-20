@@ -22,6 +22,7 @@ RenderIndexedMesh_t *RenderIndexedMesh;
 RenderMesh_t *RenderMesh;
 CreateDeviceMesh_t *CreateDeviceMesh;
 CreateDeviceIndexedMesh_t *CreateDeviceIndexedMesh;
+CreateDeviceIndexedSkinnedMesh_t *CreateDeviceIndexedSkinnedMesh;
 SendMesh_t *SendMesh;
 SendIndexedMesh_t *SendIndexedMesh;
 SendIndexedSkinnedMesh_t *SendIndexedSkinnedMesh;
@@ -54,6 +55,7 @@ NOMANGLE START_GAME(StartGame)
 	RenderMesh = platformCode->RenderMesh;
 	CreateDeviceMesh = platformCode->CreateDeviceMesh;
 	CreateDeviceIndexedMesh = platformCode->CreateDeviceIndexedMesh;
+	CreateDeviceIndexedSkinnedMesh = platformCode->CreateDeviceIndexedSkinnedMesh;
 	SendMesh = platformCode->SendMesh;
 	SendIndexedMesh = platformCode->SendIndexedMesh;
 	SendIndexedSkinnedMesh = platformCode->SendIndexedSkinnedMesh;
@@ -143,7 +145,6 @@ NOMANGLE START_GAME(StartGame)
 			debugGeometryBuffer.vertexData = (Vertex *)TransientAlloc(2048 * sizeof(Vertex));
 			debugGeometryBuffer.vertexCount = 0;
 			debugGeometryBuffer.deviceMesh = CreateDeviceMesh();
-			SendMesh(&debugGeometryBuffer.deviceMesh, debugGeometryBuffer.vertexData, 0, true); // @Cleanup: Doing just for vertex attribs. Remove
 		}
 
 		// Skinned mesh
@@ -157,9 +158,9 @@ NOMANGLE START_GAME(StartGame)
 			ReadSkinnedMesh(fileBuffer, skinnedMesh, &vertexData, &indexData, &vertexCount,
 					&indexCount);
 
-			gameState->skinnedMesh.deviceMesh = CreateDeviceIndexedMesh();
+			gameState->skinnedMesh.deviceMesh = CreateDeviceIndexedSkinnedMesh();
 			SendIndexedSkinnedMesh(&gameState->skinnedMesh.deviceMesh, vertexData, vertexCount,
-					indexData, indexCount);
+					indexData, indexCount, false);
 		}
 
 		// Shaders

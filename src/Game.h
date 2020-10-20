@@ -173,7 +173,6 @@ struct GameState
 	bool loopAnimation;
 
 	// @Cleanup: move to some Render Device Context or something?
-	void *platformReadEntireFile;
 	DeviceProgram program, skinnedMeshProgram, debugDrawProgram;
 	DeviceMesh anvilMesh, cubeMesh, sphereMesh, cylinderMesh, capsuleMesh;
 	SkeletalMesh skinnedMesh;

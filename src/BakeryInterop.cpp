@@ -26,15 +26,15 @@ void ReadSkinnedMesh(const u8 *fileBuffer, SkeletalMesh *skinnedMesh, SkinnedVer
 
 	const u64 bindPosesBlobSize = sizeof(mat4) * jointCount;
 	mat4 *bindPoses = (mat4 *)TransientAlloc(bindPosesBlobSize);
-	Memcpy(bindPoses, fileBuffer + header->bindPosesBlobOffset, bindPosesBlobSize);
+	memcpy(bindPoses, fileBuffer + header->bindPosesBlobOffset, bindPosesBlobSize);
 
 	const u64 jointParentsBlobSize = jointCount;
 	u8 *jointParents = (u8 *)TransientAlloc(jointParentsBlobSize);
-	Memcpy(jointParents, fileBuffer + header->jointParentsBlobOffset, jointParentsBlobSize);
+	memcpy(jointParents, fileBuffer + header->jointParentsBlobOffset, jointParentsBlobSize);
 
 	const u64 restPosesBlobSize = sizeof(mat4) * jointCount;
 	mat4 *restPoses = (mat4 *)TransientAlloc(restPosesBlobSize);
-	Memcpy(restPoses, fileBuffer + header->restPosesBlobOffset, restPosesBlobSize);
+	memcpy(restPoses, fileBuffer + header->restPosesBlobOffset, restPosesBlobSize);
 
 	ASSERT(jointCount < U8_MAX);
 	skinnedMesh->jointCount = (u8)jointCount;
@@ -61,7 +61,7 @@ void ReadSkinnedMesh(const u8 *fileBuffer, SkeletalMesh *skinnedMesh, SkinnedVer
 
 		const u64 timestampsBlobSize = sizeof(f32) * frameCount;
 		f32 *timestamps = (f32 *)TransientAlloc(timestampsBlobSize);
-		Memcpy(timestamps, fileBuffer + animationHeader->timestampsBlobOffset, timestampsBlobSize);
+		memcpy(timestamps, fileBuffer + animationHeader->timestampsBlobOffset, timestampsBlobSize);
 
 		animation->frameCount = frameCount;
 		animation->timestamps = timestamps;
@@ -81,7 +81,7 @@ void ReadSkinnedMesh(const u8 *fileBuffer, SkeletalMesh *skinnedMesh, SkinnedVer
 
 			u64 transformsBlobSize = sizeof(mat4) * frameCount;
 			mat4 *transforms = (mat4 *)TransientAlloc(transformsBlobSize);
-			Memcpy(transforms, fileBuffer + channelHeader->transformsBlobOffset,
+			memcpy(transforms, fileBuffer + channelHeader->transformsBlobOffset,
 					transformsBlobSize);
 
 			channel->jointIndex = jointIndex;
@@ -98,7 +98,7 @@ void ReadTriangleGeometry(const u8 *fileBuffer, Triangle **triangleData, u32 *tr
 
 	u64 trianglesBlobSize = sizeof(Triangle) * *triangleCount;
 	*triangleData = (Triangle *)TransientAlloc(trianglesBlobSize);
-	Memcpy(*triangleData, fileBuffer + header->trianglesBlobOffset, trianglesBlobSize);
+	memcpy(*triangleData, fileBuffer + header->trianglesBlobOffset, trianglesBlobSize);
 }
 
 void ReadPoints(const u8 *fileBuffer, v3 **pointData, u32 *pointCount)
@@ -108,5 +108,5 @@ void ReadPoints(const u8 *fileBuffer, v3 **pointData, u32 *pointCount)
 	*pointCount = header->pointCount;
 
 	*pointData = (v3 *)TransientAlloc(sizeof(v3) * *pointCount);
-	Memcpy(*pointData, fileBuffer + header->pointsBlobOffset, sizeof(v3) * *pointCount);
+	memcpy(*pointData, fileBuffer + header->pointsBlobOffset, sizeof(v3) * *pointCount);
 }

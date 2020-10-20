@@ -1,7 +1,7 @@
 ## TODO
 
 # Next up?
-- Use custom allocators in game too
+- Hot reload
 - Import and draw textures
 - BVH and octree for level triangles
 - Non axis aligned colliders

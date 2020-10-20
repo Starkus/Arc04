@@ -104,6 +104,9 @@ typedef RENDER_CREATE_DEVICE_MESH(CreateDeviceMesh_t);
 #define RENDER_CREATE_DEVICE_INDEXED_MESH(name) DeviceMesh name()
 typedef RENDER_CREATE_DEVICE_INDEXED_MESH(CreateDeviceIndexedMesh_t);
 
+#define CREATE_DEVICE_INDEXED_SKINNED_MESH(name) DeviceMesh name()
+typedef CREATE_DEVICE_INDEXED_SKINNED_MESH(CreateDeviceIndexedSkinnedMesh_t);
+
 #define RENDER_SEND_MESH(name) void name(DeviceMesh *mesh, void *vertexData, u32 vertexCount, bool dynamic)
 typedef RENDER_SEND_MESH(SendMesh_t);
 
@@ -112,7 +115,7 @@ typedef RENDER_SEND_MESH(SendMesh_t);
 typedef RENDER_SEND_INDEXED_MESH(SendIndexedMesh_t);
 
 #define RENDER_SEND_INDEXED_SKINNED_MESH(name) void name(DeviceMesh *mesh, void *vertexData, \
-		u32 vertexCount, void *indexData, u32 indexCount)
+		u32 vertexCount, void *indexData, u32 indexCount, bool dynamic)
 typedef RENDER_SEND_INDEXED_SKINNED_MESH(SendIndexedSkinnedMesh_t);
 
 #define RENDER_LOAD_SHADER(name) DeviceShader name(const GLchar *shaderSource, ShaderType shaderType)
@@ -136,6 +139,7 @@ struct PlatformCode
 	RenderMesh_t *RenderMesh;
 	CreateDeviceMesh_t *CreateDeviceMesh;
 	CreateDeviceIndexedMesh_t *CreateDeviceIndexedMesh;
+	CreateDeviceIndexedSkinnedMesh_t *CreateDeviceIndexedSkinnedMesh;
 	SendMesh_t *SendMesh;
 	SendIndexedMesh_t *SendIndexedMesh;
 	SendIndexedSkinnedMesh_t *SendIndexedSkinnedMesh;

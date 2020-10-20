@@ -50,16 +50,4 @@ typedef double f64;
 
 #define NOMANGLE extern "C"
 
-#if 0
-inline void Memcpy(void *dst, const void *src, u64 size)
-{
-	for (int i = 0; i < size; ++i)
-	{
-		((u8 *)dst)[i] = ((u8 *)src)[i];
-	}
-}
-#else
-#define Memcpy memcpy
-#endif
-
 #define ArrayCount(array) (sizeof(array) / sizeof(array[0]))
