@@ -12,14 +12,12 @@ void ReadMesh(const u8 *fileBuffer, Vertex **vertexData, u16 **indexData, u32 *v
 }
 
 void ReadSkinnedMesh(const u8 *fileBuffer, SkeletalMesh *skinnedMesh, SkinnedVertex **vertexData,
-		u16 **indexData, u32 *vertexCount)
+		u16 **indexData, u32 *vertexCount, u32 *indexCount)
 {
 	BakerySkinnedMeshHeader *header = (BakerySkinnedMeshHeader *)fileBuffer;
 
 	*vertexCount = header->vertexCount;
-	u32 indexCount = header->indexCount;
-
-	skinnedMesh->deviceMesh.indexCount = indexCount;
+	*indexCount = header->indexCount;
 
 	*vertexData = (SkinnedVertex *)(fileBuffer + header->vertexBlobOffset);
 	*indexData = (u16 *)(fileBuffer + header->indexBlobOffset);

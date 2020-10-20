@@ -72,21 +72,6 @@ void main()\n\
 }\n\
 ";
 
-struct DeviceMesh
-{
-	GLuint vao;
-	union
-	{
-		struct
-		{
-			GLuint vertexBuffer;
-			GLuint indexBuffer;
-		};
-		GLuint buffers[2];
-	};
-	u32 indexCount;
-};
-
 struct AnimationChannel
 {
 	u32 jointIndex;
@@ -112,35 +97,6 @@ struct SkeletalMesh
 	Animation *animations;
 };
 
-struct Button
-{
-	bool endedDown;
-	bool changed;
-};
-
-union Controller
-{
-	struct
-	{
-		Button up;
-		Button down;
-		Button left;
-		Button right;
-		Button jump;
-		Button camUp;
-		Button camDown;
-		Button camLeft;
-		Button camRight;
-
-#if DEBUG_BUILD
-		Button debugUp;
-		Button debugDown;
-		Button debugLeft;
-		Button debugRight;
-#endif
-	};
-	Button b[13];
-};
 
 enum ColliderType
 {
@@ -204,7 +160,6 @@ struct Player
 
 struct GameState
 {
-	Controller controller;
 	v3 camPos;
 	f32 camYaw;
 	f32 camPitch;
@@ -218,9 +173,8 @@ struct GameState
 	bool loopAnimation;
 
 	// @Cleanup: move to some Render Device Context or something?
-	void *frameMem, *stackMem, *transientMem;
 	void *platformReadEntireFile;
-	GLuint program, skinnedMeshProgram, debugDrawProgram;
+	DeviceProgram program, skinnedMeshProgram, debugDrawProgram;
 	DeviceMesh anvilMesh, cubeMesh, sphereMesh, cylinderMesh, capsuleMesh;
 	SkeletalMesh skinnedMesh;
 };
@@ -240,8 +194,7 @@ u32 debugCubeCount;
 
 struct DebugGeometryBuffer
 {
-	GLuint vao;
-	GLuint deviceBuffer;
+	DeviceMesh deviceMesh;
 	Vertex *vertexData;
 	u32 vertexCount;
 };

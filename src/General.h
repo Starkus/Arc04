@@ -50,6 +50,7 @@ typedef double f64;
 
 #define NOMANGLE extern "C"
 
+#if 0
 inline void Memcpy(void *dst, const void *src, u64 size)
 {
 	for (int i = 0; i < size; ++i)
@@ -57,23 +58,8 @@ inline void Memcpy(void *dst, const void *src, u64 size)
 		((u8 *)dst)[i] = ((u8 *)src)[i];
 	}
 }
-
-#if 0
-inline void Log(const char *format, ...)
-{
-	char buffer[256];
-	va_list args;
-	va_start(args, format);
-
-	//vprintf(format, args);
-
-	vsprintf(buffer, format, args);
-	OutputDebugStringA(buffer);
-
-	va_end(args);
-}
 #else
-#define Log(...) //SDL_Log(__VA_ARGS__)
+#define Memcpy memcpy
 #endif
 
 #define ArrayCount(array) (sizeof(array) / sizeof(array[0]))

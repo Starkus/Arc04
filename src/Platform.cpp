@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <strsafe.h>
 #include <GL/gl.h>
 #include <GLES3/gl32.h>
 #include <GLES3/glext.h>
@@ -8,11 +9,28 @@
 #include "Maths.h"
 #include "Geometry.h"
 #include "OpenGL.h"
-#include "Game.h"
-#include "Platform.h"
 #include "Memory.h"
+#include "Platform.h"
+
+HANDLE hStdout;
+
+PLATFORM_LOG(Log)
+{
+	char buffer[256];
+	va_list args;
+	va_start(args, format);
+
+	StringCbVPrintfA(buffer, 512, format, args);
+	OutputDebugStringA(buffer);
+
+	DWORD bytesWritten;
+	WriteFile(hStdout, buffer, strlen(buffer), &bytesWritten, nullptr);
+
+	va_end(args);
+}
 
 #include "OpenGL.cpp"
+#include "Render.cpp"
 
 // OpenGL
 typedef bool (GLAPIENTRY *wglChoosePixelFormatARBProc)(HDC hdc, const int *piAttribIList,
@@ -46,8 +64,51 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
+PLATFORM_READ_ENTIRE_FILE(PlatformReadEntireFile)
+{
+	char fullname[MAX_PATH];
+	DWORD written = GetCurrentDirectory(MAX_PATH, fullname);
+	fullname[written++] = '/';
+	strcpy(fullname + written, filename);
+
+	HANDLE file = CreateFileA(
+			fullname,
+			GENERIC_READ,
+			FILE_SHARE_READ,
+			nullptr,
+			OPEN_EXISTING,
+			FILE_ATTRIBUTE_NORMAL,
+			nullptr
+			);
+	auto error = GetLastError();
+	ASSERT(file != INVALID_HANDLE_VALUE);
+
+	DWORD fileSize = GetFileSize(file, nullptr);
+	ASSERT(fileSize);
+	error = GetLastError();
+
+	u8 *fileBuffer = (u8 *)malloc(fileSize);
+	DWORD bytesRead;
+	bool success = ReadFile(
+			file,
+			fileBuffer,
+			fileSize,
+			&bytesRead,
+			nullptr
+			);
+	ASSERT(success);
+	ASSERT(bytesRead == fileSize);
+
+	CloseHandle(file);
+
+	return fileBuffer;
+}
+
 void Win32Start(HINSTANCE hInstance)
 {
+	AttachConsole(ATTACH_PARENT_PROCESS);
+	hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
+
 	WNDCLASSEX windowClass = {};
 	ZeroMemory(&windowClass, sizeof(windowClass));
 	windowClass.cbSize = sizeof(windowClass);
@@ -151,7 +212,7 @@ void Win32Start(HINSTANCE hInstance)
 		ASSERT(UpdateAndRenderGame);
 	}
 
-	GameState gameState = {};
+	Controller controller = {};
 
 	LARGE_INTEGER largeInteger;
 	QueryPerformanceCounter(&largeInteger);
@@ -161,11 +222,31 @@ void Win32Start(HINSTANCE hInstance)
 	u64 perfFrequency = largeInteger.LowPart;
 
 	// Allocate memory
-	gameState.frameMem = VirtualAlloc(0, frameSize, MEM_COMMIT, PAGE_READWRITE);
-	gameState.stackMem = VirtualAlloc(0, stackSize, MEM_COMMIT, PAGE_READWRITE);
-	gameState.transientMem = VirtualAlloc(0, transientSize, MEM_COMMIT, PAGE_READWRITE);
+	GameMemory gameMemory;
+	gameMemory.frameMem = VirtualAlloc(0, frameSize, MEM_COMMIT, PAGE_READWRITE);
+	gameMemory.stackMem = VirtualAlloc(0, stackSize, MEM_COMMIT, PAGE_READWRITE);
+	gameMemory.transientMem = VirtualAlloc(0, transientSize, MEM_COMMIT, PAGE_READWRITE);
 
-	StartGame(&gameState);
+	// Pass functions
+	PlatformCode platformCode;
+	platformCode.Log = Log;
+	platformCode.PlatformReadEntireFile = PlatformReadEntireFile;
+	platformCode.SetUpDevice = SetUpDevice;
+	platformCode.ClearBuffers = ClearBuffers;
+	platformCode.GetUniform = GetUniform;
+	platformCode.UseProgram = UseProgram;
+	platformCode.UniformMat4 = UniformMat4;
+	platformCode.RenderIndexedMesh = RenderIndexedMesh;
+	platformCode.RenderMesh = RenderMesh;
+	platformCode.CreateDeviceMesh = CreateDeviceMesh;
+	platformCode.CreateDeviceIndexedMesh = CreateDeviceIndexedMesh;
+	platformCode.SendMesh = SendMesh;
+	platformCode.SendIndexedMesh = SendIndexedMesh;
+	platformCode.SendIndexedSkinnedMesh = SendIndexedSkinnedMesh;
+	platformCode.LoadShader = LoadShader;
+	platformCode.CreateDeviceProgram = CreateDeviceProgram;
+
+	StartGame(&gameMemory, &platformCode);
 
 	bool running = true;
 	while (running)
@@ -174,6 +255,10 @@ void Win32Start(HINSTANCE hInstance)
 		const u64 newPerfCounter = largeInteger.LowPart;
 		const f64 time = (f64)newPerfCounter / (f64)perfFrequency;
 		const f32 deltaTime = (f32)(newPerfCounter - lastPerfCounter) / (f32)perfFrequency;
+
+		// Check events
+		for (int buttonIdx = 0; buttonIdx < ArrayCount(controller.b); ++buttonIdx)
+			controller.b[buttonIdx].changed = false;
 
 		MSG message;
 		while (PeekMessageA(&message, 0, 0, 0, PM_REMOVE))
@@ -201,7 +286,7 @@ void Win32Start(HINSTANCE hInstance)
 						}
 					};
 
-					Controller &c = gameState.controller;
+					Controller &c = controller;
 					switch (message.wParam)
 					{
 						case 'Q':
@@ -261,61 +346,21 @@ void Win32Start(HINSTANCE hInstance)
 			}
 		}
 
-		UpdateAndRenderGame(&gameState, deltaTime);
+		UpdateAndRenderGame(&controller, deltaTime);
 
 		SwapBuffers(deviceContext);
 
 		lastPerfCounter = newPerfCounter;
 	}
 
-	VirtualFree(gameState.frameMem, 0, MEM_RELEASE);
-	VirtualFree(gameState.stackMem, 0, MEM_RELEASE);
-	VirtualFree(gameState.transientMem, 0, MEM_RELEASE);
+	VirtualFree(gameMemory.frameMem, 0, MEM_RELEASE);
+	VirtualFree(gameMemory.stackMem, 0, MEM_RELEASE);
+	VirtualFree(gameMemory.transientMem, 0, MEM_RELEASE);
 
 	wglMakeCurrent(NULL,NULL);
 	wglDeleteContext(glContext);
 	ReleaseDC(windowHandle, deviceContext);
 	DestroyWindow(windowHandle);
-}
-
-PLATFORM_READ_ENTIRE_FILE(PlatformReadEntireFile)
-{
-	char fullname[MAX_PATH];
-	DWORD written = GetCurrentDirectory(MAX_PATH, fullname);
-	fullname[written++] = '/';
-	strcpy(fullname + written, filename);
-
-	HANDLE file = CreateFileA(
-			fullname,
-			GENERIC_READ,
-			FILE_SHARE_READ,
-			nullptr,
-			OPEN_EXISTING,
-			FILE_ATTRIBUTE_NORMAL,
-			nullptr
-			);
-	auto error = GetLastError();
-	ASSERT(file != INVALID_HANDLE_VALUE);
-
-	DWORD fileSize = GetFileSize(file, nullptr);
-	ASSERT(fileSize);
-	error = GetLastError();
-
-	u8 *fileBuffer = (u8 *)malloc(fileSize);
-	DWORD bytesRead;
-	bool success = ReadFile(
-			file,
-			fileBuffer,
-			fileSize,
-			&bytesRead,
-			nullptr
-			);
-	ASSERT(success);
-	ASSERT(bytesRead == fileSize);
-
-	CloseHandle(file);
-
-	return fileBuffer;
 }
 
 int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR cmdLine, int showCmd)

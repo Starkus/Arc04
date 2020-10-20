@@ -20,6 +20,8 @@ namespace game
 
 #define RW_ALIGN(fileHandle) SDL_RWseek(fileHandle, SDL_RWtell(fileHandle) & 0b11, RW_SEEK_CUR)
 
+#define Log SDL_Log // @Cleanup
+
 u32 HashRawVertex(const RawVertex &v)
 {
 	u32 result = 0;

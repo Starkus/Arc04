@@ -1,4 +1,5 @@
 #include <stddef.h>
+#include <memory.h>
 
 #include "General.h"
 #include "Maths.h"
@@ -6,49 +7,66 @@
 #include "Primitives.h"
 #include "OpenGL.h"
 
-#include "Game.h"
 #include "Platform.h"
+#include "Game.h"
 
 // Global platform function pointers
+Log_t *Log;
 PlatformReadEntireFile_t *PlatformReadEntireFile;
+SetUpDevice_t *SetUpDevice;
+ClearBuffers_t *ClearBuffers;
+GetUniform_t *GetUniform;
+UseProgram_t *UseProgram;
+UniformMat4_t *UniformMat4;
+RenderIndexedMesh_t *RenderIndexedMesh;
+RenderMesh_t *RenderMesh;
+CreateDeviceMesh_t *CreateDeviceMesh;
+CreateDeviceIndexedMesh_t *CreateDeviceIndexedMesh;
+SendMesh_t *SendMesh;
+SendIndexedMesh_t *SendIndexedMesh;
+SendIndexedSkinnedMesh_t *SendIndexedSkinnedMesh;
+LoadShader_t *LoadShader;
+CreateDeviceProgram_t *CreateDeviceProgram;
 
 #include "Memory.cpp"
 #include "Collision.cpp"
 #include "BakeryInterop.cpp"
 
-GLuint LoadShader(const GLchar *shaderSource, GLuint shaderType)
-{
-	GLuint shader = glCreateShader(shaderType);
-	glShaderSource(shader, 1, &shaderSource, nullptr);
-	glCompileShader(shader);
-
-#if defined(DEBUG_BUILD)
-	{
-		GLint status;
-		glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
-		if (status != GL_TRUE)
-		{
-			char msg[256];
-			GLsizei len;
-			glGetShaderInfoLog(shader, sizeof(msg), &len, msg);
-			Log("Error compiling shader: %s", msg);
-		}
-	}
-#endif
-
-	return shader;
-}
-
 NOMANGLE START_GAME(StartGame)
 {
-	frameMem = gameState->frameMem;
-	stackMem = gameState->stackMem;
-	transientMem = gameState->transientMem;
-	PlatformReadEntireFile = (PlatformReadEntireFile_t *)gameState->platformReadEntireFile;
+	frameMem = gameMemory->frameMem;
+	stackMem = gameMemory->stackMem;
+	transientMem = gameMemory->transientMem;
+
+	framePtr = frameMem;
+	stackPtr = stackMem;
+	transientPtr = transientMem;
+
+	// Platform functions
+	Log = platformCode->Log;
+	PlatformReadEntireFile = platformCode->PlatformReadEntireFile;
+	SetUpDevice = platformCode->SetUpDevice;
+	ClearBuffers = platformCode->ClearBuffers;
+	GetUniform = platformCode->GetUniform;
+	UseProgram = platformCode->UseProgram;
+	UniformMat4 = platformCode->UniformMat4;
+	RenderIndexedMesh = platformCode->RenderIndexedMesh;
+	RenderMesh = platformCode->RenderMesh;
+	CreateDeviceMesh = platformCode->CreateDeviceMesh;
+	CreateDeviceIndexedMesh = platformCode->CreateDeviceIndexedMesh;
+	SendMesh = platformCode->SendMesh;
+	SendIndexedMesh = platformCode->SendIndexedMesh;
+	SendIndexedSkinnedMesh = platformCode->SendIndexedSkinnedMesh;
+	LoadShader = platformCode->LoadShader;
+	CreateDeviceProgram = platformCode->CreateDeviceProgram;
+
+	Log("Starting game!\n");
+
+	GameState *gameState = (GameState *)TransientAlloc(sizeof(GameState));
+
+	// Initialize
 	{
-		// Backface culling
-		glEnable(GL_CULL_FACE);
-		glFrontFace(GL_CW);
+		SetUpDevice();
 
 		// Anvil
 		{
@@ -59,44 +77,23 @@ NOMANGLE START_GAME(StartGame)
 			u8 *fileBuffer = PlatformReadEntireFile("data/anvil.bin");
 			ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
 
-			gameState->anvilMesh.indexCount = indexCount;
-
-			glGenVertexArrays(1, &gameState->anvilMesh.vao);
-			glBindVertexArray(gameState->anvilMesh.vao);
-
-			glGenBuffers(2, gameState->anvilMesh.buffers);
-			glBindBuffer(GL_ARRAY_BUFFER, gameState->anvilMesh.vertexBuffer);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(vertexData[0]) * vertexCount, vertexData, GL_STATIC_DRAW);
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gameState->anvilMesh.indexBuffer);
-			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indexData[0]) * indexCount, indexData, GL_STATIC_DRAW);
-
-			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
-			glEnableVertexAttribArray(0);
-			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, uv));
-			glEnableVertexAttribArray(1);
-			glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, nor));
-			glEnableVertexAttribArray(2);
+			gameState->anvilMesh = CreateDeviceIndexedMesh();
+			SendIndexedMesh(&gameState->anvilMesh, vertexData, vertexCount, indexData,
+					indexCount, false);
 		}
 
 		// Cube
 		{
-			gameState->cubeMesh.indexCount = 6 * 2 * 3;
+			Vertex *vertexData;
+			u16 *indexData;
+			u32 vertexCount;
+			u32 indexCount;
+			u8 *fileBuffer = PlatformReadEntireFile("data/cube.bin");
+			ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
 
-			glGenVertexArrays(1, &gameState->cubeMesh.vao);
-			glBindVertexArray(gameState->cubeMesh.vao);
-
-			glGenBuffers(2, gameState->cubeMesh.buffers);
-			glBindBuffer(GL_ARRAY_BUFFER, gameState->cubeMesh.vertexBuffer);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(cubeVertices), cubeVertices, GL_STATIC_DRAW);
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gameState->cubeMesh.indexBuffer);
-			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cubeIndices), cubeIndices, GL_STATIC_DRAW);
-
-			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
-			glEnableVertexAttribArray(0);
-			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, uv));
-			glEnableVertexAttribArray(1);
-			glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, nor));
-			glEnableVertexAttribArray(2);
+			gameState->cubeMesh = CreateDeviceIndexedMesh();
+			SendIndexedMesh(&gameState->cubeMesh, vertexData, vertexCount, indexData,
+					indexCount, false);
 		}
 
 		// Sphere
@@ -108,23 +105,9 @@ NOMANGLE START_GAME(StartGame)
 			u8 *fileBuffer = PlatformReadEntireFile("data/sphere.bin");
 			ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
 
-			gameState->sphereMesh.indexCount = indexCount;
-
-			glGenVertexArrays(1, &gameState->sphereMesh.vao);
-			glBindVertexArray(gameState->sphereMesh.vao);
-
-			glGenBuffers(2, gameState->sphereMesh.buffers);
-			glBindBuffer(GL_ARRAY_BUFFER, gameState->sphereMesh.vertexBuffer);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(vertexData[0]) * vertexCount, vertexData, GL_STATIC_DRAW);
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gameState->sphereMesh.indexBuffer);
-			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indexData[0]) * indexCount, indexData, GL_STATIC_DRAW);
-
-			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
-			glEnableVertexAttribArray(0);
-			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, uv));
-			glEnableVertexAttribArray(1);
-			glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, nor));
-			glEnableVertexAttribArray(2);
+			gameState->sphereMesh = CreateDeviceIndexedMesh();
+			SendIndexedMesh(&gameState->sphereMesh, vertexData, vertexCount, indexData,
+					indexCount, false);
 		}
 
 		// Cylinder
@@ -136,23 +119,9 @@ NOMANGLE START_GAME(StartGame)
 			u8 *fileBuffer = PlatformReadEntireFile("data/cylinder.bin");
 			ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
 
-			gameState->cylinderMesh.indexCount = indexCount;
-
-			glGenVertexArrays(1, &gameState->cylinderMesh.vao);
-			glBindVertexArray(gameState->cylinderMesh.vao);
-
-			glGenBuffers(2, gameState->cylinderMesh.buffers);
-			glBindBuffer(GL_ARRAY_BUFFER, gameState->cylinderMesh.vertexBuffer);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(vertexData[0]) * vertexCount, vertexData, GL_STATIC_DRAW);
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gameState->cylinderMesh.indexBuffer);
-			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indexData[0]) * indexCount, indexData, GL_STATIC_DRAW);
-
-			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
-			glEnableVertexAttribArray(0);
-			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, uv));
-			glEnableVertexAttribArray(1);
-			glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, nor));
-			glEnableVertexAttribArray(2);
+			gameState->cylinderMesh = CreateDeviceIndexedMesh();
+			SendIndexedMesh(&gameState->cylinderMesh, vertexData, vertexCount, indexData,
+					indexCount, false);
 		}
 
 		// Capsule
@@ -164,41 +133,17 @@ NOMANGLE START_GAME(StartGame)
 			u8 *fileBuffer = PlatformReadEntireFile("data/capsule.bin");
 			ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
 
-			gameState->capsuleMesh.indexCount = indexCount;
-
-			glGenVertexArrays(1, &gameState->capsuleMesh.vao);
-			glBindVertexArray(gameState->capsuleMesh.vao);
-
-			glGenBuffers(2, gameState->capsuleMesh.buffers);
-			glBindBuffer(GL_ARRAY_BUFFER, gameState->capsuleMesh.vertexBuffer);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(vertexData[0]) * vertexCount, vertexData, GL_STATIC_DRAW);
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gameState->capsuleMesh.indexBuffer);
-			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indexData[0]) * indexCount, indexData, GL_STATIC_DRAW);
-
-			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
-			glEnableVertexAttribArray(0);
-			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, uv));
-			glEnableVertexAttribArray(1);
-			glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, nor));
-			glEnableVertexAttribArray(2);
+			gameState->capsuleMesh = CreateDeviceIndexedMesh();
+			SendIndexedMesh(&gameState->capsuleMesh, vertexData, vertexCount, indexData,
+					indexCount, false);
 		}
 
 		// Debug geometry buffer
 		{
 			debugGeometryBuffer.vertexData = (Vertex *)TransientAlloc(2048 * sizeof(Vertex));
 			debugGeometryBuffer.vertexCount = 0;
-			glGenVertexArrays(1, &debugGeometryBuffer.vao);
-			glBindVertexArray(debugGeometryBuffer.vao);
-
-			glGenBuffers(1, &debugGeometryBuffer.deviceBuffer);
-			glBindBuffer(GL_ARRAY_BUFFER, debugGeometryBuffer.deviceBuffer);
-
-			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
-			glEnableVertexAttribArray(0);
-			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, uv));
-			glEnableVertexAttribArray(1);
-			glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, nor));
-			glEnableVertexAttribArray(2);
+			debugGeometryBuffer.deviceMesh = CreateDeviceMesh();
+			SendMesh(&debugGeometryBuffer.deviceMesh, debugGeometryBuffer.vertexData, 0, true); // @Cleanup: Doing just for vertex attribs. Remove
 		}
 
 		// Skinned mesh
@@ -207,105 +152,33 @@ NOMANGLE START_GAME(StartGame)
 			SkinnedVertex *vertexData;
 			u16 *indexData;
 			u32 vertexCount;
+			u32 indexCount;
 			u8 *fileBuffer = PlatformReadEntireFile("data/Sparkus.bin");
-			ReadSkinnedMesh(fileBuffer, skinnedMesh, &vertexData, &indexData, &vertexCount);
+			ReadSkinnedMesh(fileBuffer, skinnedMesh, &vertexData, &indexData, &vertexCount,
+					&indexCount);
 
-			glGenVertexArrays(1, &skinnedMesh->deviceMesh.vao);
-			glBindVertexArray(skinnedMesh->deviceMesh.vao);
-
-			glGenBuffers(2, skinnedMesh->deviceMesh.buffers);
-			glBindBuffer(GL_ARRAY_BUFFER, skinnedMesh->deviceMesh.vertexBuffer);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(SkinnedVertex) * vertexCount, vertexData, GL_STATIC_DRAW);
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, skinnedMesh->deviceMesh.indexBuffer);
-			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(u16) * skinnedMesh->deviceMesh.indexCount, indexData, GL_STATIC_DRAW);
-
-			// Position
-			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(SkinnedVertex),
-					(GLvoid *)offsetof(SkinnedVertex, pos));
-			glEnableVertexAttribArray(0);
-			// UV
-			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(SkinnedVertex),
-					(GLvoid *)offsetof(SkinnedVertex, uv));
-			glEnableVertexAttribArray(1);
-			// Normal
-			glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(SkinnedVertex),
-					(GLvoid *)offsetof(SkinnedVertex, nor));
-			glEnableVertexAttribArray(2);
-			// Joint indices
-			glVertexAttribIPointer(3, 4, GL_UNSIGNED_SHORT, sizeof(SkinnedVertex),
-					(GLvoid *)offsetof(SkinnedVertex, indices));
-			glEnableVertexAttribArray(3);
-			// Joint weights
-			glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(SkinnedVertex),
-					(GLvoid *)offsetof(SkinnedVertex, weights));
-			glEnableVertexAttribArray(4);
+			gameState->skinnedMesh.deviceMesh = CreateDeviceIndexedMesh();
+			SendIndexedSkinnedMesh(&gameState->skinnedMesh.deviceMesh, vertexData, vertexCount,
+					indexData, indexCount);
 		}
 
 		// Shaders
-		GLuint vertexShader = LoadShader(vertexShaderSource, GL_VERTEX_SHADER);
-		GLuint fragmentShader = LoadShader(fragShaderSource, GL_FRAGMENT_SHADER);
+		DeviceShader vertexShader = LoadShader(vertexShaderSource, SHADERTYPE_VERTEX);
+		DeviceShader fragmentShader = LoadShader(fragShaderSource, SHADERTYPE_FRAGMENT);
+		gameState->program = CreateDeviceProgram(&vertexShader, &fragmentShader);
 
-		gameState->program = glCreateProgram();
-		glAttachShader(gameState->program, vertexShader);
-		glAttachShader(gameState->program, fragmentShader);
-		glLinkProgram(gameState->program);
-#if defined(DEBUG_BUILD)
-		{
-			GLint status;
-			glGetProgramiv(gameState->program, GL_LINK_STATUS, &status);
-			if (status != GL_TRUE)
-			{
-				char msg[256];
-				GLsizei len;
-				glGetProgramInfoLog(gameState->program, sizeof(msg), &len, msg);
-				Log("Error linking shader program: %s", msg);
-			}
-		}
-#endif
-
-		GLuint skinVertexShader = LoadShader(skinVertexShaderSource, GL_VERTEX_SHADER);
-		GLuint skinFragmentShader = fragmentShader;
-
-		gameState->skinnedMeshProgram = glCreateProgram();
-		glAttachShader(gameState->skinnedMeshProgram, skinVertexShader);
-		glAttachShader(gameState->skinnedMeshProgram, skinFragmentShader);
-		glLinkProgram(gameState->skinnedMeshProgram);
-#if defined(DEBUG_BUILD)
-		{
-			GLint status;
-			glGetProgramiv(gameState->skinnedMeshProgram, GL_LINK_STATUS, &status);
-			if (status != GL_TRUE)
-			{
-				char msg[256];
-				GLsizei len;
-				glGetProgramInfoLog(gameState->skinnedMeshProgram, sizeof(msg), &len, msg);
-				Log("Error linking shader skinned mesh program: %s", msg);
-			}
-		}
-#endif
+		DeviceShader skinVertexShader = LoadShader(skinVertexShaderSource, SHADERTYPE_VERTEX);
+		DeviceShader skinFragmentShader = fragmentShader;
+		gameState->skinnedMeshProgram = CreateDeviceProgram(&skinVertexShader, &skinFragmentShader);
 
 #if defined(DEBUG_BUILD)
-		GLuint debugDrawVertexShader = vertexShader;
-		GLuint debugDrawFragmentShader = LoadShader(debugDrawFragShaderSource, GL_FRAGMENT_SHADER);
+		DeviceShader debugDrawVertexShader = vertexShader;
+		DeviceShader debugDrawFragmentShader = LoadShader(debugDrawFragShaderSource,
+				SHADERTYPE_FRAGMENT);
 
-		gameState->debugDrawProgram = glCreateProgram();
-		glAttachShader(gameState->debugDrawProgram, debugDrawVertexShader);
-		glAttachShader(gameState->debugDrawProgram, debugDrawFragmentShader);
-		glLinkProgram(gameState->debugDrawProgram);
-		{
-			GLint status;
-			glGetProgramiv(gameState->debugDrawProgram, GL_LINK_STATUS, &status);
-			if (status != GL_TRUE)
-			{
-				char msg[256];
-				GLsizei len;
-				glGetProgramInfoLog(gameState->debugDrawProgram, sizeof(msg), &len, msg);
-				Log("Error linking shader debug draw program: %s", msg);
-			}
-		}
+		gameState->debugDrawProgram = CreateDeviceProgram(&debugDrawVertexShader,
+				&debugDrawFragmentShader);
 #endif
-
-		glEnable(GL_DEPTH_TEST);
 
 		const f32 fov = HALFPI;
 		const f32 near = 0.01f;
@@ -323,18 +196,18 @@ NOMANGLE START_GAME(StartGame)
 			0.0f, 0.0f, -(2.0f * far * near) / (far - near), 0.0f
 		};
 
-		glUseProgram(gameState->program);
-		GLuint projUniform = glGetUniformLocation(gameState->program, "projection");
-		glUniformMatrix4fv(projUniform, 1, false, proj.m);
+		UseProgram(&gameState->program);
+		DeviceUniform projUniform = GetUniform(&gameState->program, "projection");
+		UniformMat4(&projUniform, 1, proj.m);
 
-		glUseProgram(gameState->skinnedMeshProgram);
-		projUniform = glGetUniformLocation(gameState->skinnedMeshProgram, "projection");
-		glUniformMatrix4fv(projUniform, 1, false, proj.m);
+		UseProgram(&gameState->skinnedMeshProgram);
+		projUniform = GetUniform(&gameState->skinnedMeshProgram, "projection");
+		UniformMat4(&projUniform, 1, proj.m);
 
 #if DEBUG_BUILD
-		glUseProgram(gameState->debugDrawProgram);
-		projUniform = glGetUniformLocation(gameState->debugDrawProgram, "projection");
-		glUniformMatrix4fv(projUniform, 1, false, proj.m);
+		UseProgram(&gameState->debugDrawProgram);
+		projUniform = GetUniform(&gameState->debugDrawProgram, "projection");
+		UniformMat4(&projUniform, 1, proj.m);
 #endif
 	}
 
@@ -348,23 +221,8 @@ NOMANGLE START_GAME(StartGame)
 		ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
 
 		DeviceMesh *levelMesh = &gameState->levelGeometry.renderMesh;
-		levelMesh->indexCount = indexCount;
-
-		glGenVertexArrays(1, &levelMesh->vao);
-		glBindVertexArray(levelMesh->vao);
-
-		glGenBuffers(2, levelMesh->buffers);
-		glBindBuffer(GL_ARRAY_BUFFER, levelMesh->vertexBuffer);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * vertexCount, vertexData, GL_STATIC_DRAW);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, levelMesh->indexBuffer);
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(u16) * indexCount, indexData, GL_STATIC_DRAW);
-
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
-		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, uv));
-		glEnableVertexAttribArray(1);
-		glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, nor));
-		glEnableVertexAttribArray(2);
+		*levelMesh = CreateDeviceIndexedMesh();
+		SendIndexedMesh(levelMesh, vertexData, vertexCount, indexData, indexCount, false);
 
 		Triangle *triangleData;
 		u32 triangleCount;
@@ -456,24 +314,22 @@ NOMANGLE START_GAME(StartGame)
 
 NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 {
+	GameState *gameState = (GameState *)transientMem;
+
 #if DEBUG_BUILD
 	debugCubeCount = 0;
 #endif
 
-	// Check events
-	for (int buttonIdx = 0; buttonIdx < ArrayCount(gameState->controller.b); ++buttonIdx)
-		gameState->controller.b[buttonIdx].changed = false;
-
 	// Update
 	{
 #if GJK_VISUAL_DEBUGGING || EPA_VISUAL_DEBUGGING
-		if (gameState->controller.debugUp.endedDown && gameState->controller.debugUp.changed)
+		if (controller->debugUp.endedDown && controller->debugUp.changed)
 		{
 			g_currentPolytopeStep++;
 			if (g_currentPolytopeStep >= 16)
 				g_currentPolytopeStep = 16;
 		}
-		if (gameState->controller.debugDown.endedDown && gameState->controller.debugDown.changed)
+		if (controller->debugDown.endedDown && controller->debugDown.changed)
 		{
 			g_currentPolytopeStep--;
 			if (g_currentPolytopeStep < 0)
@@ -482,41 +338,41 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		DRAW_AA_DEBUG_CUBE(v3{}, 0.05f); // Draw origin
 #endif
 
-		if (gameState->controller.debugUp.endedDown && gameState->controller.debugUp.changed)
+		if (controller->debugUp.endedDown && controller->debugUp.changed)
 		{
 			++gameState->animationIdx;
 			if (gameState->animationIdx >= (i32)gameState->skinnedMesh.animationCount)
 				gameState->animationIdx = 0;
 		}
-		if (gameState->controller.debugDown.endedDown && gameState->controller.debugDown.changed)
+		if (controller->debugDown.endedDown && controller->debugDown.changed)
 		{
 			--gameState->animationIdx;
 			if (gameState->animationIdx < 0)
 				gameState->animationIdx = gameState->skinnedMesh.animationCount - 1;
 		}
 
-		if (gameState->controller.camUp.endedDown)
+		if (controller->camUp.endedDown)
 			gameState->camPitch += 1.0f * deltaTime;
-		else if (gameState->controller.camDown.endedDown)
+		else if (controller->camDown.endedDown)
 			gameState->camPitch -= 1.0f * deltaTime;
 
-		if (gameState->controller.camLeft.endedDown)
+		if (controller->camLeft.endedDown)
 			gameState->camYaw -= 1.0f * deltaTime;
-		else if (gameState->controller.camRight.endedDown)
+		else if (controller->camRight.endedDown)
 			gameState->camYaw += 1.0f * deltaTime;
 
 		// Move player
 		Player *player = &gameState->player;
 		{
 			v3 worldInputDir = {};
-			if (gameState->controller.up.endedDown)
+			if (controller->up.endedDown)
 				worldInputDir += { Sin(gameState->camYaw), Cos(gameState->camYaw) };
-			else if (gameState->controller.down.endedDown)
+			else if (controller->down.endedDown)
 				worldInputDir += { -Sin(gameState->camYaw), -Cos(gameState->camYaw) };
 
-			if (gameState->controller.left.endedDown)
+			if (controller->left.endedDown)
 				worldInputDir += { -Cos(gameState->camYaw), Sin(gameState->camYaw) };
-			else if (gameState->controller.right.endedDown)
+			else if (controller->right.endedDown)
 				worldInputDir += { Cos(gameState->camYaw), -Sin(gameState->camYaw) };
 
 			f32 sqlen = V3SqrLen(worldInputDir);
@@ -532,8 +388,8 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			player->entity->pos += worldInputDir * playerSpeed * deltaTime;
 
 			// Jump
-			if (player->state == PLAYERSTATE_GROUNDED && gameState->controller.jump.endedDown &&
-					gameState->controller.jump.changed)
+			if (player->state == PLAYERSTATE_GROUNDED && controller->jump.endedDown &&
+					controller->jump.changed)
 			{
 				player->vel.z = 15.0f;
 				player->state = PLAYERSTATE_AIR;
@@ -657,14 +513,14 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			view = Mat4Multiply(camPosMatrix, view);
 		}
 
-		glUseProgram(gameState->program);
-		GLuint viewUniform = glGetUniformLocation(gameState->program, "view");
-		glUniformMatrix4fv(viewUniform, 1, false, view.m);
+		UseProgram(&gameState->program);
+		DeviceUniform viewUniform = GetUniform(&gameState->program, "view");
+		UniformMat4(&viewUniform, 1, view.m);
 
-		GLuint modelUniform = glGetUniformLocation(gameState->program, "model");
+		DeviceUniform modelUniform = GetUniform(&gameState->program, "model");
 
-		glClearColor(0.95f, 0.88f, 0.05f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		const v4 clearColor = { 0.95f, 0.88f, 0.05f, 1.0f };
+		ClearBuffers(clearColor);
 
 		// Entity
 		for (u32 entityIdx = 0; entityIdx < gameState->entityCount; ++entityIdx)
@@ -685,30 +541,28 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				up.x,		up.y,		up.z,		0.0f,
 				pos.x,		pos.y,		pos.z,		1.0f
 			};
-			glUniformMatrix4fv(modelUniform, 1, false, model.m);
+			UniformMat4(&modelUniform, 1, model.m);
 
-			glBindVertexArray(entity->mesh->vao);
-			glDrawElements(GL_TRIANGLES, entity->mesh->indexCount, GL_UNSIGNED_SHORT, NULL);
+			RenderIndexedMesh(entity->mesh);
 		}
 
 		// Level
 		{
 			LevelGeometry *level = &gameState->levelGeometry;
 
-			glUniformMatrix4fv(modelUniform, 1, false, MAT4_IDENTITY.m);
-			glBindVertexArray(level->renderMesh.vao);
-			glDrawElements(GL_TRIANGLES, level->renderMesh.indexCount, GL_UNSIGNED_SHORT, NULL);
+			UniformMat4(&modelUniform, 1, MAT4_IDENTITY.m);
+			RenderIndexedMesh(&level->renderMesh);
 		}
 
 		// Skinned meshes
-		glUseProgram(gameState->skinnedMeshProgram);
-		viewUniform = glGetUniformLocation(gameState->skinnedMeshProgram, "view");
-		modelUniform = glGetUniformLocation(gameState->skinnedMeshProgram, "model");
+		UseProgram(&gameState->skinnedMeshProgram);
+		viewUniform = GetUniform(&gameState->skinnedMeshProgram, "view");
+		modelUniform = GetUniform(&gameState->skinnedMeshProgram, "model");
 
-		GLuint jointsUniform = glGetUniformLocation(gameState->skinnedMeshProgram, "joints");
-		glUniformMatrix4fv(viewUniform, 1, false, view.m);
+		DeviceUniform jointsUniform = GetUniform(&gameState->skinnedMeshProgram, "joints");
+		UniformMat4(&viewUniform, 1, view.m);
 		{
-			glUniformMatrix4fv(modelUniform, 1, false, MAT4_IDENTITY.m);
+			UniformMat4(&modelUniform, 1, MAT4_IDENTITY.m);
 
 			mat4 joints[128];
 			for (int i = 0; i < 128; ++i)
@@ -751,19 +605,19 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 				// Stack to apply transforms in reverse order
 				u32 stack[32];
-				int stackSize = 1;
+				int stackCount = 1;
 				stack[0] = jointIdx;
 
 				u8 parentJoint = skinnedMesh->jointParents[jointIdx];
 				while (parentJoint != 0xFF)
 				{
-					stack[stackSize++] = parentJoint;
+					stack[stackCount++] = parentJoint;
 					parentJoint = skinnedMesh->jointParents[parentJoint];
 				}
 				bool first = true;
-				while (stackSize)
+				while (stackCount)
 				{
-					const u32 currentJoint = stack[--stackSize];
+					const u32 currentJoint = stack[--stackCount];
 
 					// Find channel for current joint
 					AnimationChannel *currentChannel = 0;
@@ -853,24 +707,21 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				up.x,		up.y,		up.z,		0.0f,
 				pos.x,		pos.y,		pos.z,		1.0f
 			};
-			glUniformMatrix4fv(modelUniform, 1, false, model.m);
+			UniformMat4(&modelUniform, 1, model.m);
 
-			glUniformMatrix4fv(jointsUniform, 128, false, joints[0].m);
+			UniformMat4(&jointsUniform, 128, joints[0].m);
 
-			glBindVertexArray(skinnedMesh->deviceMesh.vao);
-			glDrawElements(GL_TRIANGLES, skinnedMesh->deviceMesh.indexCount, GL_UNSIGNED_SHORT, NULL);
+			RenderIndexedMesh(&skinnedMesh->deviceMesh);
 		}
 
 #if DEBUG_BUILD
-		glUseProgram(gameState->debugDrawProgram);
-		viewUniform = glGetUniformLocation(gameState->debugDrawProgram, "view");
-		modelUniform = glGetUniformLocation(gameState->debugDrawProgram, "model");
+		UseProgram(&gameState->debugDrawProgram);
+		viewUniform = GetUniform(&gameState->debugDrawProgram, "view");
+		modelUniform = GetUniform(&gameState->debugDrawProgram, "model");
 
-		glUniformMatrix4fv(viewUniform, 1, false, view.m);
+		UniformMat4(&viewUniform, 1, view.m);
 		// Debug draws
 		{
-			//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
 			for (u32 i = 0; i < debugCubeCount; ++i)
 			{
 				DebugCube *cube = &debugCubes[i];
@@ -887,29 +738,21 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					up.x,		up.y,		up.z,		0.0f,
 					pos.x,		pos.y,		pos.z,		1.0f
 				};
-				glUniformMatrix4fv(modelUniform, 1, false, model.m);
-				glBindVertexArray(gameState->cubeMesh.vao);
-				glDrawElements(GL_TRIANGLES, gameState->cubeMesh.indexCount, GL_UNSIGNED_SHORT, NULL);
+				UniformMat4(&modelUniform, 1, model.m);
+				RenderIndexedMesh(&gameState->cubeMesh);
 			}
-
-			//glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		}
 
 		// Debug meshes
 		{
-			glDisable(GL_CULL_FACE);
-			glUniformMatrix4fv(modelUniform, 1, false, MAT4_IDENTITY.m);
+			UniformMat4(&modelUniform, 1, MAT4_IDENTITY.m);
 
-			glBindVertexArray(debugGeometryBuffer.vao);
+			SendMesh(&debugGeometryBuffer.deviceMesh, debugGeometryBuffer.vertexData,
+					debugGeometryBuffer.vertexCount, true);
 
-			glBindBuffer(GL_ARRAY_BUFFER, debugGeometryBuffer.deviceBuffer);
-			glBufferData(GL_ARRAY_BUFFER, debugGeometryBuffer.vertexCount * sizeof(Vertex),
-					debugGeometryBuffer.vertexData, GL_DYNAMIC_DRAW);
-
-			glDrawArrays(GL_TRIANGLES, 0, debugGeometryBuffer.vertexCount);
+			RenderMesh(&debugGeometryBuffer.deviceMesh);
 
 			debugGeometryBuffer.vertexCount = 0;
-			glEnable(GL_CULL_FACE);
 		}
 #endif
 	}
@@ -917,28 +760,9 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 void CleanupGame(GameState *gameState)
 {
+	(void) gameState;
 	// Cleanup
-	{
-		glDeleteBuffers(2, gameState->anvilMesh.buffers);
-		glDeleteBuffers(2, gameState->levelGeometry.renderMesh.buffers);
-		glDeleteBuffers(2, gameState->cubeMesh.buffers);
-		glDeleteBuffers(2, gameState->sphereMesh.buffers);
-		glDeleteBuffers(2, gameState->cylinderMesh.buffers);
-		glDeleteBuffers(2, gameState->capsuleMesh.buffers);
-		glDeleteBuffers(2, gameState->skinnedMesh.deviceMesh.buffers);
-		glDeleteVertexArrays(1, &gameState->anvilMesh.vao);
-		glDeleteVertexArrays(1, &gameState->levelGeometry.renderMesh.vao);
-		glDeleteVertexArrays(1, &gameState->cubeMesh.vao);
-		glDeleteVertexArrays(1, &gameState->sphereMesh.vao);
-		glDeleteVertexArrays(1, &gameState->cylinderMesh.vao);
-		glDeleteVertexArrays(1, &gameState->capsuleMesh.vao);
-		glDeleteVertexArrays(1, &gameState->skinnedMesh.deviceMesh.vao);
-
-#if DEBUG_BUILD
-		glDeleteBuffers(1, &debugGeometryBuffer.deviceBuffer);
-		glDeleteVertexArrays(1, &debugGeometryBuffer.vao);
-#endif
-	}
+	// @Cleanup: properly free device resources
 
 	return;
 }
