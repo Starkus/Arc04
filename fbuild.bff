@@ -18,27 +18,27 @@ ForEach(.BuildType in .BuildTypes)
 {
 	Using(.BuildType)
 
-	// Platform
-	ObjectList('PlatformSource_$BuildTypeName$')
+	// Win32 Platform
+	ObjectList('Win32PlatformSource_$BuildTypeName$')
 	{
 		.CompilerOptions = '$ExeCompilerOptions$'
 		.CompilerInputFiles = {
-			'$SourcePath$/Platform.cpp',
+			'$SourcePath$/Win32Platform.cpp',
 		}
 		.CompilerOutputPath = '$OutputPath$/$BuildTypeName$'
 	}
-	Executable('Platform_$BuildTypeName$')
+	Executable('Win32Platform_$BuildTypeName$')
 	{
 		.LinkerOptions = '$ExeLinkerOptions$ /SUBSYSTEM:WINDOWS,5.02'
-		.LinkerOutput = '$BinPath$/Platform$BuildTypeSufix$.exe'
+		.LinkerOutput = '$BinPath$/Win32Platform$BuildTypeSufix$.exe'
 		.Libraries = {
-			'PlatformSource_$BuildTypeName$',
+			'Win32PlatformSource_$BuildTypeName$',
 		}
 		.PreBuildDependencies = 'Copy_Libs'
 	}
 
 	// Add to all targets
-	^AllTargets + 'Platform_$BuildTypeName$'
+	^AllTargets + 'Win32Platform_$BuildTypeName$'
 
 	// Game
 	ObjectList('GameSource_$BuildTypeName$')

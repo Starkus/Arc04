@@ -9,4 +9,5 @@
 - Import scenes/levels from .dae
 
 # Low priority/later
+- Organize headers better?
 - More error handling/logging
