@@ -9,5 +9,6 @@
 - Import scenes/levels from .dae
 
 # Low priority/later
+- Try to build in linux/with different render backend
 - Organize headers better?
 - More error handling/logging

@@ -217,7 +217,7 @@ inline v3 FurthestInDirection(Entity *entity, v3 dir)
 				result += v3{ 0, 0, halfH } + V3Normalize(dir) * c->capsule.radius;
 			// Analogue for bottom
 			else if (d.z < -halfH)
-				result -= v3{ 0, 0, halfH } + V3Normalize(dir) * c->capsule.radius;
+				result += v3{ 0, 0, -halfH } + V3Normalize(dir) * c->capsule.radius;
 			// Else just return the vector projected to the wall
 			else
 				result += d;
@@ -228,6 +228,8 @@ inline v3 FurthestInDirection(Entity *entity, v3 dir)
 		ASSERT(false);
 	}
 	}
+
+	DRAW_AA_DEBUG_CUBE(result, 0.04f);
 
 	StackFree(oldStackPtr);
 	return result;

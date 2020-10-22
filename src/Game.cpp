@@ -404,12 +404,12 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				player->vel.z -= 30.0f * deltaTime;
 				if (player->vel.z < -75.0f)
 					player->vel.z = -75.0f;
-				player->entity->pos.z += player->vel.z * deltaTime;
 			}
 			else if (player->state == PLAYERSTATE_GROUNDED)
 			{
-				player->vel.z = 0;
+				player->vel.z = -2.0f;
 			}
+			player->entity->pos.z += player->vel.z * deltaTime;
 		}
 
 		// Collision
@@ -426,7 +426,7 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					v3 depenetration = ComputeDepenetration(gjkResult, player->entity, entity,
 							platformCode);
 					player->entity->pos += depenetration;
-					// TOFIX handle velocity change upon hits properly
+					// @Fix: handle velocity change upon hits properly
 					if (V3Normalize(depenetration).z > 0.9f)
 						touchedGround = true;
 					break;
