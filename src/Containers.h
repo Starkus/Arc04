@@ -19,7 +19,8 @@ struct Array_##_TYPE \
 	} \
 }; \
 \
-inline void ArrayInit_##_TYPE(Array_##_TYPE *array, u32 capacity, void *(*allocFunc)(u64)) \
+inline void ArrayInit_##_TYPE(Array_##_TYPE *array, u32 capacity, \
+		void *(*allocFunc)(u64)) \
 { \
 	array->data = (_TYPE *)allocFunc(sizeof(_TYPE) * capacity); \
 	array->size = 0; \
@@ -48,14 +49,16 @@ struct DynamicArray_##_TYPE \
 	} \
 }; \
 \
-inline void DynamicArrayInit_##_TYPE(DynamicArray_##_TYPE *array, u32 capacity, void *(*allocFunc)(u64)) \
+inline void DynamicArrayInit_##_TYPE(DynamicArray_##_TYPE *array, u32 capacity, \
+		void *(*allocFunc)(u64)) \
 { \
 	array->data = (_TYPE *)allocFunc(sizeof(_TYPE) * capacity); \
 	array->size = 0; \
 	array->capacity = capacity; \
 } \
 \
-inline u32 DynamicArrayAdd_##_TYPE(DynamicArray_##_TYPE *array, void *(*reallocFunc)(void *, u64)) \
+inline u32 DynamicArrayAdd_##_TYPE(DynamicArray_##_TYPE *array, \
+		void *(*reallocFunc)(void *, u64)) \
 { \
 	if (array->size >= array->capacity) \
 	{ \

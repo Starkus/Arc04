@@ -92,14 +92,6 @@ typedef void (GLAPIENTRY *glDebugOutputProc)(GLenum source, GLenum type, GLuint 
 typedef void (GLAPIENTRY *glDebugMessageCallbackProc)(glDebugOutputProc callback, void *userParam);
 typedef void (GLAPIENTRY *glDebugMessageControlProc)(GLenum source, GLenum type, GLenum severity, GLsizei count, const GLuint *ids, GLboolean enabled);
 
-#if DEBUG_BUILD
-typedef void (GLAPIENTRY *glPolygonModeProc)(GLenum face, GLenum mode);
-
-typedef void (GLAPIENTRY *glBeginProc)(GLenum mode);
-typedef void (GLAPIENTRY *glEndProc)();
-typedef void (GLAPIENTRY *glVertex3fProc)(GLfloat x, GLfloat y, GLfloat z);
-#endif
-
 #define GL_DeclareProc(name) name##Proc name##Pointer
 GL_DeclareProc(glGetError);
 GL_DeclareProc(glGetIntegerv);
@@ -165,10 +157,6 @@ GL_DeclareProc(glVertexAttribIPointer);
 GL_DeclareProc(glEnableVertexAttribArray);
 GL_DeclareProc(glDrawArrays);
 GL_DeclareProc(glDrawElements);
-GL_DeclareProc(glPolygonMode);
-GL_DeclareProc(glBegin);
-GL_DeclareProc(glEnd);
-GL_DeclareProc(glVertex3f);
 #undef GL_DeclareProc
 
 #define glGetError glGetErrorPointer
@@ -235,7 +223,3 @@ GL_DeclareProc(glVertex3f);
 #define glEnableVertexAttribArray glEnableVertexAttribArrayPointer
 #define glDrawArrays glDrawArraysPointer
 #define glDrawElements glDrawElementsPointer
-#define glPolygonMode glPolygonModePointer
-#define glBegin glBeginPointer
-#define glEnd glEndPointer
-#define glVertex3f glVertex3fPointer

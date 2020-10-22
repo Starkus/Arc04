@@ -1,14 +1,12 @@
 ## TODO
 
 # Next up?
-- Hot reload
+- Opaque handles to things from rendering device?
 - Import and draw textures
 - BVH and octree for level triangles
 - Non axis aligned colliders
 - Decompose transform matrices at data-preprocess-time? For blending etc.
 - Import scenes/levels from .dae
-- Don't use working directory to look for data files in Bakery
 
 # Low priority/later
 - More error handling/logging
-- Daemon that detects data changes and rebuilds?

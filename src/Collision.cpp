@@ -1,11 +1,11 @@
 #if EPA_LOGGING
-#define EPALOG(...) Log(__VA_ARGS__)
+#define EPALOG(...) platformCode->Log(__VA_ARGS__)
 #else
 #define EPALOG(...)
 #endif
 
 #if EPA_ERROR_LOGGING
-#define EPAERROR(...) Log(__VA_ARGS__)
+#define EPAERROR(...) platformCode->Log(__VA_ARGS__)
 #else
 #define EPAERROR(...)
 #endif
@@ -109,7 +109,7 @@ bool RayTriangleIntersection(v3 rayOrigin, v3 rayDir, const Triangle &triangle, 
 
 inline v3 FurthestInDirection(Entity *entity, v3 dir)
 {
-	void *oldStackPtr = stackPtr;
+	void *oldStackPtr = g_gameMemory->stackPtr;
 
 	v3 result = {};
 
@@ -240,7 +240,7 @@ inline v3 GJKSupport(Entity *vA, Entity *vB, v3 dir)
 	return va - vb;
 }
 
-GJKResult GJKTest(Entity *vA, Entity *vB)
+GJKResult GJKTest(Entity *vA, Entity *vB, PlatformCode *platformCode)
 {
 #if GJK_VISUAL_DEBUGGING
 	if (g_GJKSteps[0] == nullptr)
@@ -559,7 +559,7 @@ GJKResult GJKTest(Entity *vA, Entity *vB)
 	return result;
 }
 
-v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB)
+v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB, PlatformCode *platformCode)
 {
 #if EPA_VISUAL_DEBUGGING
 	if (g_polytopeSteps[0] == nullptr)

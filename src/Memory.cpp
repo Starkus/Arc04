@@ -3,15 +3,13 @@
 // @Cleanup: This whole thing is pretty dumb
 
 // FRAME
-void *frameMem;
-void *framePtr;
 void *FrameAlloc(u64 size)
 {
-	ASSERT((u8 *)framePtr + size < (u8 *)frameMem + frameSize); // Out of memory!
+	ASSERT((u8 *)g_gameMemory->framePtr + size < (u8 *)g_gameMemory->frameMem + frameSize); // Out of memory!
 	void *result;
 
-	result = framePtr;
-	framePtr = (u8 *)framePtr + size;
+	result = g_gameMemory->framePtr;
+	g_gameMemory->framePtr = (u8 *)g_gameMemory->framePtr + size;
 
 	return result;
 }
@@ -29,19 +27,17 @@ void FrameFree(void *ptr)
 }
 void FrameWipe()
 {
-	framePtr = frameMem;
+	g_gameMemory->framePtr = g_gameMemory->frameMem;
 }
 
 // STACK
-void *stackMem;
-void *stackPtr;
 void *StackAlloc(u64 size)
 {
-	ASSERT((u8 *)stackPtr + size < (u8 *)stackMem + stackSize); // Out of memory!
+	ASSERT((u8 *)g_gameMemory->stackPtr + size < (u8 *)g_gameMemory->stackMem + stackSize); // Out of memory!
 	void *result;
 
-	result = stackPtr;
-	stackPtr = (u8 *)stackPtr + size;
+	result = g_gameMemory->stackPtr;
+	g_gameMemory->stackPtr = (u8 *)g_gameMemory->stackPtr + size;
 
 	return result;
 }
@@ -56,19 +52,17 @@ void *StackRealloc(void *ptr, u64 newSize)
 }
 void StackFree(void *ptr)
 {
-	stackPtr = ptr;
+	g_gameMemory->stackPtr = ptr;
 }
 
 // TRANSIENT
-void *transientMem;
-void *transientPtr;
 void *TransientAlloc(u64 size)
 {
-	ASSERT((u8 *)transientPtr + size < (u8 *)transientMem + transientSize); // Out of memory!
+	ASSERT((u8 *)g_gameMemory->transientPtr + size < (u8 *)g_gameMemory->transientMem + transientSize); // Out of memory!
 	void *result;
 
-	result = transientPtr;
-	transientPtr = (u8 *)transientPtr + size;
+	result = g_gameMemory->transientPtr;
+	g_gameMemory->transientPtr = (u8 *)g_gameMemory->transientPtr + size;
 
 	return result;
 }

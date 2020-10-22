@@ -6,13 +6,18 @@
 #include <GLES3/wglext.h>
 
 #include "General.h"
-#include "Maths.h"
-#include "Geometry.h"
 #include "OpenGL.h"
 #include "Memory.h"
 #include "Platform.h"
 
-HANDLE hStdout;
+// Stuff referenced by platform functions
+#include "Maths.h"
+#include "Geometry.h"
+#include "Render.h"
+// The platform functions
+#include "PlatformCode.h"
+
+HANDLE g_hStdout;
 
 PLATFORM_LOG(Log)
 {
@@ -24,7 +29,7 @@ PLATFORM_LOG(Log)
 	OutputDebugStringA(buffer);
 
 	DWORD bytesWritten;
-	WriteFile(hStdout, buffer, (DWORD)strlen(buffer), &bytesWritten, nullptr);
+	WriteFile(g_hStdout, buffer, (DWORD)strlen(buffer), &bytesWritten, nullptr);
 
 	va_end(args);
 }
@@ -32,25 +37,78 @@ PLATFORM_LOG(Log)
 #include "OpenGL.cpp"
 #include "Render.cpp"
 
-// OpenGL
-typedef bool (GLAPIENTRY *wglChoosePixelFormatARBProc)(HDC hdc, const int *piAttribIList,
-		const FLOAT *pfAttribFList, UINT nMaxFormats, int *piFormats, UINT *nNumFormats);
-typedef HGLRC (GLAPIENTRY *wglCreateContextAttribsARBProc)(HDC hDC, HGLRC hShareContext, const int *attribList);
+#if DEBUG_BUILD
+const char *gameDllName = "game_debug.dll";
+const char *tempDllName = ".game_temp.dll";
+#else
+const char *gameDllName = "game.dll";
+#endif
 
-wglChoosePixelFormatARBProc wglChoosePixelFormatARBPointer;
-wglCreateContextAttribsARBProc wglCreateContextAttribsARBPointer;
-
-#define wglChoosePixelFormatARB wglChoosePixelFormatARBPointer
-#define wglCreateContextAttribsARB wglCreateContextAttribsARBPointer
-
+// WGL
+PFNWGLCHOOSEPIXELFORMATARBPROC wglChoosePixelFormatARB;
+PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB;
 void LoadWGLProcs()
 {
-	wglChoosePixelFormatARB = (wglChoosePixelFormatARBProc) GL_GetProcAddress("wglChoosePixelFormatARB");
-	wglCreateContextAttribsARB = (wglCreateContextAttribsARBProc) GL_GetProcAddress("wglCreateContextAttribsARB");
+	wglChoosePixelFormatARB = (PFNWGLCHOOSEPIXELFORMATARBPROC)GL_GetProcAddress("wglChoosePixelFormatARB");
+	wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC)GL_GetProcAddress("wglCreateContextAttribsARB");
 }
 /////////
 
-LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+inline FILETIME Win32GetLastWriteTime(const char *filename)
+{
+	FILETIME lastWriteTime = {};
+
+	WIN32_FILE_ATTRIBUTE_DATA data;
+	if (GetFileAttributesEx(filename, GetFileExInfoStandard, &data))
+	{
+		lastWriteTime = data.ftLastWriteTime;
+	}
+
+	return lastWriteTime;
+}
+
+struct Win32GameCode
+{
+	HMODULE dll;
+	bool isLoaded;
+	FILETIME lastWriteTime;
+
+	StartGame_t *StartGame;
+	UpdateAndRenderGame_t *UpdateAndRenderGame;
+};
+
+void Win32LoadGameCode(Win32GameCode *gameCode, const char *dllFilename, const char *tempDllFilename)
+{
+	Log("Loading game code\n");
+#if DEBUG_BUILD
+	CopyFile(dllFilename, tempDllFilename, false);
+	gameCode->dll = LoadLibraryA(tempDllFilename);
+#else
+	gameCode->dll = LoadLibraryA(dllFilename);
+#endif
+	ASSERT(gameCode->dll);
+
+	gameCode->StartGame = (StartGame_t *)GetProcAddress(gameCode->dll, "StartGame");
+	ASSERT(gameCode->StartGame);
+	gameCode->UpdateAndRenderGame = (UpdateAndRenderGame_t *)GetProcAddress(gameCode->dll, "UpdateAndRenderGame");
+	ASSERT(gameCode->UpdateAndRenderGame);
+
+	gameCode->isLoaded = true;
+}
+
+void Win32UnloadGameCode(Win32GameCode *gameCode)
+{
+	if (gameCode->dll)
+	{
+		Log("Unloading game code\n");
+		FreeLibrary(gameCode->dll);
+		gameCode->isLoaded = false;
+		gameCode->StartGame = StartGameStub;
+		gameCode->UpdateAndRenderGame = UpdateAndRenderGameStub;
+	}
+}
+
+LRESULT CALLBACK Win32WindowCallback(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	switch(message)
 	{
@@ -64,7 +122,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
-PLATFORM_READ_ENTIRE_FILE(PlatformReadEntireFile)
+PLATFORM_READ_ENTIRE_FILE(ReadEntireFile)
 {
 	char fullname[MAX_PATH];
 	DWORD written = GetCurrentDirectory(MAX_PATH, fullname);
@@ -80,14 +138,14 @@ PLATFORM_READ_ENTIRE_FILE(PlatformReadEntireFile)
 			FILE_ATTRIBUTE_NORMAL,
 			nullptr
 			);
-	auto error = GetLastError();
+	DWORD error = GetLastError();
 	ASSERT(file != INVALID_HANDLE_VALUE);
 
 	DWORD fileSize = GetFileSize(file, nullptr);
 	ASSERT(fileSize);
 	error = GetLastError();
 
-	u8 *fileBuffer = (u8 *)malloc(fileSize);
+	u8 *fileBuffer = (u8 *)malloc(fileSize); // @Cleanup: no malloc! Also memory leak
 	DWORD bytesRead;
 	bool success = ReadFile(
 			file,
@@ -107,13 +165,13 @@ PLATFORM_READ_ENTIRE_FILE(PlatformReadEntireFile)
 void Win32Start(HINSTANCE hInstance)
 {
 	AttachConsole(ATTACH_PARENT_PROCESS);
-	hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
+	g_hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
 
 	WNDCLASSEX windowClass = {};
 	ZeroMemory(&windowClass, sizeof(windowClass));
 	windowClass.cbSize = sizeof(windowClass);
 	windowClass.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
-	windowClass.lpfnWndProc = WndProc;
+	windowClass.lpfnWndProc = Win32WindowCallback;
 	windowClass.hInstance = hInstance;
 	windowClass.lpszClassName = "window";
 
@@ -200,17 +258,32 @@ void Win32Start(HINSTANCE hInstance)
 	success = wglMakeCurrent(deviceContext, glContext);
 	ASSERT(success);
 
-	// Load game code
-	StartGame_t *StartGame;
-	UpdateAndRenderGame_t *UpdateAndRenderGame;
+	// Get paths
+	char executableFilename[MAX_PATH];
+	char binPath[MAX_PATH];
+	char gameDllFilename[MAX_PATH];
+	char tempDllFilename[MAX_PATH];
 	{
-		HMODULE gameDll = LoadLibraryA("game_debug.dll");
-		ASSERT(gameDll);
-		StartGame = (StartGame_t *)GetProcAddress(gameDll, "StartGame");
-		ASSERT(StartGame);
-		UpdateAndRenderGame = (UpdateAndRenderGame_t *)GetProcAddress(gameDll, "UpdateAndRenderGame");
-		ASSERT(UpdateAndRenderGame);
+		GetModuleFileNameA(0, executableFilename, MAX_PATH);
+		strcpy(gameDllFilename, executableFilename);
+		char *lastSlash = gameDllFilename;
+		for (char *scan = gameDllFilename; *scan != 0; ++scan)
+			if (*scan == '\\') lastSlash = scan;
+		*lastSlash = 0;
+		strcpy(binPath, gameDllFilename);
+
+		*lastSlash = '\\';
+#if DEBUG_BUILD
+		strcpy(lastSlash + 1, tempDllName);
+		strcpy(tempDllFilename, gameDllFilename);
+#endif
+		strcpy(lastSlash + 1, gameDllName);
 	}
+
+	// Load game code
+	Win32GameCode gameCode;
+	Win32LoadGameCode(&gameCode, gameDllFilename, tempDllFilename);
+	gameCode.lastWriteTime = Win32GetLastWriteTime(gameDllFilename);
 
 	Controller controller = {};
 
@@ -226,11 +299,14 @@ void Win32Start(HINSTANCE hInstance)
 	gameMemory.frameMem = VirtualAlloc(0, frameSize, MEM_COMMIT, PAGE_READWRITE);
 	gameMemory.stackMem = VirtualAlloc(0, stackSize, MEM_COMMIT, PAGE_READWRITE);
 	gameMemory.transientMem = VirtualAlloc(0, transientSize, MEM_COMMIT, PAGE_READWRITE);
+	gameMemory.framePtr = gameMemory.frameMem;
+	gameMemory.stackPtr = gameMemory.stackMem;
+	gameMemory.transientPtr = gameMemory.transientMem;
 
 	// Pass functions
 	PlatformCode platformCode;
 	platformCode.Log = Log;
-	platformCode.PlatformReadEntireFile = PlatformReadEntireFile;
+	platformCode.ReadEntireFile = ReadEntireFile;
 	platformCode.SetUpDevice = SetUpDevice;
 	platformCode.ClearBuffers = ClearBuffers;
 	platformCode.GetUniform = GetUniform;
@@ -247,11 +323,20 @@ void Win32Start(HINSTANCE hInstance)
 	platformCode.LoadShader = LoadShader;
 	platformCode.CreateDeviceProgram = CreateDeviceProgram;
 
-	StartGame(&gameMemory, &platformCode);
+	gameCode.StartGame(&gameMemory, &platformCode);
 
 	bool running = true;
 	while (running)
 	{
+		// Hot reload
+		FILETIME newDllWriteTime = Win32GetLastWriteTime(gameDllFilename);
+		if (CompareFileTime(&newDllWriteTime, &gameCode.lastWriteTime) != 0)
+		{
+			Win32UnloadGameCode(&gameCode);
+			Win32LoadGameCode(&gameCode, gameDllFilename, tempDllFilename);
+			gameCode.lastWriteTime = newDllWriteTime;
+		}
+
 		QueryPerformanceCounter(&largeInteger);
 		const u64 newPerfCounter = largeInteger.LowPart;
 		const f64 time = (f64)newPerfCounter / (f64)perfFrequency;
@@ -347,7 +432,7 @@ void Win32Start(HINSTANCE hInstance)
 			}
 		}
 
-		UpdateAndRenderGame(&controller, deltaTime);
+		gameCode.UpdateAndRenderGame(&controller, &gameMemory, &platformCode, deltaTime);
 
 		SwapBuffers(deviceContext);
 

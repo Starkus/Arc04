@@ -1,4 +1,4 @@
-const char *dataDir = "data/";
+const char *dataDir = "data\\";
 
 // My macros don't work with "XmlElement*" as type =(
 typedef XMLElement* XMLElementPtr;
@@ -100,3 +100,11 @@ struct WeightData
 	int *weightCounts;
 	int *weightIndices;
 };
+
+struct FileCacheEntry
+{
+	FILETIME lastWriteTime;
+	char filename[MAX_PATH];
+	bool changed;
+};
+DECLARE_ARRAY(FileCacheEntry);

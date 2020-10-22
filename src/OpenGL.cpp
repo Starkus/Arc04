@@ -79,9 +79,5 @@ void LoadOpenGLProcs()
 	GL_GetProc(glEnableVertexAttribArray);
 	GL_GetProc(glDrawArrays);
 	GL_GetProc(glDrawElements);
-	GL_GetProc(glPolygonMode);
-	GL_GetProc(glBegin);
-	GL_GetProc(glEnd);
-	GL_GetProc(glVertex3f);
 #undef GL_GetProc
 }

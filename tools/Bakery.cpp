@@ -1,14 +1,44 @@
 #include <windows.h>
+#include <strsafe.h>
 #include <stdio.h>
-#include <SDL/SDL.h>
 
 #include "tinyxml/tinyxml2.cpp"
 using namespace tinyxml2;
 
+HANDLE g_hStdout;
+void Log(const char *format, ...)
+{
+	char buffer[2048];
+	va_list args;
+	va_start(args, format);
+
+	StringCbVPrintfA(buffer, sizeof(buffer), format, args);
+	OutputDebugStringA(buffer);
+
+	DWORD bytesWritten;
+	WriteFile(g_hStdout, buffer, (DWORD)strlen(buffer), &bytesWritten, nullptr);
+
+	va_end(args);
+}
+
+inline FILETIME Win32GetLastWriteTime(const char *filename)
+{
+	FILETIME lastWriteTime = {};
+
+	WIN32_FILE_ATTRIBUTE_DATA data;
+	if (GetFileAttributesEx(filename, GetFileExInfoStandard, &data))
+	{
+		lastWriteTime = data.ftLastWriteTime;
+	}
+
+	return lastWriteTime;
+}
+
 #include "General.h"
 #include "Maths.h"
-#include "Containers.h"
 #include "BakeryInterop.h"
+#include "Platform.h"
+#include "Containers.h"
 #include "Bakery.h"
 
 namespace game
@@ -16,11 +46,107 @@ namespace game
 #include "Geometry.h"
 };
 
+GameMemory *g_gameMemory;
+
 #include "Memory.cpp"
 
-#define RW_ALIGN(fileHandle) SDL_RWseek(fileHandle, SDL_RWtell(fileHandle) & 0b11, RW_SEEK_CUR)
+void GetDataPath(char *dataPath)
+{
+	GetModuleFileNameA(0, dataPath, MAX_PATH);
 
-#define Log SDL_Log // @Cleanup
+	// Get parent directory
+	char *lastSlash = dataPath;
+	char *secondLastSlash = dataPath;
+	for (char *scan = dataPath; *scan != 0; ++scan)
+	{
+		if (*scan == '\\')
+		{
+			secondLastSlash = lastSlash;
+			lastSlash = scan;
+		}
+	}
+
+	// Go into data dir
+	strcpy(secondLastSlash + 1, dataDir);
+}
+
+bool Win32DidFileChange(const char *fullName, Array_FileCacheEntry &cache)
+{
+	bool changed = true;
+	FileCacheEntry *cacheEntry = 0;
+	FILETIME newWriteTime = Win32GetLastWriteTime(fullName);
+	for (u32 i = 0; i < cache.size; ++i)
+	{
+		if (strcmp(fullName, cache[i].filename) == 0)
+		{
+			cacheEntry = &cache[i];
+
+			if (!cacheEntry->changed && CompareFileTime(&newWriteTime, &cache[i].lastWriteTime) == 0)
+			{
+				changed = false;
+			}
+			break;
+		}
+	}
+#if 1
+	if (changed)
+	{
+		if (!cacheEntry)
+		{
+			cacheEntry = &cache[cache.size++];
+			strcpy(cacheEntry->filename, fullName);
+		}
+		cacheEntry->lastWriteTime = newWriteTime;
+		cacheEntry->changed = true;
+	}
+#endif
+	return changed;
+}
+
+HANDLE OpenForWrite(const char *filename)
+{
+	HANDLE file = CreateFileA(
+			filename,
+			GENERIC_WRITE,
+			0, // Share
+			nullptr,
+			CREATE_ALWAYS,
+			FILE_ATTRIBUTE_NORMAL,
+			nullptr
+			);
+	ASSERT(file != INVALID_HANDLE_VALUE);
+
+	return file;
+}
+
+u64 WriteToFile(HANDLE file, void *buffer, u64 size)
+{
+	DWORD writtenBytes;
+	WriteFile(
+			file,
+			buffer,
+			(DWORD)size,
+			&writtenBytes,
+			nullptr
+			);
+	ASSERT(writtenBytes == size);
+
+	return (u64)writtenBytes;
+}
+
+u64 FileSeek(HANDLE file, i64 shift, DWORD mode)
+{
+	LARGE_INTEGER lInt;
+	LARGE_INTEGER lIntRes;
+	lInt.QuadPart = shift;
+
+	SetFilePointerEx(file, lInt, &lIntRes, mode);
+
+	return lIntRes.QuadPart;
+}
+
+#define FilePosition(file) FileSeek(file, 0, FILE_CURRENT)
+#define FileAlign(fileHandle) FileSeek(fileHandle, FilePosition(fileHandle) & 0b11, FILE_CURRENT)
 
 u32 HashRawVertex(const RawVertex &v)
 {
@@ -549,7 +675,7 @@ ErrorCode ReadColladaController(XMLElement *rootEl, Skeleton *skeleton, WeightDa
 int ConstructSkinnedMesh(const RawGeometry *geometry, const WeightData *weightData,
 		DynamicArray_RawVertex &finalVertices, Array_u16 &finalIndices)
 {
-	void *oldStackPtr = stackPtr;
+	void *oldStackPtr = g_gameMemory->stackPtr;
 
 	const u32 vertexTotal = geometry->positions.size;
 
@@ -593,7 +719,7 @@ int ConstructSkinnedMesh(const RawGeometry *geometry, const WeightData *weightDa
 
 	// Join positions and normals and eliminate duplicates
 	{
-		void *oldStackPtrJoin = stackPtr;
+		void *oldStackPtrJoin = g_gameMemory->stackPtr;
 
 		const bool hasUvs = geometry->uvsOffset >= 0;
 		const bool hasNormals = geometry->normalsOffset >= 0;
@@ -613,7 +739,8 @@ int ConstructSkinnedMesh(const RawGeometry *geometry, const WeightData *weightDa
 		}
 		//Log("Going with %d buckets for %d indices\n", nOfBuckets, geometry->triangleCount * 3);
 
-		DynamicArray_u16 *buckets = (DynamicArray_u16 *)StackAlloc(sizeof(DynamicArray_u16) * nOfBuckets);
+		DynamicArray_u16 *buckets = (DynamicArray_u16 *)StackAlloc(sizeof(DynamicArray_u16) *
+				nOfBuckets);
 		for (int bucketIdx = 0; bucketIdx < nOfBuckets; ++bucketIdx)
 		{
 			DynamicArrayInit_u16(&buckets[bucketIdx], 4, StackAlloc);
@@ -711,7 +838,8 @@ int ConstructSkinnedMesh(const RawGeometry *geometry, const WeightData *weightDa
 	return 0;
 }
 
-ErrorCode ReadColladaAnimation(XMLElement *rootEl, Animation &animation, Skeleton &skeleton)
+ErrorCode ReadColladaAnimation(XMLElement *rootEl, Animation &animation,
+		Skeleton &skeleton)
 {
 	DynamicArray_AnimationChannel channels;
 	DynamicArrayInit_AnimationChannel(&channels, skeleton.jointCount, FrameAlloc);
@@ -864,11 +992,13 @@ ErrorCode ReadColladaAnimation(XMLElement *rootEl, Animation &animation, Skeleto
 	return ERROR_OK;
 }
 
-int OutputMesh(const char *filename, DynamicArray_RawVertex &finalVertices, Array_u16 &finalIndices)
+int OutputMesh(const char *filename, DynamicArray_RawVertex &finalVertices,
+		Array_u16 &finalIndices)
 {
 	// Output!
 	{
-		SDL_RWops *newFile = SDL_RWFromFile(filename, "wb");
+		HANDLE newFile = OpenForWrite(filename);
+		u64 filePos = 0;
 		{
 			u64 vertexBlobSize = sizeof(game::Vertex) * finalVertices.size;
 
@@ -878,9 +1008,9 @@ int OutputMesh(const char *filename, DynamicArray_RawVertex &finalVertices, Arra
 			header.vertexBlobOffset = sizeof(header);
 			header.indexBlobOffset = header.vertexBlobOffset + vertexBlobSize;
 
-			SDL_RWwrite(newFile, &header, sizeof(header), 1);
+			filePos += WriteToFile(newFile, &header, sizeof(header));
 
-			ASSERT(SDL_RWtell(newFile) == (i64)header.vertexBlobOffset);
+			ASSERT(filePos == header.vertexBlobOffset);
 
 			// Write vertex data
 			for (u32 i = 0; i < finalVertices.size; ++i)
@@ -891,40 +1021,41 @@ int OutputMesh(const char *filename, DynamicArray_RawVertex &finalVertices, Arra
 				gameVertex.uv = rawVertex->uv;
 				gameVertex.nor = rawVertex->normal;
 
-				SDL_RWwrite(newFile, &gameVertex, sizeof(gameVertex), 1);
+				filePos += WriteToFile(newFile, &gameVertex, sizeof(gameVertex));
 			}
 
-			ASSERT(SDL_RWtell(newFile) == (i64)header.indexBlobOffset);
+			ASSERT(filePos == header.indexBlobOffset);
 
 			// Write indices
 			for (u32 i = 0; i < finalIndices.size; ++i)
 			{
 				u16 outputIdx = finalIndices[i];
-				SDL_RWwrite(newFile, &outputIdx, sizeof(outputIdx), 1);
+				filePos += WriteToFile(newFile, &outputIdx, sizeof(outputIdx));
 			}
 		}
-		SDL_RWclose(newFile);
+		CloseHandle(newFile);
 	}
 
 	return 0;
 }
 
-int OutputSkinnedMesh(const char *filename, DynamicArray_RawVertex &finalVertices,
-		Array_u16 &finalIndices, Skeleton &skeleton, DynamicArray_Animation &animations)
+int OutputSkinnedMesh(const char *filename,
+		DynamicArray_RawVertex &finalVertices, Array_u16 &finalIndices, Skeleton &skeleton,
+		DynamicArray_Animation &animations)
 {
-	void *oldStackPtr = stackPtr;
+	void *oldStackPtr = g_gameMemory->stackPtr;
 
-	SDL_RWops *newFile = SDL_RWFromFile(filename, "wb");
+	HANDLE newFile = OpenForWrite(filename);
 	
 	BakerySkinnedMeshHeader header;
 	header.vertexCount = finalVertices.size;
 	header.indexCount = finalIndices.size;
 	header.jointCount = skeleton.jointCount;
 	header.animationCount = animations.size;
-	SDL_RWseek(newFile, sizeof(header), RW_SEEK_SET);
+	FileSeek(newFile, sizeof(header), FILE_BEGIN);
 
 	// Write vertex data
-	header.vertexBlobOffset = SDL_RWtell(newFile);
+	header.vertexBlobOffset = FilePosition(newFile);
 	for (u32 i = 0; i < finalVertices.size; ++i)
 	{
 		RawVertex *rawVertex = &finalVertices[i];
@@ -938,33 +1069,33 @@ int OutputSkinnedMesh(const char *filename, DynamicArray_RawVertex &finalVertice
 			gameVertex.weights[j] = rawVertex->skinnedPos.jointWeights[j];
 		}
 
-		SDL_RWwrite(newFile, &gameVertex, sizeof(gameVertex), 1);
+		WriteToFile(newFile, &gameVertex, sizeof(gameVertex));
 	}
 
-	RW_ALIGN(newFile);
+	FileAlign(newFile);
 
 	// Write indices
-	header.indexBlobOffset = SDL_RWtell(newFile);
+	header.indexBlobOffset = FilePosition(newFile);
 	for (u32 i = 0; i < finalIndices.size; ++i)
 	{
 		u16 outputIdx = finalIndices[i];
-		SDL_RWwrite(newFile, &outputIdx, sizeof(outputIdx), 1);
+		WriteToFile(newFile, &outputIdx, sizeof(outputIdx));
 	}
 
-	RW_ALIGN(newFile);
+	FileAlign(newFile);
 
 	// Write skeleton
-	header.bindPosesBlobOffset = SDL_RWtell(newFile);
-	SDL_RWwrite(newFile, skeleton.bindPoses, sizeof(mat4) * skeleton.jointCount, 1);
-	RW_ALIGN(newFile);
+	header.bindPosesBlobOffset = FilePosition(newFile);
+	WriteToFile(newFile, skeleton.bindPoses, sizeof(mat4) * skeleton.jointCount);
+	FileAlign(newFile);
 
-	header.jointParentsBlobOffset = SDL_RWtell(newFile);
-	SDL_RWwrite(newFile, skeleton.jointParents, skeleton.jointCount, 1);
-	RW_ALIGN(newFile);
+	header.jointParentsBlobOffset = FilePosition(newFile);
+	WriteToFile(newFile, skeleton.jointParents, skeleton.jointCount);
+	FileAlign(newFile);
 
-	header.restPosesBlobOffset = SDL_RWtell(newFile);
-	SDL_RWwrite(newFile, skeleton.restPoses, sizeof(mat4) * skeleton.jointCount, 1);
-	RW_ALIGN(newFile);
+	header.restPosesBlobOffset = FilePosition(newFile);
+	WriteToFile(newFile, skeleton.restPoses, sizeof(mat4) * skeleton.jointCount);
+	FileAlign(newFile);
 
 	// Write animations
 	Array_BakerySkinnedMeshAnimationHeader animationHeaders;
@@ -977,8 +1108,8 @@ int OutputSkinnedMesh(const char *filename, DynamicArray_RawVertex &finalVertice
 		animationHeader->frameCount = animation->frameCount;
 		animationHeader->channelCount = animation->channelCount;
 
-		animationHeader->timestampsBlobOffset = SDL_RWtell(newFile);
-		SDL_RWwrite(newFile, animation->timestamps, sizeof(u32) * animation->frameCount, 1);
+		animationHeader->timestampsBlobOffset = FilePosition(newFile);
+		WriteToFile(newFile, animation->timestamps, sizeof(u32) * animation->frameCount);
 
 		Array_BakerySkinnedMeshAnimationChannelHeader channelHeaders;
 		ArrayInit_BakerySkinnedMeshAnimationChannelHeader(&channelHeaders, animation->channelCount,
@@ -989,36 +1120,73 @@ int OutputSkinnedMesh(const char *filename, DynamicArray_RawVertex &finalVertice
 
 			BakerySkinnedMeshAnimationChannelHeader *channelHeader = &channelHeaders[channelIdx];
 			channelHeader->jointIndex = channel->jointIndex;
-			channelHeader->transformsBlobOffset = SDL_RWtell(newFile);
-			SDL_RWwrite(newFile, channel->transforms, sizeof(mat4) * animation->frameCount, 1);
+			channelHeader->transformsBlobOffset = FilePosition(newFile);
+			WriteToFile(newFile, channel->transforms, sizeof(mat4) * animation->frameCount);
 		}
 
-		animationHeader->channelsBlobOffset = SDL_RWtell(newFile);
+		animationHeader->channelsBlobOffset = FilePosition(newFile);
 		for (u32 channelIdx = 0; channelIdx < animation->channelCount; ++channelIdx)
 		{
 			BakerySkinnedMeshAnimationChannelHeader *channelHeader = &channelHeaders[channelIdx];
-			SDL_RWwrite(newFile, channelHeader, sizeof(*channelHeader), 1);
+			WriteToFile(newFile, channelHeader, sizeof(*channelHeader));
 		}
 	}
 
-	header.animationBlobOffset = SDL_RWtell(newFile);
+	header.animationBlobOffset = FilePosition(newFile);
 	for (u32 animIdx = 0; animIdx < animations.size; ++animIdx)
 	{
 		BakerySkinnedMeshAnimationHeader *animationHeader = &animationHeaders[animIdx];
-		SDL_RWwrite(newFile, animationHeader, sizeof(*animationHeader), 1);
+		WriteToFile(newFile, animationHeader, sizeof(*animationHeader));
 	}
 
-	SDL_RWseek(newFile, 0, RW_SEEK_SET);
-	SDL_RWwrite(newFile, &header, sizeof(header), 1);
+	FileSeek(newFile, 0, FILE_BEGIN);
+	WriteToFile(newFile, &header, sizeof(header));
 
-	SDL_RWclose(newFile);
+	CloseHandle(newFile);
 
 	StackFree(oldStackPtr);
 
 	return 0;
 }
 
-int ReadMeta(const char *filename)
+bool DidMetaDependenciesChange(const char *metaFilename, const char *fullDataDir, Array_FileCacheEntry &cache)
+{
+	XMLError xmlError;
+
+	tinyxml2::XMLDocument doc;
+	xmlError = doc.LoadFile(metaFilename);
+	if (xmlError != XML_SUCCESS)
+	{
+		Log("ERROR! Parsing XML file \"%s\" (%s)\n", metaFilename, doc.ErrorStr());
+		return true;
+	}
+
+	XMLElement *rootEl = doc.FirstChildElement("meta");
+	if (!rootEl)
+	{
+		Log("ERROR! Meta root node not found\n");
+		return true;
+	}
+
+	bool somethingChanged = false;
+	XMLElement *fileEl = rootEl->FirstChildElement();
+	while (fileEl)
+	{
+		const char *filename = fileEl->FirstChild()->ToText()->Value();
+		char fullName[MAX_PATH];
+		sprintf(fullName, "%s%s", fullDataDir, filename);
+
+		if (Win32DidFileChange(fullName, cache))
+		{
+			somethingChanged = true;
+		}
+
+		fileEl = fileEl->NextSiblingElement();
+	}
+	return somethingChanged;
+}
+
+int ReadMeta(const char *filename, const char *fullDataDir)
 {
 	XMLError xmlError;
 
@@ -1078,7 +1246,7 @@ int ReadMeta(const char *filename)
 			}
 
 			char fullname[MAX_PATH];
-			sprintf(fullname, "%s%s", dataDir, geomFile);
+			sprintf(fullname, "%s%s", fullDataDir, geomFile);
 
 			tinyxml2::XMLDocument dataDoc;
 			xmlError = dataDoc.LoadFile(fullname);
@@ -1132,7 +1300,7 @@ int ReadMeta(const char *filename)
 			}
 
 			char fullname[MAX_PATH];
-			sprintf(fullname, "%s%s", dataDir, geomFile);
+			sprintf(fullname, "%s%s", fullDataDir, geomFile);
 
 			tinyxml2::XMLDocument dataDoc;
 			xmlError = dataDoc.LoadFile(fullname);
@@ -1172,7 +1340,7 @@ int ReadMeta(const char *filename)
 			Log("Found animation file: %s\n", animFile);
 
 			char fullname[MAX_PATH];
-			sprintf(fullname, "%s%s", dataDir, animFile);
+			sprintf(fullname, "%s%s", fullDataDir, animFile);
 
 			tinyxml2::XMLDocument dataDoc;
 			xmlError = dataDoc.LoadFile(fullname);
@@ -1203,7 +1371,8 @@ int ReadMeta(const char *filename)
 			char outputName[MAX_PATH];
 			GetOutputFilename(filename, outputName);
 
-			int error = OutputSkinnedMesh(outputName, finalVertices, finalIndices, skeleton, animations);
+			int error = OutputSkinnedMesh(outputName, finalVertices, finalIndices,
+					skeleton, animations);
 			if (error)
 				return error;
 		}
@@ -1223,7 +1392,7 @@ int ReadMeta(const char *filename)
 		}
 
 		char fullname[MAX_PATH];
-		sprintf(fullname, "%s%s", dataDir, geomFile);
+		sprintf(fullname, "%s%s", fullDataDir, geomFile);
 
 		tinyxml2::XMLDocument dataDoc;
 		xmlError = dataDoc.LoadFile(fullname);
@@ -1249,7 +1418,7 @@ int ReadMeta(const char *filename)
 		char outputName[MAX_PATH];
 		GetOutputFilename(filename, outputName);
 
-		SDL_RWops *file = SDL_RWFromFile(outputName, "wb");
+		HANDLE file = OpenForWrite(outputName);
 
 		BakeryTriangleDataHeader header;
 
@@ -1257,7 +1426,7 @@ int ReadMeta(const char *filename)
 		header.triangleCount = triangleCount;
 		header.trianglesBlobOffset = sizeof(header);
 
-		SDL_RWwrite(file, &header, sizeof(header), 1);
+		WriteToFile(file, &header, sizeof(header));
 
 		int attrCount = 1;
 		if (rawGeometry.normalsOffset >= 0)
@@ -1285,10 +1454,10 @@ int ReadMeta(const char *filename)
 
 			triangle.normal = V3Normalize(V3Cross(triangle.c - triangle.a, triangle.b - triangle.a));
 
-			SDL_RWwrite(file, &triangle, sizeof(triangle), 1);
+			WriteToFile(file, &triangle, sizeof(triangle));
 		}
 
-		SDL_RWclose(file);
+		CloseHandle(file);
 	} break;
 	case METATYPE_POINTS:
 	{
@@ -1305,7 +1474,7 @@ int ReadMeta(const char *filename)
 		}
 
 		char fullname[MAX_PATH];
-		sprintf(fullname, "%s%s", dataDir, geomFile);
+		sprintf(fullname, "%s%s", fullDataDir, geomFile);
 
 		tinyxml2::XMLDocument dataDoc;
 		xmlError = dataDoc.LoadFile(fullname);
@@ -1331,7 +1500,7 @@ int ReadMeta(const char *filename)
 		char outputName[MAX_PATH];
 		GetOutputFilename(filename, outputName);
 
-		SDL_RWops *file = SDL_RWFromFile(outputName, "wb");
+		HANDLE file = OpenForWrite(outputName);
 
 		const u32 pointCount = rawGeometry.positions.size;
 
@@ -1339,10 +1508,10 @@ int ReadMeta(const char *filename)
 		header.pointCount = pointCount;
 		header.pointsBlobOffset = sizeof(header);
 
-		SDL_RWwrite(file, &header, sizeof(header), 1);
-		SDL_RWwrite(file, rawGeometry.positions.data, sizeof(v3), pointCount);
+		WriteToFile(file, &header, sizeof(header));
+		WriteToFile(file, rawGeometry.positions.data, sizeof(v3) * pointCount);
 
-		SDL_RWclose(file);
+		CloseHandle(file);
 	} break;
 	};
 
@@ -1352,42 +1521,78 @@ int ReadMeta(const char *filename)
 int main(int argc, char **argv)
 {
 	(void) argc, argv;
-	SDL_Init(0);
 
-	stackMem = malloc(stackSize);
-	stackPtr = stackMem;
-	frameMem = malloc(frameSize);
-	framePtr = frameMem;
+	AttachConsole(ATTACH_PARENT_PROCESS);
+	g_hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
+
+	GameMemory gameMemory;
+	g_gameMemory = &gameMemory;
+
+	gameMemory.stackMem = malloc(stackSize);
+	gameMemory.stackPtr = gameMemory.stackMem;
+	gameMemory.frameMem = malloc(frameSize);
+	gameMemory.framePtr = gameMemory.frameMem;
+	gameMemory.transientMem = malloc(transientSize);
+	gameMemory.transientPtr = gameMemory.transientMem;
+
+	Array_FileCacheEntry cache;
+	ArrayInit_FileCacheEntry(&cache, 1024, TransientAlloc);
 
 	int error = 0;
 
+	char fullDataDir[MAX_PATH];
+	GetDataPath(fullDataDir);
+
 	char colladaWildcard[MAX_PATH];
-	sprintf(colladaWildcard, "%s*.meta", dataDir);
+	sprintf(colladaWildcard, "%s*.meta", fullDataDir);
 	WIN32_FIND_DATA findData;
-	HANDLE searchHandle = FindFirstFileA(colladaWildcard, &findData);
 	char fullName[MAX_PATH];
 	while (1)
 	{
-		sprintf(fullName, "%s%s", dataDir, findData.cFileName);
-		Log("\nDetected file %s\n------------------------------\n", fullName);
-		error = ReadMeta(fullName);
+		HANDLE searchHandle = FindFirstFileA(colladaWildcard, &findData);
+		while (1)
+		{
+			sprintf(fullName, "%s%s", fullDataDir, findData.cFileName);
 
-		//Log("Used %.02fkb of frame allocator\n", ((u8 *)framePtr - (u8 *)frameMem) / 1024.0f);
-		FrameWipe();
+			bool changed = Win32DidFileChange(fullName, cache);
 
-		if (error != 0)
-			goto done;
+			if (!changed)
+			{
+				changed = DidMetaDependenciesChange(fullName, fullDataDir, cache);
+			}
 
-		if (!FindNextFileA(searchHandle, &findData))
-			break;
+			if (changed)
+			{
+				Log("-- Detected file %s ---------------------\n", findData.cFileName);
+				error = ReadMeta(fullName, fullDataDir);
+				Log("\n");
+
+				//Log("Used %.02fkb of frame allocator\n", ((u8 *)framePtr - (u8 *)frameMem) / 1024.0f);
+				FrameWipe();
+
+				if (error != 0)
+					goto done;
+			}
+
+			if (!FindNextFileA(searchHandle, &findData))
+				break;
+		}
+
+		// Process dirty cache entries
+		for (u32 i = 0; i < cache.size; ++i)
+		{
+			FileCacheEntry *cacheEntry = &cache[i];
+			cacheEntry->changed = false;
+		}
+
+		Sleep(500);
 	}
 
 done:
-	free(stackMem);
-	free(frameMem);
+	free(gameMemory.stackMem);
+	free(gameMemory.frameMem);
 
-	SDL_Quit();
 	return error;
 }
 
-#undef RW_ALIGN
+#undef FileAlign

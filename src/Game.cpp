@@ -7,27 +7,45 @@
 #include "Primitives.h"
 #include "OpenGL.h"
 
+#include "Render.h"
 #include "Platform.h"
+#include "PlatformCode.h"
 #include "Game.h"
 
-// Global platform function pointers
-Log_t *Log;
-PlatformReadEntireFile_t *PlatformReadEntireFile;
-SetUpDevice_t *SetUpDevice;
-ClearBuffers_t *ClearBuffers;
-GetUniform_t *GetUniform;
-UseProgram_t *UseProgram;
-UniformMat4_t *UniformMat4;
-RenderIndexedMesh_t *RenderIndexedMesh;
-RenderMesh_t *RenderMesh;
-CreateDeviceMesh_t *CreateDeviceMesh;
-CreateDeviceIndexedMesh_t *CreateDeviceIndexedMesh;
-CreateDeviceIndexedSkinnedMesh_t *CreateDeviceIndexedSkinnedMesh;
-SendMesh_t *SendMesh;
-SendIndexedMesh_t *SendIndexedMesh;
-SendIndexedSkinnedMesh_t *SendIndexedSkinnedMesh;
-LoadShader_t *LoadShader;
-CreateDeviceProgram_t *CreateDeviceProgram;
+GameMemory *g_gameMemory;
+
+// Debug draws
+#if DEBUG_BUILD
+struct DebugCube
+{
+	v3 pos;
+	v3 fw;
+	v3 up;
+	f32 scale;
+};
+DebugCube debugCubes[2048];
+u32 debugCubeCount;
+#define DRAW_DEBUG_CUBE(pos, fw, up, scale) if (debugCubeCount < 2048) debugCubes[debugCubeCount++] = { pos, fw, up, scale }
+#define DRAW_AA_DEBUG_CUBE(pos, scale) if (debugCubeCount < 2048) debugCubes[debugCubeCount++] = { pos, {0,1,0}, {0,0,1}, scale }
+
+struct DebugGeometryBuffer
+{
+	DeviceMesh deviceMesh;
+	Vertex *vertexData;
+	u32 vertexCount;
+};
+DebugGeometryBuffer debugGeometryBuffer;
+void DrawDebugTriangles(Vertex* vertices, int count)
+{
+	for (int i = 0; i < count; ++i)
+	{
+		debugGeometryBuffer.vertexData[debugGeometryBuffer.vertexCount + i] = vertices[i];
+	}
+	debugGeometryBuffer.vertexCount += count;
+}
+
+int g_currentPolytopeStep;
+#endif
 
 #include "Memory.cpp"
 #include "Collision.cpp"
@@ -35,40 +53,15 @@ CreateDeviceProgram_t *CreateDeviceProgram;
 
 NOMANGLE START_GAME(StartGame)
 {
-	frameMem = gameMemory->frameMem;
-	stackMem = gameMemory->stackMem;
-	transientMem = gameMemory->transientMem;
+	g_gameMemory = gameMemory;
 
-	framePtr = frameMem;
-	stackPtr = stackMem;
-	transientPtr = transientMem;
-
-	// Platform functions
-	Log = platformCode->Log;
-	PlatformReadEntireFile = platformCode->PlatformReadEntireFile;
-	SetUpDevice = platformCode->SetUpDevice;
-	ClearBuffers = platformCode->ClearBuffers;
-	GetUniform = platformCode->GetUniform;
-	UseProgram = platformCode->UseProgram;
-	UniformMat4 = platformCode->UniformMat4;
-	RenderIndexedMesh = platformCode->RenderIndexedMesh;
-	RenderMesh = platformCode->RenderMesh;
-	CreateDeviceMesh = platformCode->CreateDeviceMesh;
-	CreateDeviceIndexedMesh = platformCode->CreateDeviceIndexedMesh;
-	CreateDeviceIndexedSkinnedMesh = platformCode->CreateDeviceIndexedSkinnedMesh;
-	SendMesh = platformCode->SendMesh;
-	SendIndexedMesh = platformCode->SendIndexedMesh;
-	SendIndexedSkinnedMesh = platformCode->SendIndexedSkinnedMesh;
-	LoadShader = platformCode->LoadShader;
-	CreateDeviceProgram = platformCode->CreateDeviceProgram;
-
-	Log("Starting game!\n");
+	platformCode->Log("Starting game!\n");
 
 	GameState *gameState = (GameState *)TransientAlloc(sizeof(GameState));
 
 	// Initialize
 	{
-		SetUpDevice();
+		platformCode->SetUpDevice();
 
 		// Anvil
 		{
@@ -76,11 +69,11 @@ NOMANGLE START_GAME(StartGame)
 			u16 *indexData;
 			u32 vertexCount;
 			u32 indexCount;
-			u8 *fileBuffer = PlatformReadEntireFile("data/anvil.bin");
+			u8 *fileBuffer = platformCode->ReadEntireFile("data/anvil.bin");
 			ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
 
-			gameState->anvilMesh = CreateDeviceIndexedMesh();
-			SendIndexedMesh(&gameState->anvilMesh, vertexData, vertexCount, indexData,
+			gameState->anvilMesh = platformCode->CreateDeviceIndexedMesh();
+			platformCode->SendIndexedMesh(&gameState->anvilMesh, vertexData, vertexCount, indexData,
 					indexCount, false);
 		}
 
@@ -90,11 +83,11 @@ NOMANGLE START_GAME(StartGame)
 			u16 *indexData;
 			u32 vertexCount;
 			u32 indexCount;
-			u8 *fileBuffer = PlatformReadEntireFile("data/cube.bin");
+			u8 *fileBuffer = platformCode->ReadEntireFile("data/cube.bin");
 			ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
 
-			gameState->cubeMesh = CreateDeviceIndexedMesh();
-			SendIndexedMesh(&gameState->cubeMesh, vertexData, vertexCount, indexData,
+			gameState->cubeMesh = platformCode->CreateDeviceIndexedMesh();
+			platformCode->SendIndexedMesh(&gameState->cubeMesh, vertexData, vertexCount, indexData,
 					indexCount, false);
 		}
 
@@ -104,11 +97,11 @@ NOMANGLE START_GAME(StartGame)
 			u16 *indexData;
 			u32 vertexCount;
 			u32 indexCount;
-			u8 *fileBuffer = PlatformReadEntireFile("data/sphere.bin");
+			u8 *fileBuffer = platformCode->ReadEntireFile("data/sphere.bin");
 			ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
 
-			gameState->sphereMesh = CreateDeviceIndexedMesh();
-			SendIndexedMesh(&gameState->sphereMesh, vertexData, vertexCount, indexData,
+			gameState->sphereMesh = platformCode->CreateDeviceIndexedMesh();
+			platformCode->SendIndexedMesh(&gameState->sphereMesh, vertexData, vertexCount, indexData,
 					indexCount, false);
 		}
 
@@ -118,11 +111,11 @@ NOMANGLE START_GAME(StartGame)
 			u16 *indexData;
 			u32 vertexCount;
 			u32 indexCount;
-			u8 *fileBuffer = PlatformReadEntireFile("data/cylinder.bin");
+			u8 *fileBuffer = platformCode->ReadEntireFile("data/cylinder.bin");
 			ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
 
-			gameState->cylinderMesh = CreateDeviceIndexedMesh();
-			SendIndexedMesh(&gameState->cylinderMesh, vertexData, vertexCount, indexData,
+			gameState->cylinderMesh = platformCode->CreateDeviceIndexedMesh();
+			platformCode->SendIndexedMesh(&gameState->cylinderMesh, vertexData, vertexCount, indexData,
 					indexCount, false);
 		}
 
@@ -132,20 +125,22 @@ NOMANGLE START_GAME(StartGame)
 			u16 *indexData;
 			u32 vertexCount;
 			u32 indexCount;
-			u8 *fileBuffer = PlatformReadEntireFile("data/capsule.bin");
+			u8 *fileBuffer = platformCode->ReadEntireFile("data/capsule.bin");
 			ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
 
-			gameState->capsuleMesh = CreateDeviceIndexedMesh();
-			SendIndexedMesh(&gameState->capsuleMesh, vertexData, vertexCount, indexData,
+			gameState->capsuleMesh = platformCode->CreateDeviceIndexedMesh();
+			platformCode->SendIndexedMesh(&gameState->capsuleMesh, vertexData, vertexCount, indexData,
 					indexCount, false);
 		}
 
+#if DEBUG_BUILD
 		// Debug geometry buffer
 		{
 			debugGeometryBuffer.vertexData = (Vertex *)TransientAlloc(2048 * sizeof(Vertex));
 			debugGeometryBuffer.vertexCount = 0;
-			debugGeometryBuffer.deviceMesh = CreateDeviceMesh();
+			debugGeometryBuffer.deviceMesh = platformCode->CreateDeviceMesh();
 		}
+#endif
 
 		// Skinned mesh
 		{
@@ -154,30 +149,30 @@ NOMANGLE START_GAME(StartGame)
 			u16 *indexData;
 			u32 vertexCount;
 			u32 indexCount;
-			u8 *fileBuffer = PlatformReadEntireFile("data/Sparkus.bin");
+			u8 *fileBuffer = platformCode->ReadEntireFile("data/Sparkus.bin");
 			ReadSkinnedMesh(fileBuffer, skinnedMesh, &vertexData, &indexData, &vertexCount,
 					&indexCount);
 
-			gameState->skinnedMesh.deviceMesh = CreateDeviceIndexedSkinnedMesh();
-			SendIndexedSkinnedMesh(&gameState->skinnedMesh.deviceMesh, vertexData, vertexCount,
+			gameState->skinnedMesh.deviceMesh = platformCode->CreateDeviceIndexedSkinnedMesh();
+			platformCode->SendIndexedSkinnedMesh(&gameState->skinnedMesh.deviceMesh, vertexData, vertexCount,
 					indexData, indexCount, false);
 		}
 
 		// Shaders
-		DeviceShader vertexShader = LoadShader(vertexShaderSource, SHADERTYPE_VERTEX);
-		DeviceShader fragmentShader = LoadShader(fragShaderSource, SHADERTYPE_FRAGMENT);
-		gameState->program = CreateDeviceProgram(&vertexShader, &fragmentShader);
+		DeviceShader vertexShader = platformCode->LoadShader(vertexShaderSource, SHADERTYPE_VERTEX);
+		DeviceShader fragmentShader = platformCode->LoadShader(fragShaderSource, SHADERTYPE_FRAGMENT);
+		gameState->program = platformCode->CreateDeviceProgram(&vertexShader, &fragmentShader);
 
-		DeviceShader skinVertexShader = LoadShader(skinVertexShaderSource, SHADERTYPE_VERTEX);
+		DeviceShader skinVertexShader = platformCode->LoadShader(skinVertexShaderSource, SHADERTYPE_VERTEX);
 		DeviceShader skinFragmentShader = fragmentShader;
-		gameState->skinnedMeshProgram = CreateDeviceProgram(&skinVertexShader, &skinFragmentShader);
+		gameState->skinnedMeshProgram = platformCode->CreateDeviceProgram(&skinVertexShader, &skinFragmentShader);
 
-#if defined(DEBUG_BUILD)
+#if DEBUG_BUILD
 		DeviceShader debugDrawVertexShader = vertexShader;
-		DeviceShader debugDrawFragmentShader = LoadShader(debugDrawFragShaderSource,
+		DeviceShader debugDrawFragmentShader = platformCode->LoadShader(debugDrawFragShaderSource,
 				SHADERTYPE_FRAGMENT);
 
-		gameState->debugDrawProgram = CreateDeviceProgram(&debugDrawVertexShader,
+		gameState->debugDrawProgram = platformCode->CreateDeviceProgram(&debugDrawVertexShader,
 				&debugDrawFragmentShader);
 #endif
 
@@ -197,18 +192,18 @@ NOMANGLE START_GAME(StartGame)
 			0.0f, 0.0f, -(2.0f * far * near) / (far - near), 0.0f
 		};
 
-		UseProgram(&gameState->program);
-		DeviceUniform projUniform = GetUniform(&gameState->program, "projection");
-		UniformMat4(&projUniform, 1, proj.m);
+		platformCode->UseProgram(&gameState->program);
+		DeviceUniform projUniform = platformCode->GetUniform(&gameState->program, "projection");
+		platformCode->UniformMat4(&projUniform, 1, proj.m);
 
-		UseProgram(&gameState->skinnedMeshProgram);
-		projUniform = GetUniform(&gameState->skinnedMeshProgram, "projection");
-		UniformMat4(&projUniform, 1, proj.m);
+		platformCode->UseProgram(&gameState->skinnedMeshProgram);
+		projUniform = platformCode->GetUniform(&gameState->skinnedMeshProgram, "projection");
+		platformCode->UniformMat4(&projUniform, 1, proj.m);
 
 #if DEBUG_BUILD
-		UseProgram(&gameState->debugDrawProgram);
-		projUniform = GetUniform(&gameState->debugDrawProgram, "projection");
-		UniformMat4(&projUniform, 1, proj.m);
+		platformCode->UseProgram(&gameState->debugDrawProgram);
+		projUniform = platformCode->GetUniform(&gameState->debugDrawProgram, "projection");
+		platformCode->UniformMat4(&projUniform, 1, proj.m);
 #endif
 	}
 
@@ -218,17 +213,17 @@ NOMANGLE START_GAME(StartGame)
 		u16 *indexData;
 		u32 vertexCount;
 		u32 indexCount;
-		u8 *fileBuffer = PlatformReadEntireFile("data/level_graphics.bin");
+		u8 *fileBuffer = platformCode->ReadEntireFile("data/level_graphics.bin");
 		ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
 
 		DeviceMesh *levelMesh = &gameState->levelGeometry.renderMesh;
-		*levelMesh = CreateDeviceIndexedMesh();
-		SendIndexedMesh(levelMesh, vertexData, vertexCount, indexData, indexCount, false);
+		*levelMesh = platformCode->CreateDeviceIndexedMesh();
+		platformCode->SendIndexedMesh(levelMesh, vertexData, vertexCount, indexData, indexCount, false);
 
 		Triangle *triangleData;
 		u32 triangleCount;
 
-		fileBuffer = PlatformReadEntireFile("data/level.bin");
+		fileBuffer = platformCode->ReadEntireFile("data/level.bin");
 		ReadTriangleGeometry(fileBuffer, &triangleData, &triangleCount);
 		gameState->levelGeometry.triangles = triangleData;
 		gameState->levelGeometry.triangleCount = triangleCount;
@@ -257,7 +252,7 @@ NOMANGLE START_GAME(StartGame)
 	{
 		Collider collider;
 		collider.type = COLLIDER_CONVEX_HULL;
-		u8 *fileBuffer = PlatformReadEntireFile("data/anvil_collision.bin");
+		u8 *fileBuffer = platformCode->ReadEntireFile("data/anvil_collision.bin");
 		ReadPoints(fileBuffer, &collider.convexHull.collisionPoints,
 				&collider.convexHull.collisionPointCount);
 
@@ -315,7 +310,8 @@ NOMANGLE START_GAME(StartGame)
 
 NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 {
-	GameState *gameState = (GameState *)transientMem;
+	g_gameMemory = gameMemory;
+	GameState *gameState = (GameState *)gameMemory->transientMem;
 
 #if DEBUG_BUILD
 	debugCubeCount = 0;
@@ -339,6 +335,7 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		DRAW_AA_DEBUG_CUBE(v3{}, 0.05f); // Draw origin
 #endif
 
+#if DEBUG_BUILD
 		if (controller->debugUp.endedDown && controller->debugUp.changed)
 		{
 			++gameState->animationIdx;
@@ -351,6 +348,7 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			if (gameState->animationIdx < 0)
 				gameState->animationIdx = gameState->skinnedMesh.animationCount - 1;
 		}
+#endif
 
 		if (controller->camUp.endedDown)
 			gameState->camPitch += 1.0f * deltaTime;
@@ -422,10 +420,11 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			Entity *entity = &gameState->entities[entityIndex];
 			if (entity != gameState->player.entity)
 			{
-				GJKResult gjkResult = GJKTest(player->entity, entity);
+				GJKResult gjkResult = GJKTest(player->entity, entity, platformCode);
 				if (gjkResult.hit)
 				{
-					v3 depenetration = ComputeDepenetration(gjkResult, player->entity, entity);
+					v3 depenetration = ComputeDepenetration(gjkResult, player->entity, entity,
+							platformCode);
 					player->entity->pos += depenetration;
 					// TOFIX handle velocity change upon hits properly
 					if (V3Normalize(depenetration).z > 0.9f)
@@ -514,14 +513,14 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			view = Mat4Multiply(camPosMatrix, view);
 		}
 
-		UseProgram(&gameState->program);
-		DeviceUniform viewUniform = GetUniform(&gameState->program, "view");
-		UniformMat4(&viewUniform, 1, view.m);
+		platformCode->UseProgram(&gameState->program);
+		DeviceUniform viewUniform = platformCode->GetUniform(&gameState->program, "view");
+		platformCode->UniformMat4(&viewUniform, 1, view.m);
 
-		DeviceUniform modelUniform = GetUniform(&gameState->program, "model");
+		DeviceUniform modelUniform = platformCode->GetUniform(&gameState->program, "model");
 
 		const v4 clearColor = { 0.95f, 0.88f, 0.05f, 1.0f };
-		ClearBuffers(clearColor);
+		platformCode->ClearBuffers(clearColor);
 
 		// Entity
 		for (u32 entityIdx = 0; entityIdx < gameState->entityCount; ++entityIdx)
@@ -542,28 +541,28 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				up.x,		up.y,		up.z,		0.0f,
 				pos.x,		pos.y,		pos.z,		1.0f
 			};
-			UniformMat4(&modelUniform, 1, model.m);
+			platformCode->UniformMat4(&modelUniform, 1, model.m);
 
-			RenderIndexedMesh(entity->mesh);
+			platformCode->RenderIndexedMesh(entity->mesh);
 		}
 
 		// Level
 		{
 			LevelGeometry *level = &gameState->levelGeometry;
 
-			UniformMat4(&modelUniform, 1, MAT4_IDENTITY.m);
-			RenderIndexedMesh(&level->renderMesh);
+			platformCode->UniformMat4(&modelUniform, 1, MAT4_IDENTITY.m);
+			platformCode->RenderIndexedMesh(&level->renderMesh);
 		}
 
 		// Skinned meshes
-		UseProgram(&gameState->skinnedMeshProgram);
-		viewUniform = GetUniform(&gameState->skinnedMeshProgram, "view");
-		modelUniform = GetUniform(&gameState->skinnedMeshProgram, "model");
+		platformCode->UseProgram(&gameState->skinnedMeshProgram);
+		viewUniform = platformCode->GetUniform(&gameState->skinnedMeshProgram, "view");
+		modelUniform = platformCode->GetUniform(&gameState->skinnedMeshProgram, "model");
 
-		DeviceUniform jointsUniform = GetUniform(&gameState->skinnedMeshProgram, "joints");
-		UniformMat4(&viewUniform, 1, view.m);
+		DeviceUniform jointsUniform = platformCode->GetUniform(&gameState->skinnedMeshProgram, "joints");
+		platformCode->UniformMat4(&viewUniform, 1, view.m);
 		{
-			UniformMat4(&modelUniform, 1, MAT4_IDENTITY.m);
+			platformCode->UniformMat4(&modelUniform, 1, MAT4_IDENTITY.m);
 
 			mat4 joints[128];
 			for (int i = 0; i < 128; ++i)
@@ -708,19 +707,19 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				up.x,		up.y,		up.z,		0.0f,
 				pos.x,		pos.y,		pos.z,		1.0f
 			};
-			UniformMat4(&modelUniform, 1, model.m);
+			platformCode->UniformMat4(&modelUniform, 1, model.m);
 
-			UniformMat4(&jointsUniform, 128, joints[0].m);
+			platformCode->UniformMat4(&jointsUniform, 128, joints[0].m);
 
-			RenderIndexedMesh(&skinnedMesh->deviceMesh);
+			platformCode->RenderIndexedMesh(&skinnedMesh->deviceMesh);
 		}
 
 #if DEBUG_BUILD
-		UseProgram(&gameState->debugDrawProgram);
-		viewUniform = GetUniform(&gameState->debugDrawProgram, "view");
-		modelUniform = GetUniform(&gameState->debugDrawProgram, "model");
+		platformCode->UseProgram(&gameState->debugDrawProgram);
+		viewUniform = platformCode->GetUniform(&gameState->debugDrawProgram, "view");
+		modelUniform = platformCode->GetUniform(&gameState->debugDrawProgram, "model");
 
-		UniformMat4(&viewUniform, 1, view.m);
+		platformCode->UniformMat4(&viewUniform, 1, view.m);
 		// Debug draws
 		{
 			for (u32 i = 0; i < debugCubeCount; ++i)
@@ -739,19 +738,19 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					up.x,		up.y,		up.z,		0.0f,
 					pos.x,		pos.y,		pos.z,		1.0f
 				};
-				UniformMat4(&modelUniform, 1, model.m);
-				RenderIndexedMesh(&gameState->cubeMesh);
+				platformCode->UniformMat4(&modelUniform, 1, model.m);
+				platformCode->RenderIndexedMesh(&gameState->cubeMesh);
 			}
 		}
 
 		// Debug meshes
 		{
-			UniformMat4(&modelUniform, 1, MAT4_IDENTITY.m);
+			platformCode->UniformMat4(&modelUniform, 1, MAT4_IDENTITY.m);
 
-			SendMesh(&debugGeometryBuffer.deviceMesh, debugGeometryBuffer.vertexData,
+			platformCode->SendMesh(&debugGeometryBuffer.deviceMesh, debugGeometryBuffer.vertexData,
 					debugGeometryBuffer.vertexCount, true);
 
-			RenderMesh(&debugGeometryBuffer.deviceMesh);
+			platformCode->RenderMesh(&debugGeometryBuffer.deviceMesh);
 
 			debugGeometryBuffer.vertexCount = 0;
 		}

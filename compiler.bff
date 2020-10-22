@@ -87,7 +87,7 @@ Compiler('Compiler_x64')
 	.DllCompilerOptions = .CommonCompilerOptions + ' /LD /Z7 /Od /DDEBUG_BUILD'
 
 	.Linker = .Linker_x64
-	.ExeLinkerOptions = .CommonLinkerOptions + ' /DEBUG:FULL /OPT:REF,NOICF /SUBSYSTEM:WINDOWS,5.02'
+	.ExeLinkerOptions = .CommonLinkerOptions + ' /DEBUG:FULL /OPT:REF,NOICF'
 	.DllLinkerOptions = .CommonLinkerOptions + ' /DEBUG:FULL /OPT:REF,NOICF /DLL'
 ]
 
@@ -101,7 +101,7 @@ Compiler('Compiler_x64')
 	.DllCompilerOptions = .CommonCompilerOptions + ' /LD /O2 /Ob2 /Ot /Gy /Z7 /Zo /DDEBUG_BUILD'
 
 	.Linker = .Linker_x64
-	.ExeLinkerOptions = .CommonLinkerOptions + ' /DEBUG:FASTLINK /OPT:REF,ICF /SUBSYSTEM:WINDOWS,5.02'
+	.ExeLinkerOptions = .CommonLinkerOptions + ' /DEBUG:FASTLINK /OPT:REF,ICF'
 	.DllLinkerOptions = .CommonLinkerOptions + ' /DEBUG:FASTLINK /OPT:REF,ICF /DLL'
 ]
 
@@ -115,7 +115,7 @@ Compiler('Compiler_x64')
 	.DllCompilerOptions = .CommonCompilerOptions + ' /LD /O2 /Ob2 /Ot /Gy'
 
 	.Linker = .Linker_x64
-	.ExeLinkerOptions = .CommonLinkerOptions + ' /OPT:REF,ICF /SUBSYSTEM:WINDOWS,5.02'
+	.ExeLinkerOptions = .CommonLinkerOptions + ' /OPT:REF,ICF'
 	.DllLinkerOptions = .CommonLinkerOptions + ' /OPT:REF,ICF /DLL'
 ]
 

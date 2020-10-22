@@ -18,7 +18,7 @@ ForEach(.BuildType in .BuildTypes)
 {
 	Using(.BuildType)
 
-	// Game
+	// Platform
 	ObjectList('PlatformSource_$BuildTypeName$')
 	{
 		.CompilerOptions = '$ExeCompilerOptions$'
@@ -27,16 +27,18 @@ ForEach(.BuildType in .BuildTypes)
 		}
 		.CompilerOutputPath = '$OutputPath$/$BuildTypeName$'
 	}
-
 	Executable('Platform_$BuildTypeName$')
 	{
-		.LinkerOptions = .ExeLinkerOptions
+		.LinkerOptions = '$ExeLinkerOptions$ /SUBSYSTEM:WINDOWS,5.02'
 		.LinkerOutput = '$BinPath$/Platform$BuildTypeSufix$.exe'
 		.Libraries = {
 			'PlatformSource_$BuildTypeName$',
 		}
 		.PreBuildDependencies = 'Copy_Libs'
 	}
+
+	// Add to all targets
+	^AllTargets + 'Platform_$BuildTypeName$'
 
 	// Game
 	ObjectList('GameSource_$BuildTypeName$')
@@ -67,15 +69,12 @@ ForEach(.BuildType in .BuildTypes)
 		.CompilerInputFiles = '$ToolsSourcePath$/Bakery.cpp'
 		.CompilerOutputPath = '$OutputPath$/$BuildTypeName$'
 	}
-
 	Executable('Bakery_$BuildTypeName$')
 	{
-		.LinkerOptions = .ExeLinkerOptions
+		.LinkerOptions = .ExeLinkerOptions + ' /SUBSYSTEM:CONSOLE'
 		.LinkerOutput = '$BinPath$/Bakery$BuildTypeSufix$.exe'
 		.Libraries = {
 			'BakerySource_$BuildTypeName$',
-			'$ExternalLibrariesPath$/SDL2.lib',
-			'$ExternalLibrariesPath$/SDL2main.lib',
 		}
 		.PreBuildDependencies = 'Copy_Libs'
 	}

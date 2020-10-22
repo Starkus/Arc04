@@ -177,35 +177,3 @@ struct GameState
 	DeviceMesh anvilMesh, cubeMesh, sphereMesh, cylinderMesh, capsuleMesh;
 	SkeletalMesh skinnedMesh;
 };
-
-#if DEBUG_BUILD
-struct DebugCube
-{
-	v3 pos;
-	v3 fw;
-	v3 up;
-	f32 scale;
-};
-DebugCube debugCubes[2048];
-u32 debugCubeCount;
-#define DRAW_DEBUG_CUBE(pos, fw, up, scale) if (debugCubeCount < 2048) debugCubes[debugCubeCount++] = { pos, fw, up, scale }
-#define DRAW_AA_DEBUG_CUBE(pos, scale) if (debugCubeCount < 2048) debugCubes[debugCubeCount++] = { pos, {0,1,0}, {0,0,1}, scale }
-
-struct DebugGeometryBuffer
-{
-	DeviceMesh deviceMesh;
-	Vertex *vertexData;
-	u32 vertexCount;
-};
-DebugGeometryBuffer debugGeometryBuffer;
-void DrawDebugTriangles(Vertex* vertices, int count)
-{
-	for (int i = 0; i < count; ++i)
-	{
-		debugGeometryBuffer.vertexData[debugGeometryBuffer.vertexCount + i] = vertices[i];
-	}
-	debugGeometryBuffer.vertexCount += count;
-}
-
-int g_currentPolytopeStep;
-#endif

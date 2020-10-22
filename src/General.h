@@ -39,7 +39,6 @@ typedef double f64;
 #define I32_MAX ((i32)0x7FFFFFFF)
 #define I64_MAX ((i64)0x7FFFFFFFFFFFFFFF)
 
-#define DEBUG_BUILD 1
 #define DEBUG_ONLY(a) a
 
 #if DEBUG_BUILD
