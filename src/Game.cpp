@@ -220,13 +220,8 @@ NOMANGLE START_GAME(StartGame)
 		*levelMesh = platformCode->CreateDeviceIndexedMesh();
 		platformCode->SendIndexedMesh(levelMesh, vertexData, vertexCount, indexData, indexCount, false);
 
-		Triangle *triangleData;
-		u32 triangleCount;
-
 		fileBuffer = platformCode->ReadEntireFile("data/level.bin");
-		ReadTriangleGeometry(fileBuffer, &triangleData, &triangleCount);
-		gameState->levelGeometry.triangles = triangleData;
-		gameState->levelGeometry.triangleCount = triangleCount;
+		ReadTriangleGeometry(fileBuffer, &gameState->levelGeometry.quadTree);
 	}
 
 	// Init player
@@ -436,13 +431,24 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 		// Ray testing
 		{
-			LevelGeometry *level = &gameState->levelGeometry;
-			for (u32 triIdx = 0; triIdx < level->triangleCount; ++triIdx)
+			QuadTree *quadTree = &gameState->levelGeometry.quadTree;
+			// @Hack: properly rasterize ray over grid cells and test all of them
+			v3 p = player->entity->pos;
+
+			v2 cellSize = (quadTree->highCorner - quadTree->lowCorner) / (f32)(quadTree->cellsSide - 1);
+			int cellX = (int)Round((p.x - quadTree->lowCorner.x) / cellSize.x);
+			int cellY = (int)Round((p.y - quadTree->lowCorner.y) / cellSize.y);
+
+			int offsetIdx = cellX + cellY * quadTree->cellsSide;
+			u32 triBegin = quadTree->offsets[offsetIdx];
+			u32 triEnd = quadTree->offsets[offsetIdx + 1];
+			for (u32 triIdx = triBegin; triIdx < triEnd; ++triIdx)
 			{
 				v3 origin = player->entity->pos + v3{ 0, 0, 1 };
 				v3 dir = { 0, 0, -1.1f };
-				Triangle &triangle = level->triangles[triIdx];
+				Triangle &triangle = quadTree->triangles[triIdx];
 				v3 hit;
+
 				if (RayTriangleIntersection(origin, dir, triangle, &hit))
 				{
 					player->entity->pos.z = hit.z;

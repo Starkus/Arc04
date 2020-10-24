@@ -205,3 +205,19 @@ DeviceProgram CreateDeviceProgram(DeviceShader *vertexShader, DeviceShader *frag
 #endif
 	return result;
 }
+
+void SetFillMode(RenderFillMode mode)
+{
+	switch(mode)
+	{
+		case RENDER_FILL:
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			break;
+		case RENDER_LINE:
+			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+			break;
+		case RENDER_POINT:
+			glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
+			break;
+	}
+}

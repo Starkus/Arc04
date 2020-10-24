@@ -90,15 +90,22 @@ void ReadSkinnedMesh(const u8 *fileBuffer, SkeletalMesh *skinnedMesh, SkinnedVer
 	}
 }
 
-void ReadTriangleGeometry(const u8 *fileBuffer, Triangle **triangleData, u32 *triangleCount)
+void ReadTriangleGeometry(const u8 *fileBuffer, QuadTree *quadTree)
 {
 	BakeryTriangleDataHeader *header = (BakeryTriangleDataHeader *)fileBuffer;
+	quadTree->lowCorner = header->lowCorner;
+	quadTree->highCorner = header->highCorner;
+	quadTree->cellsSide = header->cellsSide;
 
-	*triangleCount = header->triangleCount;
+	u32 offsetCount = header->cellsSide * header->cellsSide + 1;
+	u64 offsetBlobSize = sizeof(u32) * offsetCount;
+	quadTree->offsets = (u32 *)TransientAlloc(offsetBlobSize);
+	memcpy(quadTree->offsets, fileBuffer + header->offsetsBlobOffset, offsetBlobSize);
 
-	u64 trianglesBlobSize = sizeof(Triangle) * *triangleCount;
-	*triangleData = (Triangle *)TransientAlloc(trianglesBlobSize);
-	memcpy(*triangleData, fileBuffer + header->trianglesBlobOffset, trianglesBlobSize);
+	u32 triangleCount = quadTree->offsets[offsetCount - 1];
+	u64 trianglesBlobSize = sizeof(Triangle) * triangleCount;
+	quadTree->triangles = (Triangle *)TransientAlloc(trianglesBlobSize);
+	memcpy(quadTree->triangles, fileBuffer + header->trianglesBlobOffset, trianglesBlobSize);
 }
 
 void ReadPoints(const u8 *fileBuffer, v3 **pointData, u32 *pointCount)

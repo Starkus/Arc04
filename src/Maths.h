@@ -7,6 +7,31 @@ const f64 PI_64 = 3.1415926535897932384626433832795;
 const f64 HALFPI_64 = 1.5707963267948966192313216916398;
 const f64 PI2_64 = 6.283185307179586476925286766559;
 
+inline f32 Floor(f32 n)
+{
+	return floorf(n);
+}
+
+inline f32 Round(f32 n)
+{
+	return roundf(n);
+}
+
+inline f32 Ceil(f32 n)
+{
+	return ceilf(n);
+}
+
+inline f32 Min(f32 a, f32 b)
+{
+	return a > b ? b : a;
+}
+
+inline f32 Max(f32 a, f32 b)
+{
+	return a > b ? a : b;
+}
+
 inline f32 Fmod(f32 n, f32 d)
 {
 	return fmodf(n, d);
@@ -137,6 +162,65 @@ inline mat4 Mat4Translation(v3 translation)
 		translation.x, translation.y, translation.z, 1.0f
 	};
 	return result;
+}
+
+inline v2 operator+(const v2 &a, const v2 &b)
+{
+	const v2 result = { a.x + b.x, a.y + b.y };
+	return result;
+}
+
+inline v2 operator-(const v2 &a, const v2 &b)
+{
+	const v2 result = { a.x - b.x, a.y - b.y };
+	return result;
+}
+
+inline v2 operator-(const v2 &v)
+{
+	const v2 result = { -v.x, -v.y };
+	return result;
+}
+
+inline v2 operator*(const v2 &a, f32 b)
+{
+	const v2 result = { a.x * b, a.y * b };
+	return result;
+}
+
+inline v2 operator/(const v2 &a, f32 b)
+{
+	const v2 result = { a.x / b, a.y / b };
+	return result;
+}
+
+inline v2 operator+=(v2 &a, const v2 &b)
+{
+	a = { a.x + b.x, a.y + b.y };
+	return a;
+}
+
+inline v2 operator-=(v2 &a, const v2 &b)
+{
+	a = { a.x - b.x, a.y - b.y };
+	return a;
+}
+
+inline v2 operator*=(v2 &a, f32 b)
+{
+	a = { a.x * b, a.y * b };
+	return a;
+}
+
+inline v2 operator/=(v2 &a, f32 b)
+{
+	a = { a.x / b, a.y / b };
+	return a;
+}
+
+inline bool operator==(const v2 &a, const v2 &b)
+{
+	return a.x == b.x && a.y == b.y;
 }
 
 inline f32 V3Dot(const v3 &a, const v3 &b)

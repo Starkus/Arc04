@@ -16,8 +16,24 @@ struct SkinnedVertex
 
 struct Triangle
 {
-	v3 a;
-	v3 b;
-	v3 c;
+	union
+	{
+		struct
+		{
+			v3 a;
+			v3 b;
+			v3 c;
+		};
+		v3 corners[3];
+	};
 	v3 normal;
+};
+
+struct QuadTree
+{
+	v2 lowCorner;
+	v2 highCorner;
+	int cellsSide;
+	u32 *offsets;
+	Triangle *triangles;
 };

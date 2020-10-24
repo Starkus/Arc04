@@ -11,8 +11,10 @@ DECLARE_ARRAY(v2);
 DECLARE_ARRAY(mat4);
 DECLARE_ARRAY(BakerySkinnedMeshAnimationHeader);
 DECLARE_ARRAY(BakerySkinnedMeshAnimationChannelHeader);
+DECLARE_ARRAY(Triangle);
 DECLARE_DYNAMIC_ARRAY(u16);
 DECLARE_DYNAMIC_ARRAY(XMLElementPtr);
+DECLARE_DYNAMIC_ARRAY(Triangle);
 
 enum ErrorCode
 {

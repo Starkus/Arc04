@@ -229,7 +229,7 @@ inline v3 FurthestInDirection(Entity *entity, v3 dir)
 	}
 	}
 
-	DRAW_AA_DEBUG_CUBE(result, 0.04f);
+	//DRAW_AA_DEBUG_CUBE(result, 0.04f);
 
 	StackFree(oldStackPtr);
 	return result;

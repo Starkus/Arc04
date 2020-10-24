@@ -38,7 +38,10 @@ struct BakerySkinnedMeshAnimationChannelHeader
 
 struct BakeryTriangleDataHeader
 {
-	u32 triangleCount;
+	v2 lowCorner;
+	v2 highCorner;
+	u32 cellsSide;
+	u64 offsetsBlobOffset;
 	u64 trianglesBlobOffset;
 };
 

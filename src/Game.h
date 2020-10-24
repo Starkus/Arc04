@@ -141,8 +141,7 @@ struct Entity
 struct LevelGeometry
 {
 	DeviceMesh renderMesh;
-	Triangle *triangles;
-	u32 triangleCount;
+	QuadTree quadTree;
 };
 
 enum PlayerState

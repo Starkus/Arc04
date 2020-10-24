@@ -4,6 +4,7 @@
 #include <GLES3/gl32.h>
 #include <GLES3/glext.h>
 #include <GLES3/wglext.h>
+#include <GLES3/glcorearb.h>
 
 #include "General.h"
 #include "OpenGL.h"
@@ -322,6 +323,7 @@ void Win32Start(HINSTANCE hInstance)
 	platformCode.SendIndexedSkinnedMesh = SendIndexedSkinnedMesh;
 	platformCode.LoadShader = LoadShader;
 	platformCode.CreateDeviceProgram = CreateDeviceProgram;
+	platformCode.SetFillMode = SetFillMode;
 
 	gameCode.StartGame(&gameMemory, &platformCode);
 

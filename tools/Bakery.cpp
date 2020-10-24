@@ -39,12 +39,8 @@ inline FILETIME Win32GetLastWriteTime(const char *filename)
 #include "BakeryInterop.h"
 #include "Platform.h"
 #include "Containers.h"
-#include "Bakery.h"
-
-namespace game
-{
 #include "Geometry.h"
-};
+#include "Bakery.h"
 
 GameMemory *g_gameMemory;
 
@@ -1000,7 +996,7 @@ int OutputMesh(const char *filename, DynamicArray_RawVertex &finalVertices,
 		HANDLE newFile = OpenForWrite(filename);
 		u64 filePos = 0;
 		{
-			u64 vertexBlobSize = sizeof(game::Vertex) * finalVertices.size;
+			u64 vertexBlobSize = sizeof(Vertex) * finalVertices.size;
 
 			BakeryMeshHeader header;
 			header.vertexCount = finalVertices.size;
@@ -1016,7 +1012,7 @@ int OutputMesh(const char *filename, DynamicArray_RawVertex &finalVertices,
 			for (u32 i = 0; i < finalVertices.size; ++i)
 			{
 				RawVertex *rawVertex = &finalVertices[i];
-				game::Vertex gameVertex;
+				Vertex gameVertex;
 				gameVertex.pos = rawVertex->skinnedPos.pos;
 				gameVertex.uv = rawVertex->uv;
 				gameVertex.nor = rawVertex->normal;
@@ -1059,7 +1055,7 @@ int OutputSkinnedMesh(const char *filename,
 	for (u32 i = 0; i < finalVertices.size; ++i)
 	{
 		RawVertex *rawVertex = &finalVertices[i];
-		game::SkinnedVertex gameVertex;
+		SkinnedVertex gameVertex;
 		gameVertex.pos = rawVertex->skinnedPos.pos;
 		gameVertex.uv = rawVertex->uv;
 		gameVertex.nor = rawVertex->normal;
@@ -1184,6 +1180,214 @@ bool DidMetaDependenciesChange(const char *metaFilename, const char *fullDataDir
 		fileEl = fileEl->NextSiblingElement();
 	}
 	return somethingChanged;
+}
+
+void GenerateQuadTree(Array_Triangle &triangles, QuadTree *quadTree)
+{
+	void *oldStackPtr = g_gameMemory->stackPtr;
+
+	v2 lowCorner = { INFINITY, INFINITY };
+	v2 highCorner = { -INFINITY, -INFINITY };
+
+	// Get limits
+	for (u32 i = 0; i < triangles.size; ++i)
+	{
+		for (u32 j = 0; j < 3; ++j)
+		{
+			v3 p = triangles[i].corners[j];
+			if (p.x < lowCorner.x) lowCorner.x = p.x;
+			if (p.x > highCorner.x) highCorner.x = p.x;
+			if (p.y < lowCorner.y) lowCorner.y = p.y;
+			if (p.y > highCorner.y) highCorner.y = p.y;
+		}
+	}
+
+	const int cellsSide = 32;
+	const int cellCount = cellsSide * cellsSide;
+	const v2 span = (highCorner - lowCorner);
+	const v2 cellSize = span / (f32)(cellsSide - 1); // -1 because we are rounding
+	// We are using 0, 0 as the CENTER of a cell, otherwise the high border ends up ouside the grid
+
+	Log("Quad tree limits: { %.02f, %.02f } - { %.02f, %.02f }\n", lowCorner.x, lowCorner.y,
+			highCorner.x, highCorner.y);
+
+	// Init buckets
+	DynamicArray_Triangle *cellBuckets = (DynamicArray_Triangle *)StackAlloc(sizeof(DynamicArray_Triangle) * cellCount);
+	for (int i = 0; i < cellCount; ++i)
+	{
+		DynamicArrayInit_Triangle(&cellBuckets[i], 256, StackAlloc);
+	}
+	u32 totalTriangleCount = 0;
+
+	for (u32 triangleIdx = 0; triangleIdx < triangles.size; ++triangleIdx)
+	{
+		Triangle *curTriangle = &triangles[triangleIdx];
+
+		v2 corners[3];
+		for (int i = 0; i < 3; ++i)
+		{
+			v2 p = {
+				(curTriangle->corners[i].x - lowCorner.x) / cellSize.x,
+				(curTriangle->corners[i].y - lowCorner.y) / cellSize.y
+			};
+			corners[i] = { p.x, p.y };
+		}
+		// Sort by Y ascending
+		for (int max = 2; max > 0; --max)
+		{
+			for (int i = 0; i < max; ++i)
+			{
+				if (corners[i].y > corners[i + 1].y)
+				{
+					// Swap
+					v2 tmp = corners[i];
+					corners[i] = corners[i + 1];
+					corners[i + 1] = tmp;
+				}
+			}
+		}
+
+		// We split the triangle into a flat-bottomed triangle and a flat-topped one, and rasterize
+		// them individually
+
+		// If the whole triangle fits in a single row, just fill from left to right
+		if (Round(corners[1].y) == Round(corners[2].y))
+		{
+			int scanlineY = (int)Round(corners[1].y);
+			f32 left = Min(corners[0].x, Min(corners[1].x, corners[2].x));
+			f32 right = Max(corners[0].x, Max(corners[1].x, corners[2].x));
+			for (int scanX = (int)Round(left);
+				scanX <= (int)Round(right);
+				++scanX)
+			{
+				ASSERT(scanX >= 0 && scanX < cellsSide);
+				DynamicArray_Triangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
+				bucket[DynamicArrayAdd_Triangle(&bucket, StackRealloc)] = *curTriangle;
+				++totalTriangleCount;
+			}
+		}
+		// Otherwise rasterize top triangle
+		else
+		{
+			f32 invSlope1 = (corners[1].x - corners[2].x) / (corners[1].y - corners[2].y);
+			f32 invSlope2 = (corners[0].x - corners[2].x) / (corners[0].y - corners[2].y);
+			if (invSlope1 < invSlope2)
+			{
+				f32 tmp = invSlope1;
+				invSlope1 = invSlope2;
+				invSlope2 = tmp;
+			}
+
+			int bottom = (int)Round(corners[1].y);
+			int top = (int)Round(corners[2].y);
+
+			f32 curX1 = corners[2].x;
+			f32 curX2 = corners[2].x;
+			// The top point can be anywhere between the top of the row and the bottom, so advance
+			// until we meet the bottom border of the row
+			f32 advTillNextGridLine = Fmod(corners[2].y + 0.5f, 1.0f);
+			f32 nextX1 = curX1 - invSlope1 * advTillNextGridLine;
+			f32 nextX2 = curX2 - invSlope2 * advTillNextGridLine;
+			ASSERT(bottom >= 0 && top < cellsSide);
+			for (int scanlineY = top; scanlineY >= bottom; --scanlineY)
+			{
+				for (int scanX = (int)Round(Min(curX1, nextX1));
+					scanX <= (int)Round(Max(curX2, nextX2));
+					++scanX)
+				{
+					if (scanX >= 0 && scanX < cellsSide)
+					{
+						DynamicArray_Triangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
+						bucket[DynamicArrayAdd_Triangle(&bucket, StackRealloc)] = *curTriangle;
+						++totalTriangleCount;
+					}
+					else __debugbreak();
+				}
+				curX1 = nextX1;
+				curX2 = nextX2;
+				if (scanlineY - 1 > bottom)
+				{
+					nextX1 -= invSlope1;
+					nextX2 -= invSlope2;
+				}
+				else
+				{
+					// For the last one, only advance as much as there's left.
+					const f32 remain = 1.0f - Fmod(corners[1].y + 0.5f, 1.0f);
+					nextX1 -= invSlope1 * remain;
+					nextX2 -= invSlope2 * remain;
+				}
+			}
+		}
+		// Rasterize bottom triangle
+		// Pretty much the same as above but upside down
+		if (Round(corners[0].y) != Round(corners[1].y))
+		{
+			f32 invSlope1 = (f32)(corners[1].x - corners[0].x) / (f32)(corners[1].y - corners[0].y);
+			f32 invSlope2 = (f32)(corners[2].x - corners[0].x) / (f32)(corners[2].y - corners[0].y);
+			if (invSlope1 > invSlope2)
+			{
+				f32 tmp = invSlope1;
+				invSlope1 = invSlope2;
+				invSlope2 = tmp;
+			}
+
+			int bottom = (int)Round(corners[0].y);
+			int top = (int)Round(corners[1].y);
+
+			f32 curX1 = corners[0].x;
+			f32 curX2 = corners[0].x;
+			f32 advTillNextGridLine = 1.0f - Fmod(corners[0].y + 0.5f, 1.0f);
+			f32 nextX1 = curX1 + invSlope1 * advTillNextGridLine;
+			f32 nextX2 = curX2 + invSlope2 * advTillNextGridLine;
+			ASSERT(bottom >= 0 && top < cellsSide);
+			for (int scanlineY = bottom; scanlineY < top; ++scanlineY)
+			{
+				for (int scanX = (int)Round(Min(curX1, nextX1));
+					scanX <= (int)Round(Max(curX2, nextX2));
+					++scanX)
+				{
+					if (scanX >= 0 && scanX < cellsSide)
+					{
+						DynamicArray_Triangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
+						bucket[DynamicArrayAdd_Triangle(&bucket, StackRealloc)] = *curTriangle;
+						++totalTriangleCount;
+					}
+				}
+				curX1 = nextX1;
+				curX2 = nextX2;
+				nextX1 += invSlope1;
+				nextX2 += invSlope2;
+			}
+		}
+	}
+
+	quadTree->lowCorner = lowCorner;
+	quadTree->highCorner = highCorner;
+	quadTree->cellsSide = cellsSide;
+	quadTree->offsets = (u32 *)FrameAlloc(sizeof(u32) * (cellCount - 1));
+	quadTree->triangles = (Triangle *)FrameAlloc(sizeof(Triangle) * totalTriangleCount);
+
+	int triangleCount = 0;
+	for (int y = 0; y < cellsSide; ++y)
+	{
+		for (int x = 0; x < cellsSide; ++x)
+		{
+			int i = x + y * cellsSide;
+			ASSERT(triangleCount < U32_MAX);
+			quadTree->offsets[i] = (u32)triangleCount;
+
+			DynamicArray_Triangle &bucket = cellBuckets[i];
+			for (u32 bucketIdx = 0; bucketIdx < bucket.size; ++bucketIdx)
+			{
+				quadTree->triangles[triangleCount++] = bucket[bucketIdx];
+			}
+		}
+	}
+	ASSERT(totalTriangleCount == (u32)triangleCount);
+	quadTree->offsets[cellCount] = (u32)triangleCount;
+
+	StackFree(oldStackPtr);
 }
 
 int ReadMeta(const char *filename, const char *fullDataDir)
@@ -1414,19 +1618,9 @@ int ReadMeta(const char *filename, const char *fullDataDir)
 		if (error)
 			return error;
 
-		// Output
-		char outputName[MAX_PATH];
-		GetOutputFilename(filename, outputName);
-
-		HANDLE file = OpenForWrite(outputName);
-
-		BakeryTriangleDataHeader header;
-
-		const u32 triangleCount = rawGeometry.triangleCount;
-		header.triangleCount = triangleCount;
-		header.trianglesBlobOffset = sizeof(header);
-
-		WriteToFile(file, &header, sizeof(header));
+		// Make triangles
+		Array_Triangle triangles;
+		ArrayInit_Triangle(&triangles, rawGeometry.triangleCount, FrameAlloc);
 
 		int attrCount = 1;
 		if (rawGeometry.normalsOffset >= 0)
@@ -1434,28 +1628,47 @@ int ReadMeta(const char *filename, const char *fullDataDir)
 		if (rawGeometry.uvsOffset >= 0)
 			++attrCount;
 
-		for (u32 i = 0; i < triangleCount; ++i)
+		for (int i = 0; i < rawGeometry.triangleCount; ++i)
 		{
-			struct
-			{
-				v3 a;
-				v3 b;
-				v3 c;
-				v3 normal;
-			} triangle;
+			Triangle *triangle = &triangles[triangles.size++];
 
 			int ai = rawGeometry.triangleIndices[(i * 3 + 0) * attrCount + rawGeometry.verticesOffset];
 			int bi = rawGeometry.triangleIndices[(i * 3 + 2) * attrCount + rawGeometry.verticesOffset];
 			int ci = rawGeometry.triangleIndices[(i * 3 + 1) * attrCount + rawGeometry.verticesOffset];
 
-			triangle.a = rawGeometry.positions[ai];
-			triangle.b = rawGeometry.positions[bi];
-			triangle.c = rawGeometry.positions[ci];
+			triangle->a = rawGeometry.positions[ai];
+			triangle->b = rawGeometry.positions[bi];
+			triangle->c = rawGeometry.positions[ci];
 
-			triangle.normal = V3Normalize(V3Cross(triangle.c - triangle.a, triangle.b - triangle.a));
-
-			WriteToFile(file, &triangle, sizeof(triangle));
+			triangle->normal = V3Normalize(V3Cross(triangle->c - triangle->a, triangle->b - triangle->a));
 		}
+
+		QuadTree quadTree;
+		GenerateQuadTree(triangles, &quadTree);
+
+		// Output
+		char outputName[MAX_PATH];
+		GetOutputFilename(filename, outputName);
+
+		HANDLE file = OpenForWrite(outputName);
+
+		BakeryTriangleDataHeader header;
+		u64 offsetsBlobOffset = FileSeek(file, sizeof(header), FILE_BEGIN);
+
+		u32 offsetCount = quadTree.cellsSide * quadTree.cellsSide + 1;
+		WriteToFile(file, quadTree.offsets, sizeof(*quadTree.offsets) * offsetCount);
+
+		u64 trianglesBlobOffset = FilePosition(file);
+		u32 triangleCount = quadTree.offsets[offsetCount - 1];
+		WriteToFile(file, quadTree.triangles, sizeof(Triangle) * triangleCount);
+
+		FileSeek(file, 0, FILE_BEGIN);
+		header.lowCorner = quadTree.lowCorner;
+		header.highCorner = quadTree.highCorner;
+		header.cellsSide = quadTree.cellsSide;
+		header.offsetsBlobOffset = offsetsBlobOffset;
+		header.trianglesBlobOffset = trianglesBlobOffset;
+		WriteToFile(file, &header, sizeof(header));
 
 		CloseHandle(file);
 	} break;
@@ -1543,13 +1756,13 @@ int main(int argc, char **argv)
 	char fullDataDir[MAX_PATH];
 	GetDataPath(fullDataDir);
 
-	char colladaWildcard[MAX_PATH];
-	sprintf(colladaWildcard, "%s*.meta", fullDataDir);
+	char metaWildcard[MAX_PATH];
+	sprintf(metaWildcard, "%s*.meta", fullDataDir);
 	WIN32_FIND_DATA findData;
 	char fullName[MAX_PATH];
 	while (1)
 	{
-		HANDLE searchHandle = FindFirstFileA(colladaWildcard, &findData);
+		HANDLE searchHandle = FindFirstFileA(metaWildcard, &findData);
 		while (1)
 		{
 			sprintf(fullName, "%s%s", fullDataDir, findData.cFileName);
@@ -1585,7 +1798,11 @@ int main(int argc, char **argv)
 			cacheEntry->changed = false;
 		}
 
+#if 1
 		Sleep(500);
+#else
+		break;
+#endif
 	}
 
 done:
@@ -1595,4 +1812,5 @@ done:
 	return error;
 }
 
+#undef FilePosition
 #undef FileAlign

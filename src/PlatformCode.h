@@ -52,6 +52,9 @@ typedef RENDER_LOAD_SHADER(LoadShader_t);
 		DeviceShader *fragmentShader)
 typedef RENDER_CREATE_DEVICE_PROGRAM(CreateDeviceProgram_t);
 
+#define SET_FILL_MODE(name) void name(RenderFillMode mode)
+typedef SET_FILL_MODE(SetFillMode_t);
+
 struct PlatformCode
 {
 	Log_t *Log;
@@ -72,6 +75,7 @@ struct PlatformCode
 	SendIndexedSkinnedMesh_t *SendIndexedSkinnedMesh;
 	LoadShader_t *LoadShader;
 	CreateDeviceProgram_t *CreateDeviceProgram;
+	SetFillMode_t *SetFillMode;
 };
 
 #define START_GAME(name) void name(GameMemory *gameMemory, PlatformCode *platformCode)

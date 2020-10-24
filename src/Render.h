@@ -4,6 +4,13 @@ enum ShaderType
 	SHADERTYPE_FRAGMENT
 };
 
+enum RenderFillMode
+{
+	RENDER_FILL,
+	RENDER_LINE,
+	RENDER_POINT
+};
+
 struct DeviceMesh
 {
 	GLuint vao;
