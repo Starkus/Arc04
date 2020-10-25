@@ -26,6 +26,7 @@ struct BakerySkinnedMeshAnimationHeader
 {
 	u32 frameCount;
 	u32 channelCount;
+	bool loop;
 	u64 timestampsBlobOffset;
 	u64 channelsBlobOffset;
 };

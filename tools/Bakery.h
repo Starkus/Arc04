@@ -22,7 +22,8 @@ enum ErrorCode
 	ERROR_META_NOROOT = XML_ERROR_COUNT,
 	ERROR_COLLADA_NOROOT,
 	ERROR_META_WRONG_TYPE,
-	ERROR_NO_ELEMENT_WITH_ID
+	ERROR_NO_ELEMENT_WITH_ID,
+	ERROR_META_MISSING_DEPENDENCY
 };
 
 enum MetaType
@@ -80,6 +81,7 @@ struct Animation
 	u32 frameCount;
 	f32 *timestamps;
 	u32 channelCount;
+	bool loop;
 	AnimationChannel *channels;
 };
 DECLARE_DYNAMIC_ARRAY(Animation);

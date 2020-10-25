@@ -694,7 +694,7 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			gameState->animationTime += deltaTime;
 			if (gameState->animationTime >= lastTimestamp)
 			{
-				if (gameState->loopAnimation)
+				if (animation->loop)
 					gameState->animationTime = 0;
 				else
 					gameState->animationTime = lastTimestamp;

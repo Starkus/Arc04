@@ -83,6 +83,7 @@ struct Animation
 	u32 frameCount;
 	f32 *timestamps;
 	u32 channelCount;
+	bool loop;
 	AnimationChannel *channels;
 };
 

@@ -66,6 +66,7 @@ void ReadSkinnedMesh(const u8 *fileBuffer, SkeletalMesh *skinnedMesh, SkinnedVer
 		animation->frameCount = frameCount;
 		animation->timestamps = timestamps;
 		animation->channelCount = channelCount;
+		animation->loop = animationHeader->loop;
 		animation->channels = (AnimationChannel *)TransientAlloc(sizeof(AnimationChannel) *channelCount);
 
 		BakerySkinnedMeshAnimationChannelHeader *channelHeaders =
