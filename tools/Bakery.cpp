@@ -342,7 +342,7 @@ int main(int argc, char **argv)
 			cacheEntry->changed = false;
 		}
 
-#if 1
+#if 0
 		Sleep(500);
 #else
 		break;

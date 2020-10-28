@@ -319,6 +319,7 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		}
 #endif
 
+		if (0)
 		{
 			static f32 linetimer = 0;
 			linetimer += deltaTime * 0.3f;
@@ -483,6 +484,12 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			gameState->animationTime = 0;
 			gameState->loopAnimation = newState == PLAYERSTATE_GROUNDED ? true : false;
 			player->state = newState;
+		}
+
+		if (player->entity->pos.z < -1)
+		{
+			player->entity->pos.z = 1;
+			player->vel = {};
 		}
 
 		gameState->camPos = player->entity->pos;

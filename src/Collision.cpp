@@ -118,7 +118,7 @@ bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, 
 	}
 
 	QuadTree *quadTree = &gameState->levelGeometry.quadTree;
-	v2 cellSize = (quadTree->highCorner - quadTree->lowCorner) / (f32)(quadTree->cellsSide - 1);
+	v2 cellSize = (quadTree->highCorner - quadTree->lowCorner) / (f32)(quadTree->cellsSide);
 
 	if (cellX < 0 || cellX >= quadTree->cellsSide ||
 		cellY < 0 || cellY >= quadTree->cellsSide)
@@ -132,6 +132,15 @@ bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, 
 	for (u32 triIdx = triBegin; triIdx < triEnd; ++triIdx)
 	{
 		Triangle *curTriangle = &quadTree->triangles[triIdx];
+
+		Vertex tri[] =
+		{
+			{curTriangle->a, {}, {}},
+			{curTriangle->b, {}, {}},
+			{curTriangle->c, {}, {}}
+		};
+		DrawDebugTriangles(gameState, tri, 3);
+
 		if (RayTriangleIntersection(rayOrigin, rayDir, curTriangle, hit))
 		{
 			*triangle = *curTriangle;
@@ -140,9 +149,9 @@ bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, 
 	}
 
 #if 1
-	f32 cellMinX = quadTree->lowCorner.x + (cellX - 0.5f) * cellSize.x;
+	f32 cellMinX = quadTree->lowCorner.x + (cellX) * cellSize.x;
 	f32 cellMaxX = cellMinX + cellSize.x;
-	f32 cellMinY = quadTree->lowCorner.y + (cellY - 0.5f) * cellSize.y;
+	f32 cellMinY = quadTree->lowCorner.y + (cellY) * cellSize.y;
 	f32 cellMaxY = cellMinY + cellSize.y;
 	f32 top = 1;
 	Vertex cellDebugTris[] =
@@ -187,7 +196,7 @@ bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, 
 bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, v3 *hit, Triangle *triangle)
 {
 	QuadTree *quadTree = &gameState->levelGeometry.quadTree;
-	v2 cellSize = (quadTree->highCorner - quadTree->lowCorner) / (f32)(quadTree->cellsSide - 1);
+	v2 cellSize = (quadTree->highCorner - quadTree->lowCorner) / (f32)(quadTree->cellsSide);
 
 	auto ddraw = [&gameState, &cellSize, &quadTree](f32 relX, f32 relY)
 	{
@@ -205,9 +214,6 @@ bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, v3 *hit, Triangle *t
 	p1.y /= cellSize.y;
 	p2.x /= cellSize.x;
 	p2.y /= cellSize.y;
-
-	//Array_u32 cells;
-	//ArrayInit_u32(&cells, 1024, FrameAlloc);
 
 	f32 slope = (p2.y - p1.y) / (p2.x - p1.x);
 	bool swapXY = slope > 1 || slope < -1;
@@ -231,16 +237,16 @@ bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, v3 *hit, Triangle *t
 	f32 curX = p1.x;
 	f32 curY = p1.y;
 
-	if (HitTest_CheckCell(gameState, (int)Round(curX), (int)Round(curY), swapXY, rayOrigin, rayDir,
+	if (HitTest_CheckCell(gameState, (int)Floor(curX), (int)Floor(curY), swapXY, rayOrigin, rayDir,
 				hit, triangle))
 		return true;
 
-	int oldY = (int)Round(curY);
+	int oldY = (int)Floor(curY);
 	for (bool done = false; !done; )
 	{
 		curX += xSign;
 		curY += slope;
-		int newY = (int)Round(curY);
+		int newY = (int)Floor(curY);
 
 		if ((!flipX && curX > p2.x) || (flipX && curX < p2.x))
 		{
@@ -259,7 +265,7 @@ bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, v3 *hit, Triangle *t
 			// When we go to a new row, check whether we come from the side or the top by projecting
 			// the current point to the left border of the current cell. If the row of the projected
 			// point is different than the current one, then we come from below.
-			f32 cellRelX = Fmod(curX + 0.5f, 1.0f) - flipX;
+			f32 cellRelX = Fmod(curX, 1.0f) - flipX;
 			f32 projY = curY - cellRelX * slope * xSign;
 
 			f32 projX = curX - cellRelX;
@@ -268,23 +274,23 @@ bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, v3 *hit, Triangle *t
 			else
 				ddraw(projY, projX);
 
-			if ((int)Round(projY) != newY)
+			if ((int)Floor(projY) != newY)
 			{
 				// Paint cell below
-				if (HitTest_CheckCell(gameState, (int)Round(curX), (int)Round(projY), swapXY,
+				if (HitTest_CheckCell(gameState, (int)Floor(curX), (int)Floor(projY), swapXY,
 							rayOrigin, rayDir, hit, triangle))
 					return true;
 			}
 			else
 			{
 				// Paint cell behind
-				if (HitTest_CheckCell(gameState, (int)Round(curX - xSign), (int)Round(curY), swapXY,
+				if (HitTest_CheckCell(gameState, (int)Floor(curX - xSign), (int)Floor(curY), swapXY,
 							rayOrigin, rayDir, hit, triangle))
 					return true;
 			}
 		}
 
-		if (HitTest_CheckCell(gameState, (int)Round(curX), (int)Round(curY), swapXY, rayOrigin,
+		if (HitTest_CheckCell(gameState, (int)Floor(curX), (int)Floor(curY), swapXY, rayOrigin,
 					rayDir, hit, triangle))
 			return true;
 

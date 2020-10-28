@@ -355,8 +355,7 @@ void GenerateQuadTree(Array_Triangle &triangles, QuadTree *quadTree)
 	const int cellsSide = 32;
 	const int cellCount = cellsSide * cellsSide;
 	const v2 span = (highCorner - lowCorner);
-	const v2 cellSize = span / (f32)(cellsSide - 1); // -1 because we are rounding
-	// We are using 0, 0 as the CENTER of a cell, otherwise the high border ends up ouside the grid
+	const v2 cellSize = span / (f32)(cellsSide);
 
 	Log("Quad tree limits: { %.02f, %.02f } - { %.02f, %.02f }\n", lowCorner.x, lowCorner.y,
 			highCorner.x, highCorner.y);
@@ -376,10 +375,21 @@ void GenerateQuadTree(Array_Triangle &triangles, QuadTree *quadTree)
 		v2 corners[3];
 		for (int i = 0; i < 3; ++i)
 		{
+			v3 worldP = curTriangle->corners[i];
+
+			// Subtract epsilon from vertices on the high edge, since Floor(p) would give out of
+			// bounds indices.
+			const f32 epsilon = 0.00001f;
+			if (worldP.x >= highCorner.x)
+				worldP.x -= epsilon;
+			if (worldP.y >= highCorner.y)
+				worldP.y -= epsilon;
+
 			v2 p = {
-				(curTriangle->corners[i].x - lowCorner.x) / cellSize.x,
-				(curTriangle->corners[i].y - lowCorner.y) / cellSize.y
+				(worldP.x - lowCorner.x) / cellSize.x,
+				(worldP.y - lowCorner.y) / cellSize.y
 			};
+
 			corners[i] = { p.x, p.y };
 		}
 		// Sort by Y ascending
@@ -401,13 +411,13 @@ void GenerateQuadTree(Array_Triangle &triangles, QuadTree *quadTree)
 		// them individually
 
 		// If the whole triangle fits in a single row, just fill from left to right
-		if (Round(corners[1].y) == Round(corners[2].y))
+		if (Floor(corners[1].y) == Floor(corners[2].y))
 		{
-			int scanlineY = (int)Round(corners[1].y);
+			int scanlineY = (int)Floor(corners[1].y);
 			f32 left = Min(corners[0].x, Min(corners[1].x, corners[2].x));
 			f32 right = Max(corners[0].x, Max(corners[1].x, corners[2].x));
-			for (int scanX = (int)Round(left);
-				scanX <= (int)Round(right);
+			for (int scanX = (int)Floor(left);
+				scanX <= (int)Floor(right);
 				++scanX)
 			{
 				ASSERT(scanX >= 0 && scanX < cellsSide);
@@ -428,21 +438,21 @@ void GenerateQuadTree(Array_Triangle &triangles, QuadTree *quadTree)
 				invSlope2 = tmp;
 			}
 
-			int bottom = (int)Round(corners[1].y);
-			int top = (int)Round(corners[2].y);
+			int bottom = (int)Floor(corners[1].y);
+			int top = (int)Floor(corners[2].y);
 
 			f32 curX1 = corners[2].x;
 			f32 curX2 = corners[2].x;
 			// The top point can be anywhere between the top of the row and the bottom, so advance
 			// until we meet the bottom border of the row
-			f32 advTillNextGridLine = Fmod(corners[2].y + 0.5f, 1.0f);
+			f32 advTillNextGridLine = Fmod(corners[2].y, 1.0f);
 			f32 nextX1 = curX1 - invSlope1 * advTillNextGridLine;
 			f32 nextX2 = curX2 - invSlope2 * advTillNextGridLine;
 			ASSERT(bottom >= 0 && top < cellsSide);
 			for (int scanlineY = top; scanlineY >= bottom; --scanlineY)
 			{
-				for (int scanX = (int)Round(Min(curX1, nextX1));
-					scanX <= (int)Round(Max(curX2, nextX2));
+				for (int scanX = (int)Floor(Min(curX1, nextX1));
+					scanX <= (int)Floor(Max(curX2, nextX2));
 					++scanX)
 				{
 					if (scanX >= 0 && scanX < cellsSide)
@@ -463,7 +473,7 @@ void GenerateQuadTree(Array_Triangle &triangles, QuadTree *quadTree)
 				else
 				{
 					// For the last one, only advance as much as there's left.
-					const f32 remain = 1.0f - Fmod(corners[1].y + 0.5f, 1.0f);
+					const f32 remain = 1.0f - Fmod(corners[1].y, 1.0f);
 					nextX1 -= invSlope1 * remain;
 					nextX2 -= invSlope2 * remain;
 				}
@@ -471,7 +481,7 @@ void GenerateQuadTree(Array_Triangle &triangles, QuadTree *quadTree)
 		}
 		// Rasterize bottom triangle
 		// Pretty much the same as above but upside down
-		if (Round(corners[0].y) != Round(corners[1].y))
+		if (Floor(corners[0].y) != Floor(corners[1].y))
 		{
 			f32 invSlope1 = (f32)(corners[1].x - corners[0].x) / (f32)(corners[1].y - corners[0].y);
 			f32 invSlope2 = (f32)(corners[2].x - corners[0].x) / (f32)(corners[2].y - corners[0].y);
@@ -482,19 +492,19 @@ void GenerateQuadTree(Array_Triangle &triangles, QuadTree *quadTree)
 				invSlope2 = tmp;
 			}
 
-			int bottom = (int)Round(corners[0].y);
-			int top = (int)Round(corners[1].y);
+			int bottom = (int)Floor(corners[0].y);
+			int top = (int)Floor(corners[1].y);
 
 			f32 curX1 = corners[0].x;
 			f32 curX2 = corners[0].x;
-			f32 advTillNextGridLine = 1.0f - Fmod(corners[0].y + 0.5f, 1.0f);
+			f32 advTillNextGridLine = 1.0f - Fmod(corners[0].y, 1.0f);
 			f32 nextX1 = curX1 + invSlope1 * advTillNextGridLine;
 			f32 nextX2 = curX2 + invSlope2 * advTillNextGridLine;
 			ASSERT(bottom >= 0 && top < cellsSide);
 			for (int scanlineY = bottom; scanlineY < top; ++scanlineY)
 			{
-				for (int scanX = (int)Round(Min(curX1, nextX1));
-					scanX <= (int)Round(Max(curX2, nextX2));
+				for (int scanX = (int)Floor(Min(curX1, nextX1));
+					scanX <= (int)Floor(Max(curX2, nextX2));
 					++scanX)
 				{
 					if (scanX >= 0 && scanX < cellsSide)
