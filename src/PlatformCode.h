@@ -25,6 +25,9 @@ typedef RENDER_RENDER_INDEXED_MESH(RenderIndexedMesh_t);
 #define RENDER_RENDER_MESH(name) void name(DeviceMesh *mesh)
 typedef RENDER_RENDER_MESH(RenderMesh_t);
 
+#define RENDER_RENDER_LINES(name) void name(DeviceMesh *mesh)
+typedef RENDER_RENDER_LINES(RenderLines_t);
+
 #define RENDER_CREATE_DEVICE_MESH(name) DeviceMesh name()
 typedef RENDER_CREATE_DEVICE_MESH(CreateDeviceMesh_t);
 
@@ -67,6 +70,7 @@ struct PlatformCode
 	UniformMat4_t *UniformMat4;
 	RenderIndexedMesh_t *RenderIndexedMesh;
 	RenderMesh_t *RenderMesh;
+	RenderLines_t *RenderLines;
 	CreateDeviceMesh_t *CreateDeviceMesh;
 	CreateDeviceIndexedMesh_t *CreateDeviceIndexedMesh;
 	CreateDeviceIndexedSkinnedMesh_t *CreateDeviceIndexedSkinnedMesh;

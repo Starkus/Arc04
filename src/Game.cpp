@@ -6,47 +6,17 @@
 #include "Geometry.h"
 #include "Primitives.h"
 #include "OpenGL.h"
-
 #include "Render.h"
 #include "Platform.h"
 #include "PlatformCode.h"
+#include "Containers.h"
 #include "Game.h"
 
 GameMemory *g_gameMemory;
 
-// Debug draws
-#if DEBUG_BUILD
-struct DebugCube
-{
-	v3 pos;
-	v3 fw;
-	v3 up;
-	f32 scale;
-};
-DebugCube debugCubes[2048];
-u32 debugCubeCount;
-#define DRAW_DEBUG_CUBE(pos, fw, up, scale) if (debugCubeCount < 2048) debugCubes[debugCubeCount++] = { pos, fw, up, scale }
-#define DRAW_AA_DEBUG_CUBE(pos, scale) if (debugCubeCount < 2048) debugCubes[debugCubeCount++] = { pos, {0,1,0}, {0,0,1}, scale }
+DECLARE_ARRAY(u32);
 
-struct DebugGeometryBuffer
-{
-	DeviceMesh deviceMesh;
-	Vertex *vertexData;
-	u32 vertexCount;
-};
-DebugGeometryBuffer debugGeometryBuffer;
-void DrawDebugTriangles(Vertex* vertices, int count)
-{
-	for (int i = 0; i < count; ++i)
-	{
-		debugGeometryBuffer.vertexData[debugGeometryBuffer.vertexCount + i] = vertices[i];
-	}
-	debugGeometryBuffer.vertexCount += count;
-}
-
-int g_currentPolytopeStep;
-#endif
-
+#include "DebugDraw.cpp"
 #include "Memory.cpp"
 #include "Collision.cpp"
 #include "BakeryInterop.cpp"
@@ -136,9 +106,11 @@ NOMANGLE START_GAME(StartGame)
 #if DEBUG_BUILD
 		// Debug geometry buffer
 		{
-			debugGeometryBuffer.vertexData = (Vertex *)TransientAlloc(2048 * sizeof(Vertex));
-			debugGeometryBuffer.vertexCount = 0;
-			debugGeometryBuffer.deviceMesh = platformCode->CreateDeviceMesh();
+			gameState->debugGeometryBuffer.triangleData = (Vertex *)TransientAlloc(2048 * sizeof(Vertex));
+			gameState->debugGeometryBuffer.lineData = (Vertex *)TransientAlloc(2048 * sizeof(Vertex));
+			gameState->debugGeometryBuffer.triangleVertexCount = 0;
+			gameState->debugGeometryBuffer.lineVertexCount = 0;
+			gameState->debugGeometryBuffer.deviceMesh = platformCode->CreateDeviceMesh();
 		}
 #endif
 
@@ -308,9 +280,11 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 	g_gameMemory = gameMemory;
 	GameState *gameState = (GameState *)gameMemory->transientMem;
 
-#if DEBUG_BUILD
-	debugCubeCount = 0;
-#endif
+	if (deltaTime < 0 || deltaTime > 1)
+	{
+		platformCode->Log("Delta time out of range! %f\n", deltaTime);
+		deltaTime = 1 / 60.0f;
+	}
 
 	// Update
 	{
@@ -327,7 +301,7 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			if (g_currentPolytopeStep < 0)
 				g_currentPolytopeStep = 0;
 		}
-		DRAW_AA_DEBUG_CUBE(v3{}, 0.05f); // Draw origin
+		DrawDebugCubeAA(v3{}, 0.05f); // Draw origin
 #endif
 
 #if DEBUG_BUILD
@@ -344,6 +318,28 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				gameState->animationIdx = gameState->skinnedMesh.animationCount - 1;
 		}
 #endif
+
+		{
+			static f32 linetimer = 0;
+			linetimer += deltaTime * 0.3f;
+			if (linetimer > PI2) linetimer -= PI2;
+
+			v3 P = { 0, 0, 1 };
+			v3 V = { 20*Sin(linetimer), 20*Cos(linetimer), 0 };
+			Vertex lineVertices[] =
+			{
+				{ P, { }, { } },
+				{ P+V, { }, { } }
+			};
+			DrawDebugLines(gameState, lineVertices, 2);
+
+			v3 hit;
+			Triangle triangle;
+			if (HitTest(gameState, P, V, &hit, &triangle))
+			{
+				DrawDebugCubeAA(gameState, hit, 1);
+			}
+		}
 
 		if (controller->camUp.endedDown)
 			gameState->camPitch += 1.0f * deltaTime;
@@ -420,10 +416,18 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				{
 					v3 depenetration = ComputeDepenetration(gjkResult, player->entity, entity,
 							platformCode);
-					player->entity->pos += depenetration;
-					// @Fix: handle velocity change upon hits properly
-					if (V3Normalize(depenetration).z > 0.9f)
-						touchedGround = true;
+					// @Hack: ignoring depenetration when it's too big
+					if (V3Length(depenetration) < 2.0f)
+					{
+						player->entity->pos += depenetration;
+						// @Fix: handle velocity change upon hits properly
+						if (V3Normalize(depenetration).z > 0.9f)
+							touchedGround = true;
+					}
+					else
+					{
+						platformCode->Log("WARNING! Ignoring huge depenetration vector... something went wrong!\n");
+					}
 					break;
 				}
 			}
@@ -431,29 +435,43 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 		// Ray testing
 		{
-			QuadTree *quadTree = &gameState->levelGeometry.quadTree;
-			// @Hack: properly rasterize ray over grid cells and test all of them
-			v3 p = player->entity->pos;
-
-			v2 cellSize = (quadTree->highCorner - quadTree->lowCorner) / (f32)(quadTree->cellsSide - 1);
-			int cellX = (int)Round((p.x - quadTree->lowCorner.x) / cellSize.x);
-			int cellY = (int)Round((p.y - quadTree->lowCorner.y) / cellSize.y);
-
-			int offsetIdx = cellX + cellY * quadTree->cellsSide;
-			u32 triBegin = quadTree->offsets[offsetIdx];
-			u32 triEnd = quadTree->offsets[offsetIdx + 1];
-			for (u32 triIdx = triBegin; triIdx < triEnd; ++triIdx)
+			v3 origin = player->entity->pos + v3{ 0, 0, 1 };
+			v3 dir = { 0, 0, -1.1f };
+			v3 hit;
+			Triangle triangle;
+			if (HitTest(gameState, origin, dir, &hit, &triangle))
 			{
-				v3 origin = player->entity->pos + v3{ 0, 0, 1 };
-				v3 dir = { 0, 0, -1.1f };
-				Triangle &triangle = quadTree->triangles[triIdx];
-				v3 hit;
+				player->entity->pos.z = hit.z;
+				touchedGround = true;
+			}
 
-				if (RayTriangleIntersection(origin, dir, triangle, &hit))
+			origin = player->entity->pos + v3{ 0, 0, 1 };
+			const f32 playerRadius = 0.5f;
+			const f32 rayLen = playerRadius * 1.414f;
+			v3 dirs[] =
+			{
+				{ 0, rayLen, 0 },
+				{ 0, -rayLen, 0 },
+				{ rayLen, 0, 0 },
+				{ -rayLen, 0, 0 },
+			};
+			for (int i = 0; i < ArrayCount(dirs); ++i)
+			{
+				if (HitTest(gameState, origin, dirs[i], &hit, &triangle))
 				{
-					player->entity->pos.z = hit.z;
-					touchedGround = true;
-					break;
+					f32 dot = V3Dot(triangle.normal, dirs[i] / rayLen);
+					if (dot > -0.707f && dot < 0.707f)
+						continue;
+
+					hit.z = player->entity->pos.z;
+
+					f32 aDistAlongNormal = V3Dot(triangle.a - player->entity->pos, triangle.normal);
+					if (aDistAlongNormal < 0) aDistAlongNormal = -aDistAlongNormal;
+					if (aDistAlongNormal < playerRadius)
+					{
+						f32 factor = playerRadius - aDistAlongNormal;
+						player->entity->pos += triangle.normal * factor;
+					}
 				}
 			}
 		}
@@ -470,13 +488,13 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		gameState->camPos = player->entity->pos;
 
 #if GJK_VISUAL_DEBUGGING
-		debugGeometryBuffer.vertexCount = 0;
+		g_debugGeometryBuffer.vertexCount = 0;
 		Vertex *gjkVertices;
 		u32 gjkFaceCount;
 		GetGJKStepGeometry(g_currentPolytopeStep, &gjkVertices, &gjkFaceCount);
 		DrawDebugTriangles(gjkVertices, gjkFaceCount);
 
-		DRAW_AA_DEBUG_CUBE(g_GJKNewPoint[g_currentPolytopeStep], 0.03f);
+		DrawDebugCubeAA(g_GJKNewPoint[g_currentPolytopeStep], 0.03f);
 #endif
 #if EPA_VISUAL_DEBUGGING
 		Vertex *epaVertices;
@@ -484,7 +502,7 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		GetEPAStepGeometry(g_currentPolytopeStep, &epaVertices, &epaFaceCount);
 		DrawDebugTriangles(epaVertices, epaFaceCount * 3);
 
-		DRAW_AA_DEBUG_CUBE(g_epaNewPoint[g_currentPolytopeStep], 0.03f);
+		DrawDebugCubeAA(g_epaNewPoint[g_currentPolytopeStep], 0.03f);
 #endif
 	}
 
@@ -728,9 +746,9 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		platformCode->UniformMat4(&viewUniform, 1, view.m);
 		// Debug draws
 		{
-			for (u32 i = 0; i < debugCubeCount; ++i)
+			for (u32 i = 0; i < gameState->debugGeometryBuffer.debugCubeCount; ++i)
 			{
-				DebugCube *cube = &debugCubes[i];
+				DebugCube *cube = &gameState->debugGeometryBuffer.debugCubes[i];
 
 				v3 pos = cube->pos;
 				v3 fw = cube->fw * cube->scale;
@@ -751,17 +769,30 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 		// Debug meshes
 		{
+			platformCode->SetFillMode(RENDER_LINE);
+
 			platformCode->UniformMat4(&modelUniform, 1, MAT4_IDENTITY.m);
 
-			platformCode->SendMesh(&debugGeometryBuffer.deviceMesh, debugGeometryBuffer.vertexData,
-					debugGeometryBuffer.vertexCount, true);
+			platformCode->SendMesh(&gameState->debugGeometryBuffer.deviceMesh,
+					gameState->debugGeometryBuffer.triangleData,
+					gameState->debugGeometryBuffer.triangleVertexCount, true);
 
-			platformCode->RenderMesh(&debugGeometryBuffer.deviceMesh);
+			platformCode->RenderMesh(&gameState->debugGeometryBuffer.deviceMesh);
 
-			debugGeometryBuffer.vertexCount = 0;
+			platformCode->SendMesh(&gameState->debugGeometryBuffer.deviceMesh,
+					gameState->debugGeometryBuffer.lineData,
+					gameState->debugGeometryBuffer.lineVertexCount, true);
+			platformCode->RenderLines(&gameState->debugGeometryBuffer.deviceMesh);
+
+			gameState->debugGeometryBuffer.debugCubeCount = 0;
+			gameState->debugGeometryBuffer.triangleVertexCount = 0;
+			gameState->debugGeometryBuffer.lineVertexCount = 0;
+
+			platformCode->SetFillMode(RENDER_FILL);
 		}
 #endif
 	}
+	FrameWipe();
 }
 
 void CleanupGame(GameState *gameState)

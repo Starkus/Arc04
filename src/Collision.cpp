@@ -56,12 +56,12 @@ void GenPolytopeMesh(EPAFace *polytopeData, int faceCount, Vertex *buffer)
 }
 #endif
 
-bool RayTriangleIntersection(v3 rayOrigin, v3 rayDir, const Triangle &triangle, v3 *hit)
+bool RayTriangleIntersection(v3 rayOrigin, v3 rayDir, const Triangle *triangle, v3 *hit)
 {
-	const v3 &a = triangle.a;
-	const v3 &b = triangle.b;
-	const v3 &c = triangle.c;
-	const v3 &nor = triangle.normal;
+	const v3 &a = triangle->a;
+	const v3 &b = triangle->b;
+	const v3 &c = triangle->c;
+	const v3 &nor = triangle->normal;
 
 	const v3 ab = b - a;
 	const v3 bc = c - b;
@@ -105,6 +105,193 @@ bool RayTriangleIntersection(v3 rayOrigin, v3 rayDir, const Triangle &triangle, 
 
 	*hit = rayPlaneInt;
 	return true;
+}
+
+bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, v3 rayOrigin, v3
+		rayDir, v3 *hit, Triangle *triangle)
+{
+	if (swapXY)
+	{
+		int tmp = cellX;
+		cellX = cellY;
+		cellY = tmp;
+	}
+
+	QuadTree *quadTree = &gameState->levelGeometry.quadTree;
+	v2 cellSize = (quadTree->highCorner - quadTree->lowCorner) / (f32)(quadTree->cellsSide - 1);
+
+	if (cellX < 0 || cellX >= quadTree->cellsSide ||
+		cellY < 0 || cellY >= quadTree->cellsSide)
+		return false;
+
+	// @Todo: keep closest hit, not first
+
+	int offsetIdx = cellX + cellY * quadTree->cellsSide;
+	u32 triBegin = quadTree->offsets[offsetIdx];
+	u32 triEnd = quadTree->offsets[offsetIdx + 1];
+	for (u32 triIdx = triBegin; triIdx < triEnd; ++triIdx)
+	{
+		Triangle *curTriangle = &quadTree->triangles[triIdx];
+		if (RayTriangleIntersection(rayOrigin, rayDir, curTriangle, hit))
+		{
+			*triangle = *curTriangle;
+			return true;
+		}
+	}
+
+#if 1
+	f32 cellMinX = quadTree->lowCorner.x + (cellX - 0.5f) * cellSize.x;
+	f32 cellMaxX = cellMinX + cellSize.x;
+	f32 cellMinY = quadTree->lowCorner.y + (cellY - 0.5f) * cellSize.y;
+	f32 cellMaxY = cellMinY + cellSize.y;
+	f32 top = 1;
+	Vertex cellDebugTris[] =
+	{
+		{ { cellMinX, cellMinY, -1 }, {}, {} },
+		{ { cellMinX, cellMinY, top }, {}, {} },
+		{ { cellMaxX, cellMinY, -1 }, {}, {} },
+
+		{ { cellMaxX, cellMinY, -1 }, {}, {} },
+		{ { cellMinX, cellMinY, top }, {}, {} },
+		{ { cellMaxX, cellMinY, top }, {}, {} },
+
+		{ { cellMinX, cellMinY, -1 }, {}, {} },
+		{ { cellMinX, cellMinY, top }, {}, {} },
+		{ { cellMinX, cellMaxY, -1 }, {}, {} },
+
+		{ { cellMinX, cellMaxY, -1 }, {}, {} },
+		{ { cellMinX, cellMinY, top }, {}, {} },
+		{ { cellMinX, cellMaxY, top }, {}, {} },
+
+		{ { cellMinX, cellMaxY, -1 }, {}, {} },
+		{ { cellMinX, cellMaxY, top }, {}, {} },
+		{ { cellMaxX, cellMaxY, -1 }, {}, {} },
+
+		{ { cellMaxX, cellMaxY, -1 }, {}, {} },
+		{ { cellMinX, cellMaxY, top }, {}, {} },
+		{ { cellMaxX, cellMaxY, top }, {}, {} },
+
+		{ { cellMaxX, cellMinY, -1 }, {}, {} },
+		{ { cellMaxX, cellMinY, top }, {}, {} },
+		{ { cellMaxX, cellMaxY, -1 }, {}, {} },
+
+		{ { cellMaxX, cellMaxY, -1 }, {}, {} },
+		{ { cellMaxX, cellMinY, top }, {}, {} },
+		{ { cellMaxX, cellMaxY, top }, {}, {} },
+	};
+	DrawDebugTriangles(gameState, cellDebugTris, 24);
+#endif
+	return false;
+}
+
+bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, v3 *hit, Triangle *triangle)
+{
+	QuadTree *quadTree = &gameState->levelGeometry.quadTree;
+	v2 cellSize = (quadTree->highCorner - quadTree->lowCorner) / (f32)(quadTree->cellsSide - 1);
+
+	auto ddraw = [&gameState, &cellSize, &quadTree](f32 relX, f32 relY)
+	{
+		DrawDebugCubeAA(gameState, v3{
+				relX * cellSize.x + quadTree->lowCorner.x,
+				relY * cellSize.y + quadTree->lowCorner.y,
+				1}, 0.1f);
+	};
+
+	v2 p1 = { rayOrigin.x, rayOrigin.y };
+	v2 p2 = { rayOrigin.x + rayDir.x, rayOrigin.y + rayDir.y };
+	p1 = p1 - quadTree->lowCorner;
+	p2 = p2 - quadTree->lowCorner;
+	p1.x /= cellSize.x;
+	p1.y /= cellSize.y;
+	p2.x /= cellSize.x;
+	p2.y /= cellSize.y;
+
+	//Array_u32 cells;
+	//ArrayInit_u32(&cells, 1024, FrameAlloc);
+
+	f32 slope = (p2.y - p1.y) / (p2.x - p1.x);
+	bool swapXY = slope > 1 || slope < -1;
+	if (swapXY)
+	{
+		f32 tmp = p1.x;
+		p1.x = p1.y;
+		p1.y = tmp;
+		tmp = p2.x;
+		p2.x = p2.y;
+		p2.y = tmp;
+		slope = 1.0f / slope;
+	}
+	bool flipX = p1.x > p2.x;
+	if (flipX)
+	{
+		slope = -slope;
+	}
+	f32 xSign = 1.0f - 2.0f * flipX;
+
+	f32 curX = p1.x;
+	f32 curY = p1.y;
+
+	if (HitTest_CheckCell(gameState, (int)Round(curX), (int)Round(curY), swapXY, rayOrigin, rayDir,
+				hit, triangle))
+		return true;
+
+	int oldY = (int)Round(curY);
+	for (bool done = false; !done; )
+	{
+		curX += xSign;
+		curY += slope;
+		int newY = (int)Round(curY);
+
+		if ((!flipX && curX > p2.x) || (flipX && curX < p2.x))
+		{
+			curX = p2.x;
+			curY = p2.y;
+			done = true;
+		}
+
+		if (!swapXY)
+			ddraw(curX, curY);
+		else
+			ddraw(curY, curX);
+
+		if (newY != oldY)
+		{
+			// When we go to a new row, check whether we come from the side or the top by projecting
+			// the current point to the left border of the current cell. If the row of the projected
+			// point is different than the current one, then we come from below.
+			f32 cellRelX = Fmod(curX + 0.5f, 1.0f) - flipX;
+			f32 projY = curY - cellRelX * slope * xSign;
+
+			f32 projX = curX - cellRelX;
+			if (!swapXY)
+				ddraw(projX, projY);
+			else
+				ddraw(projY, projX);
+
+			if ((int)Round(projY) != newY)
+			{
+				// Paint cell below
+				if (HitTest_CheckCell(gameState, (int)Round(curX), (int)Round(projY), swapXY,
+							rayOrigin, rayDir, hit, triangle))
+					return true;
+			}
+			else
+			{
+				// Paint cell behind
+				if (HitTest_CheckCell(gameState, (int)Round(curX - xSign), (int)Round(curY), swapXY,
+							rayOrigin, rayDir, hit, triangle))
+					return true;
+			}
+		}
+
+		if (HitTest_CheckCell(gameState, (int)Round(curX), (int)Round(curY), swapXY, rayOrigin,
+					rayDir, hit, triangle))
+			return true;
+
+		oldY = newY;
+	}
+
+	return false;
 }
 
 inline v3 FurthestInDirection(Entity *entity, v3 dir)

@@ -158,6 +158,29 @@ struct Player
 	PlayerState state;
 };
 
+#if DEBUG_BUILD
+struct DebugCube
+{
+	v3 pos;
+	v3 fw;
+	v3 up;
+	f32 scale;
+};
+
+struct DebugGeometryBuffer
+{
+	DeviceMesh deviceMesh;
+
+	Vertex *triangleData;
+	u32 triangleVertexCount;
+	Vertex *lineData;
+	u32 lineVertexCount;
+
+	DebugCube debugCubes[2048];
+	u32 debugCubeCount;
+};
+#endif
+
 struct GameState
 {
 	v3 camPos;
@@ -173,7 +196,12 @@ struct GameState
 	bool loopAnimation;
 
 	// @Cleanup: move to some Render Device Context or something?
-	DeviceProgram program, skinnedMeshProgram, debugDrawProgram;
+	DeviceProgram program, skinnedMeshProgram;
 	DeviceMesh anvilMesh, cubeMesh, sphereMesh, cylinderMesh, capsuleMesh;
 	SkeletalMesh skinnedMesh;
+
+	// Debug
+	DeviceProgram debugDrawProgram;
+	DebugGeometryBuffer debugGeometryBuffer;
+	int currentPolytopeStep;
 };

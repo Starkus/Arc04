@@ -1,6 +1,6 @@
 void SetUpDevice()
 {
-	glEnable(GL_CULL_FACE);
+	//glEnable(GL_CULL_FACE);
 	glFrontFace(GL_CW);
 
 	glEnable(GL_DEPTH_TEST);
@@ -39,6 +39,12 @@ void RenderMesh(DeviceMesh *mesh)
 {
 	glBindVertexArray(mesh->vao);
 	glDrawArrays(GL_TRIANGLES, 0, mesh->vertexCount);
+}
+
+void RenderLines(DeviceMesh *mesh)
+{
+	glBindVertexArray(mesh->vao);
+	glDrawArrays(GL_LINES, 0, mesh->vertexCount);
 }
 
 DeviceMesh CreateDeviceMesh()

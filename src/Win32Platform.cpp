@@ -78,12 +78,32 @@ struct Win32GameCode
 	UpdateAndRenderGame_t *UpdateAndRenderGame;
 };
 
+void ChangeExtension(char *buffer, const char *newExtension)
+{
+	char *lastDot = 0;
+	for (char *scan = buffer; *scan; ++scan)
+		if (*scan == '.')
+			lastDot = scan;
+	ASSERT(lastDot);
+	strcpy(lastDot + 1, newExtension);
+}
+
 void Win32LoadGameCode(Win32GameCode *gameCode, const char *dllFilename, const char *tempDllFilename)
 {
 	Log("Loading game code\n");
 #if DEBUG_BUILD
 	CopyFile(dllFilename, tempDllFilename, false);
 	gameCode->dll = LoadLibraryA(tempDllFilename);
+	// Copy pdb
+	{
+		char pdbName[MAX_PATH];
+		strcpy(pdbName, dllFilename);
+		ChangeExtension(pdbName, "pdb");
+		char tempPdbName[MAX_PATH];
+		strcpy(tempPdbName, tempDllFilename);
+		ChangeExtension(tempPdbName, "pdb");
+		CopyFile(pdbName, tempPdbName, false);
+	}
 #else
 	gameCode->dll = LoadLibraryA(dllFilename);
 #endif
@@ -315,6 +335,7 @@ void Win32Start(HINSTANCE hInstance)
 	platformCode.UniformMat4 = UniformMat4;
 	platformCode.RenderIndexedMesh = RenderIndexedMesh;
 	platformCode.RenderMesh = RenderMesh;
+	platformCode.RenderLines = RenderLines;
 	platformCode.CreateDeviceMesh = CreateDeviceMesh;
 	platformCode.CreateDeviceIndexedMesh = CreateDeviceIndexedMesh;
 	platformCode.CreateDeviceIndexedSkinnedMesh = CreateDeviceIndexedSkinnedMesh;

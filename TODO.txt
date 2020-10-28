@@ -1,6 +1,7 @@
 ## TODO
 
 # Next up?
+- Using Round for geometry grid is silly, go back to Floor.
 - Opaque handles to things from rendering device?
 - Import and draw textures
 - BVH and octree for level triangles
