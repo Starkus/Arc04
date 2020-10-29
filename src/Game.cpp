@@ -13,6 +13,9 @@
 #include "Game.h"
 
 GameMemory *g_gameMemory;
+Log_t *g_log;
+
+#define LOG(...) g_log(__VA_ARGS__)
 
 DECLARE_ARRAY(u32);
 
@@ -24,8 +27,9 @@ DECLARE_ARRAY(u32);
 NOMANGLE START_GAME(StartGame)
 {
 	g_gameMemory = gameMemory;
+	g_log = platformCode->Log;
 
-	platformCode->Log("Starting game!\n");
+	LOG("Starting game!\n");
 
 	GameState *gameState = (GameState *)TransientAlloc(sizeof(GameState));
 

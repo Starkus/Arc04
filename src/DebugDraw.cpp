@@ -15,16 +15,22 @@ void DrawDebugTriangles(GameState *gameState, Vertex* vertices, int count)
 {
 	for (int i = 0; i < count; ++i)
 	{
-		gameState->debugGeometryBuffer.triangleData[gameState->debugGeometryBuffer.triangleVertexCount + i] = vertices[i];
+		if (gameState->debugGeometryBuffer.triangleVertexCount >= 2048)
+			break;
+
+		int newIdx = gameState->debugGeometryBuffer.triangleVertexCount++;
+		gameState->debugGeometryBuffer.triangleData[newIdx] = vertices[i];
 	}
-	gameState->debugGeometryBuffer.triangleVertexCount += count;
 }
 void DrawDebugLines(GameState *gameState, Vertex* vertices, int count)
 {
 	for (int i = 0; i < count; ++i)
 	{
-		gameState->debugGeometryBuffer.lineData[gameState->debugGeometryBuffer.lineVertexCount + i] = vertices[i];
+		if (gameState->debugGeometryBuffer.lineVertexCount >= 2048)
+			break;
+
+		int newIdx = gameState->debugGeometryBuffer.lineVertexCount++;
+		gameState->debugGeometryBuffer.lineData[newIdx] = vertices[i];
 	}
-	gameState->debugGeometryBuffer.lineVertexCount += count;
 }
 #endif

@@ -807,7 +807,7 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 		u64 offsetsBlobOffset = FileSeek(file, sizeof(header), FILE_BEGIN);
 
 		u32 offsetCount = quadTree.cellsSide * quadTree.cellsSide + 1;
-		WriteToFile(file, quadTree.offsets, sizeof(*quadTree.offsets) * offsetCount);
+		WriteToFile(file, quadTree.offsets, sizeof(quadTree.offsets[0]) * offsetCount);
 
 		u64 trianglesBlobOffset = FilePosition(file);
 		u32 triangleCount = quadTree.offsets[offsetCount - 1];

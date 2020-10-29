@@ -7,6 +7,11 @@ const f64 PI_64 = 3.1415926535897932384626433832795;
 const f64 HALFPI_64 = 1.5707963267948966192313216916398;
 const f64 PI2_64 = 6.283185307179586476925286766559;
 
+inline bool EqualWithEpsilon(f32 a, f32 b, f32 epsilon)
+{
+	return a > b - epsilon && a < b + epsilon;
+}
+
 inline f32 Floor(f32 n)
 {
 	return floorf(n);

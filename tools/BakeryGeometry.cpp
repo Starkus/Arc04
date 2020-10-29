@@ -352,7 +352,7 @@ void GenerateQuadTree(Array_Triangle &triangles, QuadTree *quadTree)
 		}
 	}
 
-	const int cellsSide = 32;
+	const int cellsSide = 4;
 	const int cellCount = cellsSide * cellsSide;
 	const v2 span = (highCorner - lowCorner);
 	const v2 cellSize = span / (f32)(cellsSide);
@@ -370,7 +370,7 @@ void GenerateQuadTree(Array_Triangle &triangles, QuadTree *quadTree)
 
 	for (u32 triangleIdx = 0; triangleIdx < triangles.size; ++triangleIdx)
 	{
-		Triangle *curTriangle = &triangles[triangleIdx];
+		const Triangle *curTriangle = &triangles[triangleIdx];
 
 		v2 corners[3];
 		for (int i = 0; i < 3; ++i)
@@ -409,13 +409,15 @@ void GenerateQuadTree(Array_Triangle &triangles, QuadTree *quadTree)
 
 		// We split the triangle into a flat-bottomed triangle and a flat-topped one, and rasterize
 		// them individually
+		f32 lerpT = (corners[1].y - corners[0].y) / (corners[2].y - corners[0].y);
+		v2 midPoint = corners[0] * (1.0f - lerpT) + corners[2] * lerpT;
 
 		// If the whole triangle fits in a single row, just fill from left to right
 		if (Floor(corners[1].y) == Floor(corners[2].y))
 		{
 			int scanlineY = (int)Floor(corners[1].y);
-			f32 left = Min(corners[0].x, Min(corners[1].x, corners[2].x));
-			f32 right = Max(corners[0].x, Max(corners[1].x, corners[2].x));
+			f32 left = Min(midPoint.x, Min(corners[1].x, corners[2].x));
+			f32 right = Max(midPoint.x, Max(corners[1].x, corners[2].x));
 			for (int scanX = (int)Floor(left);
 				scanX <= (int)Floor(right);
 				++scanX)
@@ -481,7 +483,22 @@ void GenerateQuadTree(Array_Triangle &triangles, QuadTree *quadTree)
 		}
 		// Rasterize bottom triangle
 		// Pretty much the same as above but upside down
-		if (Floor(corners[0].y) != Floor(corners[1].y))
+		if (Floor(corners[0].y) == Floor(corners[1].y))
+		{
+			int scanlineY = (int)Floor(corners[1].y);
+			f32 left = Min(corners[0].x, Min(corners[1].x, midPoint.x));
+			f32 right = Max(corners[0].x, Max(corners[1].x, midPoint.x));
+			for (int scanX = (int)Floor(left);
+				scanX <= (int)Floor(right);
+				++scanX)
+			{
+				ASSERT(scanX >= 0 && scanX < cellsSide);
+				DynamicArray_Triangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
+				bucket[DynamicArrayAdd_Triangle(&bucket, StackRealloc)] = *curTriangle;
+				++totalTriangleCount;
+			}
+		}
+		else
 		{
 			f32 invSlope1 = (f32)(corners[1].x - corners[0].x) / (f32)(corners[1].y - corners[0].y);
 			f32 invSlope2 = (f32)(corners[2].x - corners[0].x) / (f32)(corners[2].y - corners[0].y);
@@ -513,6 +530,7 @@ void GenerateQuadTree(Array_Triangle &triangles, QuadTree *quadTree)
 						bucket[DynamicArrayAdd_Triangle(&bucket, StackRealloc)] = *curTriangle;
 						++totalTriangleCount;
 					}
+					else __debugbreak();
 				}
 				curX1 = nextX1;
 				curX2 = nextX2;
@@ -525,7 +543,7 @@ void GenerateQuadTree(Array_Triangle &triangles, QuadTree *quadTree)
 	quadTree->lowCorner = lowCorner;
 	quadTree->highCorner = highCorner;
 	quadTree->cellsSide = cellsSide;
-	quadTree->offsets = (u32 *)FrameAlloc(sizeof(u32) * (cellCount - 1));
+	quadTree->offsets = (u32 *)FrameAlloc(sizeof(u32) * (cellCount + 1));
 	quadTree->triangles = (Triangle *)FrameAlloc(sizeof(Triangle) * totalTriangleCount);
 
 	int triangleCount = 0;
