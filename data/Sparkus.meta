@@ -1,6 +1,9 @@
 <meta type="SKINNED_MESH">
   <geometry>Sparkus.dae</geometry>
-  <animation loop="1">Sparkus.dae</animation>
+  <animation loop="1">SparkusIdle.dae</animation>
+  <animation loop="1">SparkusRun.dae</animation>
   <animation>SparkusJump.dae</animation>
+  <animation>SparkusLand.dae</animation>
+  <animation>SparkusFall.dae</animation>
   <animation>SparkusPulseattack.dae</animation>
 </meta>

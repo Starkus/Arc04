@@ -94,8 +94,8 @@ NOMANGLE START_GAME(StartGame)
 		playerEnt->collider.capsule.height = 1.0f;
 		playerEnt->collider.capsule.offset = { 0, 0, 1 };
 
-		gameState->animationIdx = 0;
-		gameState->loopAnimation = true;
+		gameState->player.state = PLAYERSTATE_IDLE;
+		gameState->animationIdx = PLAYERANIM_IDLE;
 	}
 
 	// Init camera
@@ -164,6 +164,14 @@ NOMANGLE START_GAME(StartGame)
 		testEntity->collider.capsule.height = 2;
 		testEntity->collider.capsule.offset = {};
 	}
+}
+
+void ChangeState(GameState *gameState, PlayerState newState, PlayerAnim newAnim)
+{
+	LOG("Changed state: 0x%X -> 0x%X\n", gameState->player.state, newState);
+	gameState->animationIdx = newAnim;
+	gameState->animationTime = 0;
+	gameState->player.state = newState;
 }
 
 NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
@@ -236,20 +244,57 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			}
 		}
 
-		if (controller->camUp.endedDown)
-			gameState->camPitch += 1.0f * deltaTime;
-		else if (controller->camDown.endedDown)
-			gameState->camPitch -= 1.0f * deltaTime;
+		// Move camera
+		{
+			const f32 camRotSpeed = 2.0f;
 
-		if (controller->camLeft.endedDown)
-			gameState->camYaw -= 1.0f * deltaTime;
-		else if (controller->camRight.endedDown)
-			gameState->camYaw += 1.0f * deltaTime;
+			if (controller->camUp.endedDown)
+				gameState->camPitch += camRotSpeed * deltaTime;
+			else if (controller->camDown.endedDown)
+				gameState->camPitch -= camRotSpeed * deltaTime;
+
+			if (controller->camLeft.endedDown)
+				gameState->camYaw -= camRotSpeed * deltaTime;
+			else if (controller->camRight.endedDown)
+				gameState->camYaw += camRotSpeed * deltaTime;
+
+			const f32 deadzone = 0.17f;
+			if (Abs(controller->rightStick.x) > deadzone)
+				gameState->camYaw -= controller->rightStick.x * camRotSpeed * deltaTime;
+			if (Abs(controller->rightStick.y) > deadzone)
+				gameState->camPitch += controller->rightStick.y * camRotSpeed * deltaTime;
+		}
 
 		// Move player
 		Player *player = &gameState->player;
 		{
-			v3 worldInputDir = {};
+			v2 inputDir = {};
+			if (controller->up.endedDown)
+				inputDir.y = 1;
+			else if (controller->down.endedDown)
+				inputDir.y = -1;
+
+			if (controller->left.endedDown)
+				inputDir.x = -1;
+			else if (controller->right.endedDown)
+				inputDir.x = 1;
+
+			if (inputDir.x + inputDir.y == 0)
+			{
+				const f32 deadzone = 0.17f;
+				if (Abs(controller->leftStick.x) > deadzone)
+					inputDir.x = controller->leftStick.x;
+				if (Abs(controller->leftStick.y) > deadzone)
+					inputDir.y = controller->leftStick.y;
+			}
+
+			v3 worldInputDir =
+			{
+				inputDir.x * Cos(gameState->camYaw) + inputDir.y * Sin(gameState->camYaw),
+				-inputDir.x * Sin(gameState->camYaw) + inputDir.y * Cos(gameState->camYaw),
+				0
+			};
+#if 0
 			if (controller->up.endedDown)
 				worldInputDir += { Sin(gameState->camYaw), Cos(gameState->camYaw) };
 			else if (controller->down.endedDown)
@@ -259,39 +304,50 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				worldInputDir += { -Cos(gameState->camYaw), Sin(gameState->camYaw) };
 			else if (controller->right.endedDown)
 				worldInputDir += { Cos(gameState->camYaw), -Sin(gameState->camYaw) };
+#endif
 
 			f32 sqlen = V3SqrLen(worldInputDir);
 			if (sqlen > 1)
-				worldInputDir /= Sqrt(sqlen);
-
-			if (V3SqrLen(worldInputDir) > 0)
 			{
+				worldInputDir /= Sqrt(sqlen);
 				player->entity->fw = worldInputDir;
+			}
+			else if (sqlen)
+			{
+				player->entity->fw = worldInputDir / Sqrt(sqlen);
 			}
 
 			const f32 playerSpeed = 5.0f;
 			player->entity->pos += worldInputDir * playerSpeed * deltaTime;
 
+			if (!(player->state & PLAYERSTATEFLAG_AIRBORNE))
+			{
+				if (player->state != PLAYERSTATE_RUNNING && V3SqrLen(worldInputDir))
+				{
+					ChangeState(gameState, PLAYERSTATE_RUNNING, PLAYERANIM_RUN);
+				}
+				else if (player->state == PLAYERSTATE_RUNNING && !V3SqrLen(worldInputDir))
+				{
+					ChangeState(gameState, PLAYERSTATE_IDLE, PLAYERANIM_IDLE);
+				}
+			}
+
 			// Jump
-			if (player->state == PLAYERSTATE_GROUNDED && controller->jump.endedDown &&
+			if (!(player->state & PLAYERSTATEFLAG_AIRBORNE) && controller->jump.endedDown &&
 					controller->jump.changed)
 			{
 				player->vel.z = 15.0f;
-				player->state = PLAYERSTATE_AIR;
-
-				gameState->animationIdx = 1;
-				gameState->animationTime = 0;
-				gameState->loopAnimation = false;
+				ChangeState(gameState, PLAYERSTATE_JUMP, PLAYERANIM_JUMP);
 			}
 
 			// Gravity
-			if (player->state == PLAYERSTATE_AIR)
+			if (player->state & PLAYERSTATEFLAG_AIRBORNE)
 			{
 				player->vel.z -= 30.0f * deltaTime;
 				if (player->vel.z < -75.0f)
 					player->vel.z = -75.0f;
 			}
-			else if (player->state == PLAYERSTATE_GROUNDED)
+			else
 			{
 				player->vel.z = -2.0f;
 			}
@@ -371,13 +427,14 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			}
 		}
 
-		PlayerState newState = touchedGround ? PLAYERSTATE_GROUNDED : PLAYERSTATE_AIR;
-		if (newState != player->state)
+		bool wasAirborne = player->state & PLAYERSTATEFLAG_AIRBORNE;
+		if (wasAirborne && touchedGround)
 		{
-			gameState->animationIdx = newState == PLAYERSTATE_GROUNDED ? 0 : 1;
-			gameState->animationTime = 0;
-			gameState->loopAnimation = newState == PLAYERSTATE_GROUNDED ? true : false;
-			player->state = newState;
+			ChangeState(gameState, PLAYERSTATE_LAND, PLAYERANIM_LAND);
+		}
+		else if (!wasAirborne && !touchedGround)
+		{
+			ChangeState(gameState, PLAYERSTATE_FALL, PLAYERANIM_FALL);
 		}
 
 		if (player->entity->pos.z < -1)
@@ -432,7 +489,7 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		// View matrix
 		mat4 view;
 		{
-			view = Mat4Translation({ 0.0f, 0.0f, -5.0f });
+			view = Mat4Translation({ 0.0f, 0.0f, -4.5f });
 			const f32 pitch = gameState->camPitch;
 			mat4 pitchMatrix =
 			{

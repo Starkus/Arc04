@@ -5,6 +5,7 @@
 #include <GLES3/glext.h>
 #include <GLES3/wglext.h>
 #include <GLES3/glcorearb.h>
+#include <Xinput.h>
 
 #include "General.h"
 #include "OpenGL.h"
@@ -67,6 +68,147 @@ void LoadWGLProcs()
 {
 	wglChoosePixelFormatARB = (PFNWGLCHOOSEPIXELFORMATARBPROC)GL_GetProcAddress("wglChoosePixelFormatARB");
 	wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC)GL_GetProcAddress("wglCreateContextAttribsARB");
+}
+/////////
+
+// XInput functions
+// XInputGetState
+#define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE *pState)
+typedef X_INPUT_GET_STATE(XInputGetState_t);
+X_INPUT_GET_STATE(XInputGetStateStub)
+{
+	(void) pState, dwUserIndex;
+	return 0;
+}
+static XInputGetState_t *XInputGetState_ = XInputGetStateStub;
+#define XInputGetState XInputGetState_
+
+// Try to load library
+void Win32LoadXInput()
+{
+	HMODULE xInputLibrary = LoadLibraryA("xinput1_3.dll");
+	if (xInputLibrary)
+	{
+		OutputDebugStringA("XInput library found!\n");
+		XInputGetState = (XInputGetState_t *)GetProcAddress(xInputLibrary, "XInputGetState");
+	}
+	else
+	{
+		OutputDebugStringA("WARNING: XInput library not found!\n");
+	}
+}
+
+bool ProcessKeyboard(Controller *controller)
+{
+	MSG message;
+	while (PeekMessageA(&message, 0, 0, 0, PM_REMOVE))
+	{
+		switch (message.message)
+		{
+			case WM_QUIT:
+			{
+				return true;
+			} break;
+			case WM_SYSKEYDOWN:
+			case WM_SYSKEYUP:
+			case WM_KEYDOWN:
+			case WM_KEYUP:
+			{
+				const bool isDown = (message.lParam & (1 << 31)) == 0;
+				//const bool wasDown = (message.lParam & (1 << 30)) != 0;
+
+				auto checkButton = [&isDown](Button &button)
+				{
+					if (button.endedDown != isDown)
+					{
+						button.endedDown = isDown;
+						button.changed = true;
+					}
+				};
+
+				Controller *c = controller;
+				switch (message.wParam)
+				{
+					case 'Q':
+						return true;
+					case 'W':
+						checkButton(c->up);
+						break;
+					case 'A':
+						checkButton(c->left);
+						break;
+					case 'S':
+						checkButton(c->down);
+						break;
+					case 'D':
+						checkButton(c->right);
+						break;
+
+					case VK_SPACE:
+						checkButton(c->jump);
+						break;
+
+					case VK_UP:
+						checkButton(c->camUp);
+						break;
+					case VK_DOWN:
+						checkButton(c->camDown);
+						break;
+					case VK_LEFT:
+						checkButton(c->camLeft);
+						break;
+					case VK_RIGHT:
+						checkButton(c->camRight);
+						break;
+
+#if DEBUG_BUILD
+					case 'H':
+						checkButton(c->debugUp);
+						break;
+					case 'J':
+						checkButton(c->debugDown);
+						break;
+					case 'K':
+						checkButton(c->debugUp);
+						break;
+					case 'L':
+						checkButton(c->debugDown);
+						break;
+#endif
+				}
+			} break;
+			default:
+			{
+				TranslateMessage(&message);
+				DispatchMessage(&message);
+			} break;
+		}
+	}
+	return false;
+}
+
+void ProcessXInput(Controller *controller)
+{
+	auto processButton = [](WORD xInputButtonState, WORD buttonBit, Button *button)
+	{
+		bool old = button->endedDown;
+		button->endedDown = xInputButtonState & buttonBit;
+		button->changed = button->endedDown == old;
+	};
+
+	WORD controllerIdx = 0;
+	XINPUT_STATE xInputState;
+	if (XInputGetState(controllerIdx, &xInputState) == ERROR_SUCCESS)
+	{
+		XINPUT_GAMEPAD *pad = &xInputState.Gamepad;
+		processButton(pad->wButtons, XINPUT_GAMEPAD_A, &controller->jump);
+
+		const f32 range = 32000.0f;
+		controller->leftStick.x = pad->sThumbLX / range;
+		controller->leftStick.y = pad->sThumbLY / range;
+		controller->rightStick.x = pad->sThumbRX / range;
+		controller->rightStick.y = pad->sThumbRY / range;
+	}
 }
 /////////
 
@@ -425,7 +567,7 @@ void Win32Start(HINSTANCE hInstance)
 	LoadWGLProcs();
 
 	HWND windowHandle = CreateWindowA("window", "3DVania",
-			WS_OVERLAPPEDWINDOW | WS_VISIBLE, 16, 16, 960, 540, 0, 0, hInstance, 0);
+			WS_OVERLAPPEDWINDOW | WS_VISIBLE, 16, 16, 1440, 810, 0, 0, hInstance, 0);
 
 
 	HDC deviceContext = GetDC(windowHandle);
@@ -494,6 +636,8 @@ void Win32Start(HINSTANCE hInstance)
 #endif
 		strcpy(lastSlash + 1, gameDllName);
 	}
+
+	Win32LoadXInput();
 
 	// Load game code
 	Win32GameCode gameCode;
@@ -595,91 +739,10 @@ void Win32Start(HINSTANCE hInstance)
 		for (int buttonIdx = 0; buttonIdx < ArrayCount(controller.b); ++buttonIdx)
 			controller.b[buttonIdx].changed = false;
 
-		MSG message;
-		while (PeekMessageA(&message, 0, 0, 0, PM_REMOVE))
-		{
-			switch (message.message)
-			{
-				case WM_QUIT:
-				{
-					running = false;
-				} break;
-				case WM_SYSKEYDOWN:
-				case WM_SYSKEYUP:
-				case WM_KEYDOWN:
-				case WM_KEYUP:
-				{
-					const bool isDown = (message.lParam & (1 << 31)) == 0;
-					//const bool wasDown = (message.lParam & (1 << 30)) != 0;
+		bool stop = ProcessKeyboard(&controller);
+		if (stop) running = false;
 
-					auto checkButton = [&isDown](Button &button)
-					{
-						if (button.endedDown != isDown)
-						{
-							button.endedDown = isDown;
-							button.changed = true;
-						}
-					};
-
-					Controller &c = controller;
-					switch (message.wParam)
-					{
-						case 'Q':
-							running = false;
-							break;
-						case 'W':
-							checkButton(c.up);
-							break;
-						case 'A':
-							checkButton(c.left);
-							break;
-						case 'S':
-							checkButton(c.down);
-							break;
-						case 'D':
-							checkButton(c.right);
-							break;
-
-						case VK_SPACE:
-							checkButton(c.jump);
-							break;
-
-						case VK_UP:
-							checkButton(c.camUp);
-							break;
-						case VK_DOWN:
-							checkButton(c.camDown);
-							break;
-						case VK_LEFT:
-							checkButton(c.camLeft);
-							break;
-						case VK_RIGHT:
-							checkButton(c.camRight);
-							break;
-
-#if DEBUG_BUILD
-						case 'H':
-							checkButton(c.debugUp);
-							break;
-						case 'J':
-							checkButton(c.debugDown);
-							break;
-						case 'K':
-							checkButton(c.debugUp);
-							break;
-						case 'L':
-							checkButton(c.debugDown);
-							break;
-#endif
-					}
-				} break;
-				default:
-				{
-					TranslateMessage(&message);
-					DispatchMessage(&message);
-				} break;
-			}
-		}
+		ProcessXInput(&controller);
 
 		gameCode.UpdateAndRenderGame(&controller, &memory, &platformCode, deltaTime);
 

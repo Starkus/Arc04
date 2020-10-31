@@ -457,13 +457,11 @@ void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
 					scanX <= (int)Floor(Max(curX2, nextX2));
 					++scanX)
 				{
-					if (scanX >= 0 && scanX < cellsSide)
-					{
-						DynamicArray_Triangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
-						bucket[DynamicArrayAdd_Triangle(&bucket, StackRealloc)] = *curTriangle;
-						++totalTriangleCount;
-					}
-					else __debugbreak();
+					ASSERT(scanX >= 0 && scanX < cellsSide);
+
+					DynamicArray_Triangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
+					bucket[DynamicArrayAdd_Triangle(&bucket, StackRealloc)] = *curTriangle;
+					++totalTriangleCount;
 				}
 				curX1 = nextX1;
 				curX2 = nextX2;
@@ -524,13 +522,11 @@ void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
 					scanX <= (int)Floor(Max(curX2, nextX2));
 					++scanX)
 				{
-					if (scanX >= 0 && scanX < cellsSide)
-					{
-						DynamicArray_Triangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
-						bucket[DynamicArrayAdd_Triangle(&bucket, StackRealloc)] = *curTriangle;
-						++totalTriangleCount;
-					}
-					else __debugbreak();
+					ASSERT(scanX >= 0 && scanX < cellsSide);
+
+					DynamicArray_Triangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
+					bucket[DynamicArrayAdd_Triangle(&bucket, StackRealloc)] = *curTriangle;
+					++totalTriangleCount;
 				}
 				curX1 = nextX1;
 				curX2 = nextX2;

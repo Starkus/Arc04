@@ -12,6 +12,11 @@ inline bool EqualWithEpsilon(f32 a, f32 b, f32 epsilon)
 	return a > b - epsilon && a < b + epsilon;
 }
 
+inline f32 Abs(f32 n)
+{
+	return fabsf(n);
+}
+
 inline f32 Floor(f32 n)
 {
 	return floorf(n);

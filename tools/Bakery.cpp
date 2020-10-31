@@ -430,10 +430,10 @@ int main(int argc, char **argv)
 			cacheEntry->changed = false;
 		}
 
-#if 1
-		Sleep(500);
-#else
+#if DEBUG_BUILD
 		break;
+#else
+		Sleep(500);
 #endif
 	}
 
