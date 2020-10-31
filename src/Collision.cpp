@@ -117,21 +117,21 @@ bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, 
 		cellY = tmp;
 	}
 
-	QuadTree *quadTree = &gameState->levelGeometry.quadTree;
-	v2 cellSize = (quadTree->highCorner - quadTree->lowCorner) / (f32)(quadTree->cellsSide);
+	const ResourceGeometryGrid *geometryGrid = &gameState->levelGeometry.geometryGrid->geometryGrid;
+	v2 cellSize = (geometryGrid->highCorner - geometryGrid->lowCorner) / (f32)(geometryGrid->cellsSide);
 
-	if (cellX < 0 || cellX >= quadTree->cellsSide ||
-		cellY < 0 || cellY >= quadTree->cellsSide)
+	if (cellX < 0 || cellX >= geometryGrid->cellsSide ||
+		cellY < 0 || cellY >= geometryGrid->cellsSide)
 		return false;
 
 	// @Todo: keep closest hit, not first
 
-	int offsetIdx = cellX + cellY * quadTree->cellsSide;
-	u32 triBegin = quadTree->offsets[offsetIdx];
-	u32 triEnd = quadTree->offsets[offsetIdx + 1];
+	int offsetIdx = cellX + cellY * geometryGrid->cellsSide;
+	u32 triBegin = geometryGrid->offsets[offsetIdx];
+	u32 triEnd = geometryGrid->offsets[offsetIdx + 1];
 	for (u32 triIdx = triBegin; triIdx < triEnd; ++triIdx)
 	{
-		Triangle *curTriangle = &quadTree->triangles[triIdx];
+		Triangle *curTriangle = &geometryGrid->triangles[triIdx];
 
 		Vertex tri[] =
 		{
@@ -149,9 +149,9 @@ bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, 
 	}
 
 #if 1
-	f32 cellMinX = quadTree->lowCorner.x + (cellX) * cellSize.x;
+	f32 cellMinX = geometryGrid->lowCorner.x + (cellX) * cellSize.x;
 	f32 cellMaxX = cellMinX + cellSize.x;
-	f32 cellMinY = quadTree->lowCorner.y + (cellY) * cellSize.y;
+	f32 cellMinY = geometryGrid->lowCorner.y + (cellY) * cellSize.y;
 	f32 cellMaxY = cellMinY + cellSize.y;
 	f32 top = 1;
 	Vertex cellDebugTris[] =
@@ -195,21 +195,21 @@ bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, 
 
 bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, v3 *hit, Triangle *triangle)
 {
-	QuadTree *quadTree = &gameState->levelGeometry.quadTree;
-	v2 cellSize = (quadTree->highCorner - quadTree->lowCorner) / (f32)(quadTree->cellsSide);
+	const ResourceGeometryGrid *geometryGrid = &gameState->levelGeometry.geometryGrid->geometryGrid;
+	v2 cellSize = (geometryGrid->highCorner - geometryGrid->lowCorner) / (f32)(geometryGrid->cellsSide);
 
-	auto ddraw = [&gameState, &cellSize, &quadTree](f32 relX, f32 relY)
+	auto ddraw = [&gameState, &cellSize, &geometryGrid](f32 relX, f32 relY)
 	{
 		DrawDebugCubeAA(gameState, v3{
-				relX * cellSize.x + quadTree->lowCorner.x,
-				relY * cellSize.y + quadTree->lowCorner.y,
+				relX * cellSize.x + geometryGrid->lowCorner.x,
+				relY * cellSize.y + geometryGrid->lowCorner.y,
 				1}, 0.1f);
 	};
 
 	v2 p1 = { rayOrigin.x, rayOrigin.y };
 	v2 p2 = { rayOrigin.x + rayDir.x, rayOrigin.y + rayDir.y };
-	p1 = p1 - quadTree->lowCorner;
-	p2 = p2 - quadTree->lowCorner;
+	p1 = p1 - geometryGrid->lowCorner;
+	p2 = p2 - geometryGrid->lowCorner;
 	p1.x /= cellSize.x;
 	p1.y /= cellSize.y;
 	p2.x /= cellSize.x;
@@ -302,7 +302,7 @@ bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, v3 *hit, Triangle *t
 
 inline v3 FurthestInDirection(Entity *entity, v3 dir)
 {
-	void *oldStackPtr = g_gameMemory->stackPtr;
+	void *oldStackPtr = g_memory->stackPtr;
 
 	v3 result = {};
 
@@ -328,14 +328,15 @@ inline v3 FurthestInDirection(Entity *entity, v3 dir)
 			pos.x,		pos.y,		pos.z,		1.0f
 		};
 
-		u32 pointCount = c->convexHull.collisionPointCount;
+		const ResourcePointCloud *pointsRes = &c->convexHull.pointCloud->points;
+		u32 pointCount = pointsRes->pointCount;
 		v3 *points = (v3 *)StackAlloc(pointCount * sizeof(v3));
 
 		// Compute all points
 		{
 			for (u32 i = 0; i < pointCount; ++i)
 			{
-				v3 p = c->convexHull.collisionPoints[i];
+				v3 p = pointsRes->pointData[i];
 				v4 v = { p.x, p.y, p.z, 1.0f };
 				v = Mat4TransformV4(modelMatrix, v);
 				points[i] = { v.x, v.y, v.z };

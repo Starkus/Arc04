@@ -1,3 +1,42 @@
+struct GLDeviceMesh
+{
+	u32 vertexCount; // @Cleanup: remove?
+	u32 indexCount;
+	GLuint vao;
+	union
+	{
+		struct
+		{
+			GLuint vertexBuffer;
+			GLuint indexBuffer;
+		};
+		GLuint buffers[2];
+	};
+};
+static_assert(sizeof(GLDeviceMesh) <= sizeof(DeviceMesh),
+		"Size of GLDeviceMesh greater than handle");
+
+struct GLDeviceShader
+{
+	GLuint shader;
+};
+static_assert(sizeof(GLDeviceShader) <= sizeof(DeviceShader),
+		"Size of GLDeviceShader greater than handle");
+
+struct GLDeviceProgram
+{
+	GLuint program;
+};
+static_assert(sizeof(GLDeviceProgram) <= sizeof(DeviceProgram),
+		"Size of GLDeviceProgram greater than handle");
+
+struct GLDeviceUniform
+{
+	GLuint location;
+};
+static_assert(sizeof(GLDeviceUniform) <= sizeof(DeviceUniform),
+		"Size of GLDeviceUniform greater than handle");
+
 void SetUpDevice()
 {
 	//glEnable(GL_CULL_FACE);
@@ -12,48 +51,59 @@ void ClearBuffers(v4 clearColor)
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-DeviceUniform GetUniform(DeviceProgram *program, const char *name)
+DeviceUniform GetUniform(DeviceProgram program, const char *name)
 {
+	GLDeviceProgram *glProgram = (GLDeviceProgram *)&program;
+
 	DeviceUniform result;
-	result.location = glGetUniformLocation(program->program, name);
+	GLDeviceUniform *glUniform = (GLDeviceUniform *)&result;
+
+	glUniform->location = glGetUniformLocation(glProgram->program, name);
 	return result;
 }
 
-void UseProgram(DeviceProgram *program)
+void UseProgram(DeviceProgram program)
 {
-	glUseProgram(program->program);
+	GLDeviceProgram *glProgram = (GLDeviceProgram *)&program;
+	glUseProgram(glProgram->program);
 }
 
-void UniformMat4(DeviceUniform *uniform, u32 count, const f32 *buffer)
+void UniformMat4(DeviceUniform uniform, u32 count, const f32 *buffer)
 {
-	glUniformMatrix4fv(uniform->location, count, false, buffer);
+	GLDeviceUniform *glUniform = (GLDeviceUniform *)&uniform;
+	glUniformMatrix4fv(glUniform->location, count, false, buffer);
 }
 
-void RenderIndexedMesh(DeviceMesh *mesh)
+void RenderIndexedMesh(DeviceMesh mesh)
 {
-	glBindVertexArray(mesh->vao);
-	glDrawElements(GL_TRIANGLES, mesh->indexCount, GL_UNSIGNED_SHORT, NULL);
+	GLDeviceMesh *glMesh = (GLDeviceMesh *)&mesh;
+	glBindVertexArray(glMesh->vao);
+	glDrawElements(GL_TRIANGLES, glMesh->indexCount, GL_UNSIGNED_SHORT, NULL);
 }
 
-void RenderMesh(DeviceMesh *mesh)
+void RenderMesh(DeviceMesh mesh)
 {
-	glBindVertexArray(mesh->vao);
-	glDrawArrays(GL_TRIANGLES, 0, mesh->vertexCount);
+	GLDeviceMesh *glMesh = (GLDeviceMesh *)&mesh;
+	glBindVertexArray(glMesh->vao);
+	glDrawArrays(GL_TRIANGLES, 0, glMesh->vertexCount);
 }
 
-void RenderLines(DeviceMesh *mesh)
+void RenderLines(DeviceMesh mesh)
 {
-	glBindVertexArray(mesh->vao);
-	glDrawArrays(GL_LINES, 0, mesh->vertexCount);
+	GLDeviceMesh *glMesh = (GLDeviceMesh *)&mesh;
+	glBindVertexArray(glMesh->vao);
+	glDrawArrays(GL_LINES, 0, glMesh->vertexCount);
 }
 
 DeviceMesh CreateDeviceMesh()
 {
 	DeviceMesh result;
-	glGenVertexArrays(1, &result.vao);
-	glBindVertexArray(result.vao);
-	glGenBuffers(1, result.buffers);
-	glBindBuffer(GL_ARRAY_BUFFER, result.vertexBuffer);
+	GLDeviceMesh *glMesh = (GLDeviceMesh *)&result;
+
+	glGenVertexArrays(1, &glMesh->vao);
+	glBindVertexArray(glMesh->vao);
+	glGenBuffers(1, glMesh->buffers);
+	glBindBuffer(GL_ARRAY_BUFFER, glMesh->vertexBuffer);
 
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
 	glEnableVertexAttribArray(0);
@@ -68,11 +118,13 @@ DeviceMesh CreateDeviceMesh()
 DeviceMesh CreateDeviceIndexedMesh()
 {
 	DeviceMesh result;
-	glGenVertexArrays(1, &result.vao);
-	glBindVertexArray(result.vao);
-	glGenBuffers(2, result.buffers);
-	glBindBuffer(GL_ARRAY_BUFFER, result.vertexBuffer);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, result.indexBuffer);
+	GLDeviceMesh *glMesh = (GLDeviceMesh *)&result;
+
+	glGenVertexArrays(1, &glMesh->vao);
+	glBindVertexArray(glMesh->vao);
+	glGenBuffers(2, glMesh->buffers);
+	glBindBuffer(GL_ARRAY_BUFFER, glMesh->vertexBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, glMesh->indexBuffer);
 
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
 	glEnableVertexAttribArray(0);
@@ -87,11 +139,13 @@ DeviceMesh CreateDeviceIndexedMesh()
 DeviceMesh CreateDeviceIndexedSkinnedMesh()
 {
 	DeviceMesh result;
-	glGenVertexArrays(1, &result.vao);
-	glBindVertexArray(result.vao);
-	glGenBuffers(2, result.buffers);
-	glBindBuffer(GL_ARRAY_BUFFER, result.vertexBuffer);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, result.indexBuffer);
+	GLDeviceMesh *glMesh = (GLDeviceMesh *)&result;
+
+	glGenVertexArrays(1, &glMesh->vao);
+	glBindVertexArray(glMesh->vao);
+	glGenBuffers(2, glMesh->buffers);
+	glBindBuffer(GL_ARRAY_BUFFER, glMesh->vertexBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, glMesh->indexBuffer);
 
 	// Position
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(SkinnedVertex),
@@ -119,10 +173,12 @@ DeviceMesh CreateDeviceIndexedSkinnedMesh()
 
 void SendMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, bool dynamic)
 {
-	glBindVertexArray(mesh->vao);
+	GLDeviceMesh *glMesh = (GLDeviceMesh *)mesh;
 
-	mesh->vertexCount = vertexCount;
-	glBindBuffer(GL_ARRAY_BUFFER, mesh->vertexBuffer);
+	glBindVertexArray(glMesh->vao);
+
+	glMesh->vertexCount = vertexCount;
+	glBindBuffer(GL_ARRAY_BUFFER, glMesh->vertexBuffer);
 	glBufferData(GL_ARRAY_BUFFER, vertexCount * sizeof(Vertex), vertexData,
 			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
 }
@@ -130,14 +186,16 @@ void SendMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, bool dynamic)
 void SendIndexedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, void *indexData,
 		u32 indexCount, bool dynamic)
 {
-	mesh->vertexCount = vertexCount; // @Cleanup: can we remove?
-	mesh->indexCount = indexCount;
-	glBindVertexArray(mesh->vao);
+	GLDeviceMesh *glMesh = (GLDeviceMesh *)mesh;
 
-	glBindBuffer(GL_ARRAY_BUFFER, mesh->vertexBuffer);
+	glMesh->vertexCount = vertexCount; // @Cleanup: can we remove?
+	glMesh->indexCount = indexCount;
+	glBindVertexArray(glMesh->vao);
+
+	glBindBuffer(GL_ARRAY_BUFFER, glMesh->vertexBuffer);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * vertexCount, vertexData,
 			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->indexBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, glMesh->indexBuffer);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(u16) * indexCount, indexData,
 			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
 }
@@ -145,14 +203,16 @@ void SendIndexedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, void *
 void SendIndexedSkinnedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, void *indexData,
 		u32 indexCount, bool dynamic)
 {
-	mesh->vertexCount = vertexCount; // @Cleanup: can we remove?
-	mesh->indexCount = indexCount;
-	glBindVertexArray(mesh->vao);
+	GLDeviceMesh *glMesh = (GLDeviceMesh *)mesh;
 
-	glBindBuffer(GL_ARRAY_BUFFER, mesh->vertexBuffer);
+	glMesh->vertexCount = vertexCount; // @Cleanup: can we remove?
+	glMesh->indexCount = indexCount;
+	glBindVertexArray(glMesh->vao);
+
+	glBindBuffer(GL_ARRAY_BUFFER, glMesh->vertexBuffer);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(SkinnedVertex) * vertexCount, vertexData,
 			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->indexBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, glMesh->indexBuffer);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(u16) * indexCount, indexData,
 			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
 }
@@ -160,6 +220,7 @@ void SendIndexedSkinnedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount,
 DeviceShader LoadShader(const GLchar *shaderSource, ShaderType shaderType)
 {
 	DeviceShader result;
+	GLDeviceShader *glShader = (GLDeviceShader *)&result;
 
 	GLuint glType = (GLuint)-1;
 	if (shaderType == SHADERTYPE_VERTEX)
@@ -184,27 +245,31 @@ DeviceShader LoadShader(const GLchar *shaderSource, ShaderType shaderType)
 	}
 #endif
 
-	result.shader = shader;
+	glShader->shader = shader;
 	return result;
 }
 
-DeviceProgram CreateDeviceProgram(DeviceShader *vertexShader, DeviceShader *fragmentShader)
+DeviceProgram CreateDeviceProgram(DeviceShader vertexShader, DeviceShader fragmentShader)
 {
 	DeviceProgram result;
+	GLDeviceProgram *glProgram = (GLDeviceProgram *)&result;
 
-	result.program = glCreateProgram();
-	glAttachShader(result.program, vertexShader->shader);
-	glAttachShader(result.program, fragmentShader->shader);
-	glLinkProgram(result.program);
+	GLDeviceShader *glVertexShader = (GLDeviceShader *)&vertexShader;
+	GLDeviceShader *glFragmentShader = (GLDeviceShader *)&fragmentShader;
+
+	glProgram->program = glCreateProgram();
+	glAttachShader(glProgram->program, glVertexShader->shader);
+	glAttachShader(glProgram->program, glFragmentShader->shader);
+	glLinkProgram(glProgram->program);
 #if defined(DEBUG_BUILD)
 	{
 		GLint status;
-		glGetProgramiv(result.program, GL_LINK_STATUS, &status);
+		glGetProgramiv(glProgram->program, GL_LINK_STATUS, &status);
 		if (status != GL_TRUE)
 		{
 			char msg[256];
 			GLsizei len;
-			glGetProgramInfoLog(result.program, sizeof(msg), &len, msg);
+			glGetProgramInfoLog(glProgram->program, sizeof(msg), &len, msg);
 			Log("Error linking shader program: %s", msg);
 		}
 	}

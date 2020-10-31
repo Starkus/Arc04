@@ -11,7 +11,7 @@ void ReadMesh(const u8 *fileBuffer, Vertex **vertexData, u16 **indexData, u32 *v
 	*indexData = (u16 *)(fileBuffer + header->indexBlobOffset);
 }
 
-void ReadSkinnedMesh(const u8 *fileBuffer, SkeletalMesh *skinnedMesh, SkinnedVertex **vertexData,
+void ReadSkinnedMesh(const u8 *fileBuffer, ResourceSkinnedMesh *skinnedMesh, SkinnedVertex **vertexData,
 		u16 **indexData, u32 *vertexCount, u32 *indexCount)
 {
 	BakerySkinnedMeshHeader *header = (BakerySkinnedMeshHeader *)fileBuffer;
@@ -25,7 +25,7 @@ void ReadSkinnedMesh(const u8 *fileBuffer, SkeletalMesh *skinnedMesh, SkinnedVer
 	u32 jointCount = header->jointCount;
 
 	const u64 bindPosesBlobSize = sizeof(mat4) * jointCount;
-	mat4 *bindPoses = (mat4 *)TransientAlloc(bindPosesBlobSize);
+	mat4 *bindPoses = (mat4 *)TransientAlloc(bindPosesBlobSize); // @Broken: Memory leak with resource reload!!!
 	memcpy(bindPoses, fileBuffer + header->bindPosesBlobOffset, bindPosesBlobSize);
 
 	const u64 jointParentsBlobSize = jointCount;
@@ -91,30 +91,30 @@ void ReadSkinnedMesh(const u8 *fileBuffer, SkeletalMesh *skinnedMesh, SkinnedVer
 	}
 }
 
-void ReadTriangleGeometry(const u8 *fileBuffer, QuadTree *quadTree)
+void ReadTriangleGeometry(const u8 *fileBuffer, ResourceGeometryGrid *geometryGrid)
 {
 	BakeryTriangleDataHeader *header = (BakeryTriangleDataHeader *)fileBuffer;
-	quadTree->lowCorner = header->lowCorner;
-	quadTree->highCorner = header->highCorner;
-	quadTree->cellsSide = header->cellsSide;
+	geometryGrid->lowCorner = header->lowCorner;
+	geometryGrid->highCorner = header->highCorner;
+	geometryGrid->cellsSide = header->cellsSide;
 
 	u32 offsetCount = header->cellsSide * header->cellsSide + 1;
 	u64 offsetBlobSize = sizeof(u32) * offsetCount;
-	quadTree->offsets = (u32 *)TransientAlloc(offsetBlobSize);
-	memcpy(quadTree->offsets, fileBuffer + header->offsetsBlobOffset, offsetBlobSize);
+	geometryGrid->offsets = (u32 *)TransientAlloc(offsetBlobSize);
+	memcpy(geometryGrid->offsets, fileBuffer + header->offsetsBlobOffset, offsetBlobSize);
 
-	u32 triangleCount = quadTree->offsets[offsetCount - 1];
+	u32 triangleCount = geometryGrid->offsets[offsetCount - 1];
 	u64 trianglesBlobSize = sizeof(Triangle) * triangleCount;
-	quadTree->triangles = (Triangle *)TransientAlloc(trianglesBlobSize);
-	memcpy(quadTree->triangles, fileBuffer + header->trianglesBlobOffset, trianglesBlobSize);
+	geometryGrid->triangles = (Triangle *)TransientAlloc(trianglesBlobSize);
+	memcpy(geometryGrid->triangles, fileBuffer + header->trianglesBlobOffset, trianglesBlobSize);
 }
 
-void ReadPoints(const u8 *fileBuffer, v3 **pointData, u32 *pointCount)
+void ReadPoints(const u8 *fileBuffer, ResourcePointCloud *pointCloud)
 {
 	BakeryPointsHeader *header = (BakeryPointsHeader *)fileBuffer;
 
-	*pointCount = header->pointCount;
+	pointCloud->pointCount = header->pointCount;
 
-	*pointData = (v3 *)TransientAlloc(sizeof(v3) * *pointCount);
-	memcpy(*pointData, fileBuffer + header->pointsBlobOffset, sizeof(v3) * *pointCount);
+	pointCloud->pointData = (v3 *)TransientAlloc(sizeof(v3) * pointCloud->pointCount);
+	memcpy(pointCloud->pointData, fileBuffer + header->pointsBlobOffset, sizeof(v3) * pointCloud->pointCount);
 }

@@ -27,9 +27,3 @@ union Controller
 	};
 	Button b[13];
 };
-
-struct GameMemory
-{
-	void *frameMem, *stackMem, *transientMem;
-	void *framePtr, *stackPtr, *transientPtr;
-};

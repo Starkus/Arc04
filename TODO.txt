@@ -1,7 +1,7 @@
 ## TODO
 
 # Next up?
-- Using Round for geometry grid is silly, go back to Floor.
+- IMPORTANT: Implement some transient allocator that allows freeing.
 - Opaque handles to things from rendering device?
 - Import and draw textures
 - BVH and octree for level triangles

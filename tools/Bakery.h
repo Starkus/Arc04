@@ -69,21 +69,7 @@ struct Skeleton
 	mat4 *restPoses;
 };
 
-struct AnimationChannel
-{
-	u8 jointIndex;
-	mat4 *transforms;
-};
 DECLARE_DYNAMIC_ARRAY(AnimationChannel);
-
-struct Animation
-{
-	u32 frameCount;
-	f32 *timestamps;
-	u32 channelCount;
-	bool loop;
-	AnimationChannel *channels;
-};
 DECLARE_DYNAMIC_ARRAY(Animation);
 
 struct RawGeometry

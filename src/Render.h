@@ -13,32 +13,23 @@ enum RenderFillMode
 
 struct DeviceMesh
 {
-	GLuint vao;
-	union
-	{
-		struct
-		{
-			GLuint vertexBuffer;
-			GLuint indexBuffer;
-		};
-		GLuint buffers[2];
-	};
-	u32 vertexCount; // @Cleanup: remove?
+	u32 vertexCount; // @Cleanup: remove if unnecessary.
 	u32 indexCount;
+	u8 reserved[12];
 };
 
 struct DeviceShader
 {
-	GLuint shader;
+	u8 reserved[4];
 };
 
 struct DeviceProgram
 {
-	GLuint program;
+	u8 reserved[4];
 };
 
 struct DeviceUniform
 {
-	GLuint location;
+	u8 reserved[4];
 };
 

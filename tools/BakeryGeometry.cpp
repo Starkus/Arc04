@@ -11,7 +11,7 @@ u32 HashRawVertex(const RawVertex &v)
 ErrorCode ConstructSkinnedMesh(const RawGeometry *geometry, const WeightData *weightData,
 		DynamicArray_RawVertex &finalVertices, Array_u16 &finalIndices)
 {
-	void *oldStackPtr = g_gameMemory->stackPtr;
+	void *oldStackPtr = g_memory->stackPtr;
 
 	const u32 vertexTotal = geometry->positions.size;
 
@@ -55,7 +55,7 @@ ErrorCode ConstructSkinnedMesh(const RawGeometry *geometry, const WeightData *we
 
 	// Join positions and normals and eliminate duplicates
 	{
-		void *oldStackPtrJoin = g_gameMemory->stackPtr;
+		void *oldStackPtrJoin = g_memory->stackPtr;
 
 		const bool hasUvs = geometry->uvsOffset >= 0;
 		const bool hasNormals = geometry->normalsOffset >= 0;
@@ -225,7 +225,7 @@ ErrorCode OutputSkinnedMesh(const char *filename,
 		DynamicArray_RawVertex &finalVertices, Array_u16 &finalIndices, Skeleton &skeleton,
 		DynamicArray_Animation &animations)
 {
-	void *oldStackPtr = g_gameMemory->stackPtr;
+	void *oldStackPtr = g_memory->stackPtr;
 
 	HANDLE newFile = OpenForWrite(filename);
 	
@@ -332,9 +332,9 @@ ErrorCode OutputSkinnedMesh(const char *filename,
 	return ERROR_OK;
 }
 
-void GenerateQuadTree(Array_Triangle &triangles, QuadTree *quadTree)
+void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
 {
-	void *oldStackPtr = g_gameMemory->stackPtr;
+	void *oldStackPtr = g_memory->stackPtr;
 
 	v2 lowCorner = { INFINITY, INFINITY };
 	v2 highCorner = { -INFINITY, -INFINITY };
@@ -357,7 +357,7 @@ void GenerateQuadTree(Array_Triangle &triangles, QuadTree *quadTree)
 	const v2 span = (highCorner - lowCorner);
 	const v2 cellSize = span / (f32)(cellsSide);
 
-	Log("Quad tree limits: { %.02f, %.02f } - { %.02f, %.02f }\n", lowCorner.x, lowCorner.y,
+	Log("Geometry grid limits: { %.02f, %.02f } - { %.02f, %.02f }\n", lowCorner.x, lowCorner.y,
 			highCorner.x, highCorner.y);
 
 	// Init buckets
@@ -540,11 +540,11 @@ void GenerateQuadTree(Array_Triangle &triangles, QuadTree *quadTree)
 		}
 	}
 
-	quadTree->lowCorner = lowCorner;
-	quadTree->highCorner = highCorner;
-	quadTree->cellsSide = cellsSide;
-	quadTree->offsets = (u32 *)FrameAlloc(sizeof(u32) * (cellCount + 1));
-	quadTree->triangles = (Triangle *)FrameAlloc(sizeof(Triangle) * totalTriangleCount);
+	geometryGrid->lowCorner = lowCorner;
+	geometryGrid->highCorner = highCorner;
+	geometryGrid->cellsSide = cellsSide;
+	geometryGrid->offsets = (u32 *)FrameAlloc(sizeof(u32) * (cellCount + 1));
+	geometryGrid->triangles = (Triangle *)FrameAlloc(sizeof(Triangle) * totalTriangleCount);
 
 	int triangleCount = 0;
 	for (int y = 0; y < cellsSide; ++y)
@@ -553,17 +553,17 @@ void GenerateQuadTree(Array_Triangle &triangles, QuadTree *quadTree)
 		{
 			int i = x + y * cellsSide;
 			ASSERT(triangleCount < U32_MAX);
-			quadTree->offsets[i] = (u32)triangleCount;
+			geometryGrid->offsets[i] = (u32)triangleCount;
 
 			DynamicArray_Triangle &bucket = cellBuckets[i];
 			for (u32 bucketIdx = 0; bucketIdx < bucket.size; ++bucketIdx)
 			{
-				quadTree->triangles[triangleCount++] = bucket[bucketIdx];
+				geometryGrid->triangles[triangleCount++] = bucket[bucketIdx];
 			}
 		}
 	}
 	ASSERT(totalTriangleCount == (u32)triangleCount);
-	quadTree->offsets[cellCount] = (u32)triangleCount;
+	geometryGrid->offsets[cellCount] = (u32)triangleCount;
 
 	StackFree(oldStackPtr);
 }

@@ -72,33 +72,6 @@ void main()\n\
 }\n\
 ";
 
-struct AnimationChannel
-{
-	u32 jointIndex;
-	mat4 *transforms;
-};
-
-struct Animation
-{
-	u32 frameCount;
-	f32 *timestamps;
-	u32 channelCount;
-	bool loop;
-	AnimationChannel *channels;
-};
-
-struct SkeletalMesh
-{
-	DeviceMesh deviceMesh;
-	u8 jointCount;
-	mat4 *bindPoses;
-	u8 *jointParents;
-	mat4 *restPoses;
-	u32 animationCount;
-	Animation *animations;
-};
-
-
 enum ColliderType
 {
 	COLLIDER_CONVEX_HULL,
@@ -114,8 +87,7 @@ struct Collider
 	{
 		struct
 		{
-			v3 *collisionPoints;
-			u32 collisionPointCount;
+			const Resource *pointCloud;
 		} convexHull;
 		struct
 		{
@@ -135,14 +107,14 @@ struct Entity
 {
 	v3 pos;
 	v3 fw;
-	DeviceMesh *mesh;
+	const Resource *mesh;
 	Collider collider;
 };
 
 struct LevelGeometry
 {
-	DeviceMesh renderMesh;
-	QuadTree quadTree;
+	const Resource *renderMesh;
+	const Resource *geometryGrid;
 };
 
 enum PlayerState
@@ -198,7 +170,7 @@ struct GameState
 	// @Cleanup: move to some Render Device Context or something?
 	DeviceProgram program, skinnedMeshProgram;
 	DeviceMesh anvilMesh, cubeMesh, sphereMesh, cylinderMesh, capsuleMesh;
-	SkeletalMesh skinnedMesh;
+	SkinnedMesh skinnedMesh;
 
 	// Debug
 	DeviceProgram debugDrawProgram;

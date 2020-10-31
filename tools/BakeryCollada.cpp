@@ -797,8 +797,8 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 			triangle->normal = V3Normalize(V3Cross(triangle->c - triangle->a, triangle->b - triangle->a));
 		}
 
-		QuadTree quadTree;
-		GenerateQuadTree(triangles, &quadTree);
+		GeometryGrid geometryGrid;
+		GenerateGeometryGrid(triangles, &geometryGrid);
 
 		// Output
 		HANDLE file = OpenForWrite(outputName);
@@ -806,17 +806,17 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 		BakeryTriangleDataHeader header;
 		u64 offsetsBlobOffset = FileSeek(file, sizeof(header), FILE_BEGIN);
 
-		u32 offsetCount = quadTree.cellsSide * quadTree.cellsSide + 1;
-		WriteToFile(file, quadTree.offsets, sizeof(quadTree.offsets[0]) * offsetCount);
+		u32 offsetCount = geometryGrid.cellsSide * geometryGrid.cellsSide + 1;
+		WriteToFile(file, geometryGrid.offsets, sizeof(geometryGrid.offsets[0]) * offsetCount);
 
 		u64 trianglesBlobOffset = FilePosition(file);
-		u32 triangleCount = quadTree.offsets[offsetCount - 1];
-		WriteToFile(file, quadTree.triangles, sizeof(Triangle) * triangleCount);
+		u32 triangleCount = geometryGrid.offsets[offsetCount - 1];
+		WriteToFile(file, geometryGrid.triangles, sizeof(Triangle) * triangleCount);
 
 		FileSeek(file, 0, FILE_BEGIN);
-		header.lowCorner = quadTree.lowCorner;
-		header.highCorner = quadTree.highCorner;
-		header.cellsSide = quadTree.cellsSide;
+		header.lowCorner = geometryGrid.lowCorner;
+		header.highCorner = geometryGrid.highCorner;
+		header.cellsSide = geometryGrid.cellsSide;
 		header.offsetsBlobOffset = offsetsBlobOffset;
 		header.trianglesBlobOffset = trianglesBlobOffset;
 		WriteToFile(file, &header, sizeof(header));

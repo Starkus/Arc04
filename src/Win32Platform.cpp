@@ -8,17 +8,28 @@
 
 #include "General.h"
 #include "OpenGL.h"
-#include "Memory.h"
-#include "Platform.h"
-
-// Stuff referenced by platform functions
+#include "MemoryAlloc.h"
+#include "Containers.h"
 #include "Maths.h"
-#include "Geometry.h"
 #include "Render.h"
+#include "Geometry.h"
+#include "Resource.h"
+#include "Platform.h"
 // The platform functions
 #include "PlatformCode.h"
 
+DECLARE_ARRAY(Resource);
+DECLARE_ARRAY(FILETIME);
+
+struct ResourceBank
+{
+	Array_Resource resources;
+	Array_FILETIME lastWriteTimes;
+};
+
 HANDLE g_hStdout;
+Memory *g_memory;
+ResourceBank *g_resourceBank;
 
 PLATFORM_LOG(Log)
 {
@@ -36,7 +47,11 @@ PLATFORM_LOG(Log)
 }
 
 #include "OpenGL.cpp"
-#include "Render.cpp"
+#include "OpenGLRender.cpp"
+#include "MemoryAlloc.cpp"
+
+#include "Game.h"
+#include "BakeryInterop.cpp"
 
 #if DEBUG_BUILD
 const char *gameDllName = "game_debug.dll";
@@ -143,15 +158,10 @@ LRESULT CALLBACK Win32WindowCallback(HWND hWnd, UINT message, WPARAM wParam, LPA
 	return 0;
 }
 
-PLATFORM_READ_ENTIRE_FILE(ReadEntireFile)
+DWORD Win32ReadEntireFile(const char *filename, u8 **fileBuffer, void *(*allocFunc)(u64))
 {
-	char fullname[MAX_PATH];
-	DWORD written = GetCurrentDirectory(MAX_PATH, fullname);
-	fullname[written++] = '/';
-	strcpy(fullname + written, filename);
-
 	HANDLE file = CreateFileA(
-			fullname,
+			filename,
 			GENERIC_READ,
 			FILE_SHARE_READ,
 			nullptr,
@@ -160,27 +170,219 @@ PLATFORM_READ_ENTIRE_FILE(ReadEntireFile)
 			nullptr
 			);
 	DWORD error = GetLastError();
-	ASSERT(file != INVALID_HANDLE_VALUE);
+	//ASSERT(file != INVALID_HANDLE_VALUE);
 
-	DWORD fileSize = GetFileSize(file, nullptr);
-	ASSERT(fileSize);
-	error = GetLastError();
+	if (file != INVALID_HANDLE_VALUE)
+	{
+		DWORD fileSize = GetFileSize(file, nullptr);
+		ASSERT(fileSize);
+		error = GetLastError();
 
-	u8 *fileBuffer = (u8 *)malloc(fileSize); // @Cleanup: no malloc! Also memory leak
-	DWORD bytesRead;
-	bool success = ReadFile(
-			file,
-			fileBuffer,
-			fileSize,
-			&bytesRead,
-			nullptr
-			);
-	ASSERT(success);
-	ASSERT(bytesRead == fileSize);
+		*fileBuffer = (u8 *)allocFunc(fileSize);
+		DWORD bytesRead;
+		bool success = ReadFile(
+				file,
+				*fileBuffer,
+				fileSize,
+				&bytesRead,
+				nullptr
+				);
+		ASSERT(success);
+		ASSERT(bytesRead == fileSize);
 
-	CloseHandle(file);
+		CloseHandle(file);
+	}
+
+	return error;
+}
+
+PLATFORM_READ_ENTIRE_FILE(ReadEntireFile)
+{
+	char fullname[MAX_PATH];
+	DWORD written = GetCurrentDirectory(MAX_PATH, fullname);
+	fullname[written++] = '/';
+	strcpy(fullname + written, filename);
+
+	u8 *fileBuffer;
+	DWORD error = Win32ReadEntireFile(filename, &fileBuffer, allocFunc);
+	ASSERT(error == ERROR_SUCCESS);
 
 	return fileBuffer;
+}
+
+RESOURCE_LOAD_MESH(ResourceLoadMesh)
+{
+	Resource result = {};
+	result.type = RESOURCETYPE_MESH;
+
+	u8 *fileBuffer;
+	DWORD error = Win32ReadEntireFile(filename, &fileBuffer, FrameAlloc);
+	ASSERT(error == ERROR_SUCCESS);
+
+	Vertex *vertexData;
+	u16 *indexData;
+	u32 vertexCount;
+	u32 indexCount;
+	ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
+
+	result.mesh.deviceMesh = CreateDeviceIndexedMesh();
+	SendIndexedMesh(&result.mesh.deviceMesh, vertexData, vertexCount, indexData,
+			indexCount, false);
+
+	strcpy(result.filename, filename);
+
+	FILETIME writeTime = Win32GetLastWriteTime(filename);
+	g_resourceBank->lastWriteTimes[g_resourceBank->lastWriteTimes.size++] = writeTime;
+
+	Resource *resource = &g_resourceBank->resources[g_resourceBank->resources.size++];
+	*resource = result;
+	return resource;
+}
+
+RESOURCE_LOAD_SKINNED_MESH(ResourceLoadSkinnedMesh)
+{
+	Resource result = {};
+	result.type = RESOURCETYPE_SKINNEDMESH;
+
+	ResourceSkinnedMesh *skinnedMesh = &result.skinnedMesh;
+
+	u8 *fileBuffer;
+	DWORD error = Win32ReadEntireFile(filename, &fileBuffer, FrameAlloc);
+	ASSERT(error == ERROR_SUCCESS);
+
+	SkinnedVertex *vertexData;
+	u16 *indexData;
+	u32 vertexCount;
+	u32 indexCount;
+	ReadSkinnedMesh(fileBuffer, skinnedMesh, &vertexData, &indexData, &vertexCount, &indexCount);
+
+	// @Broken: This allocs things on transient memory and never frees them
+	skinnedMesh->deviceMesh = CreateDeviceIndexedSkinnedMesh();
+	SendIndexedSkinnedMesh(&skinnedMesh->deviceMesh, vertexData, vertexCount, indexData,
+			indexCount, false);
+
+	strcpy(result.filename, filename);
+
+	FILETIME writeTime = Win32GetLastWriteTime(filename);
+	g_resourceBank->lastWriteTimes[g_resourceBank->lastWriteTimes.size++] = writeTime;
+
+	Resource *resource = &g_resourceBank->resources[g_resourceBank->resources.size++];
+	*resource = result;
+	return resource;
+}
+
+RESOURCE_LOAD_LEVEL_GEOMETRY_GRID(ResourceLoadLevelGeometryGrid)
+{
+	Resource result = {};
+	result.type = RESOURCETYPE_LEVELGEOMETRYGRID;
+
+	ResourceGeometryGrid *geometryGrid = &result.geometryGrid;
+
+	u8 *fileBuffer;
+	DWORD error = Win32ReadEntireFile(filename, &fileBuffer, FrameAlloc);
+	ASSERT(error == ERROR_SUCCESS);
+
+	ReadTriangleGeometry(fileBuffer, geometryGrid);
+
+	strcpy(result.filename, filename);
+
+	FILETIME writeTime = Win32GetLastWriteTime(filename);
+	g_resourceBank->lastWriteTimes[g_resourceBank->lastWriteTimes.size++] = writeTime;
+
+	Resource *resource = &g_resourceBank->resources[g_resourceBank->resources.size++];
+	*resource = result;
+	return resource;
+}
+
+RESOURCE_LOAD_POINTS(ResourceLoadPoints)
+{
+	Resource result = {};
+	result.type = RESOURCETYPE_POINTS;
+
+	ResourcePointCloud *pointCloud = &result.points;
+
+	u8 *fileBuffer;
+	DWORD error = Win32ReadEntireFile(filename, &fileBuffer, FrameAlloc);
+	ASSERT(error == ERROR_SUCCESS);
+
+	ReadPoints(fileBuffer, pointCloud);
+
+	strcpy(result.filename, filename);
+
+	FILETIME writeTime = Win32GetLastWriteTime(filename);
+	g_resourceBank->lastWriteTimes[g_resourceBank->lastWriteTimes.size++] = writeTime;
+
+	Resource *resource = &g_resourceBank->resources[g_resourceBank->resources.size++];
+	*resource = result;
+	return resource;
+}
+
+GET_RESOURCE(GetResource)
+{
+	for (u32 i = 0; i < g_resourceBank->resources.size; ++i)
+	{
+		Resource *it = &g_resourceBank->resources[i];
+		if (strcmp(it->filename, filename) == 0)
+		{
+			return it;
+		}
+	}
+	return nullptr;
+}
+
+bool ReloadResource(Resource *resource)
+{
+	u8 *fileBuffer;
+	DWORD error = Win32ReadEntireFile(resource->filename, &fileBuffer, FrameAlloc);
+	if (error != ERROR_SUCCESS)
+		return false;
+
+	switch (resource->type)
+	{
+	case RESOURCETYPE_MESH:
+	{
+		Vertex *vertexData;
+		u16 *indexData;
+		u32 vertexCount;
+		u32 indexCount;
+		ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
+
+		SendIndexedMesh(&resource->mesh.deviceMesh, vertexData, vertexCount, indexData,
+				indexCount, false);
+
+		return true;
+	} break;
+	case RESOURCETYPE_SKINNEDMESH:
+	{
+		ResourceSkinnedMesh *skinnedMesh = &resource->skinnedMesh;
+
+		SkinnedVertex *vertexData;
+		u16 *indexData;
+		u32 vertexCount;
+		u32 indexCount;
+		ReadSkinnedMesh(fileBuffer, skinnedMesh, &vertexData, &indexData, &vertexCount, &indexCount);
+
+		// @Broken: This allocs things on transient memory and never frees them
+		SendIndexedSkinnedMesh(&resource->skinnedMesh.deviceMesh, vertexData, vertexCount, indexData,
+				indexCount, false);
+
+		return true;
+	} break;
+	case RESOURCETYPE_LEVELGEOMETRYGRID:
+	{
+		ResourceGeometryGrid *geometryGrid = &resource->geometryGrid;
+		ReadTriangleGeometry(fileBuffer, geometryGrid);
+		return true;
+	} break;
+
+	case RESOURCETYPE_POINTS:
+	{
+		ResourcePointCloud *pointCloud = &resource->points;
+		ReadPoints(fileBuffer, pointCloud);
+		return true;
+	} break;
+	};
+	return false;
 }
 
 void Win32Start(HINSTANCE hInstance)
@@ -316,13 +518,21 @@ void Win32Start(HINSTANCE hInstance)
 	u64 perfFrequency = largeInteger.LowPart;
 
 	// Allocate memory
-	GameMemory gameMemory;
-	gameMemory.frameMem = VirtualAlloc(0, frameSize, MEM_COMMIT, PAGE_READWRITE);
-	gameMemory.stackMem = VirtualAlloc(0, stackSize, MEM_COMMIT, PAGE_READWRITE);
-	gameMemory.transientMem = VirtualAlloc(0, transientSize, MEM_COMMIT, PAGE_READWRITE);
-	gameMemory.framePtr = gameMemory.frameMem;
-	gameMemory.stackPtr = gameMemory.stackMem;
-	gameMemory.transientPtr = gameMemory.transientMem;
+	Memory memory;
+	memory.frameMem = VirtualAlloc(0, frameSize, MEM_COMMIT, PAGE_READWRITE);
+	memory.stackMem = VirtualAlloc(0, stackSize, MEM_COMMIT, PAGE_READWRITE);
+	memory.transientMem = VirtualAlloc(0, transientSize, MEM_COMMIT, PAGE_READWRITE);
+	memory.framePtr = memory.frameMem;
+	memory.stackPtr = memory.stackMem;
+	memory.transientPtr = memory.transientMem;
+	g_memory = &memory;
+
+	TransientAlloc(sizeof(GameState));
+
+	ResourceBank resourceBank;
+	ArrayInit_Resource(&resourceBank.resources, 256, TransientAlloc);
+	ArrayInit_FILETIME(&resourceBank.lastWriteTimes, 256, TransientAlloc);
+	g_resourceBank = &resourceBank;
 
 	// Pass functions
 	PlatformCode platformCode;
@@ -345,8 +555,13 @@ void Win32Start(HINSTANCE hInstance)
 	platformCode.LoadShader = LoadShader;
 	platformCode.CreateDeviceProgram = CreateDeviceProgram;
 	platformCode.SetFillMode = SetFillMode;
+	platformCode.ResourceLoadMesh = ResourceLoadMesh;
+	platformCode.ResourceLoadSkinnedMesh = ResourceLoadSkinnedMesh;
+	platformCode.ResourceLoadLevelGeometryGrid = ResourceLoadLevelGeometryGrid;
+	platformCode.ResourceLoadPoints = ResourceLoadPoints;
+	platformCode.GetResource = GetResource;
 
-	gameCode.StartGame(&gameMemory, &platformCode);
+	gameCode.StartGame(&memory, &platformCode);
 
 	bool running = true;
 	while (running)
@@ -358,6 +573,21 @@ void Win32Start(HINSTANCE hInstance)
 			Win32UnloadGameCode(&gameCode);
 			Win32LoadGameCode(&gameCode, gameDllFilename, tempDllFilename);
 			gameCode.lastWriteTime = newDllWriteTime;
+		}
+
+		for (u32 i = 0; i < resourceBank.resources.size; ++i)
+		{
+			const char *filename = resourceBank.resources[i].filename;
+			FILETIME newWriteTime = Win32GetLastWriteTime(filename);
+			if (CompareFileTime(&newWriteTime, &resourceBank.lastWriteTimes[i]) != 0)
+			{
+				bool reloaded = ReloadResource(&resourceBank.resources[i]);
+				if (reloaded)
+				{
+					Log("Reloaded resource \"%s\"\n", filename);
+					resourceBank.lastWriteTimes[i] = newWriteTime;
+				}
+			}
 		}
 
 		QueryPerformanceCounter(&largeInteger);
@@ -455,16 +685,18 @@ void Win32Start(HINSTANCE hInstance)
 			}
 		}
 
-		gameCode.UpdateAndRenderGame(&controller, &gameMemory, &platformCode, deltaTime);
+		gameCode.UpdateAndRenderGame(&controller, &memory, &platformCode, deltaTime);
 
 		SwapBuffers(deviceContext);
+
+		FrameWipe();
 
 		lastPerfCounter = newPerfCounter;
 	}
 
-	VirtualFree(gameMemory.frameMem, 0, MEM_RELEASE);
-	VirtualFree(gameMemory.stackMem, 0, MEM_RELEASE);
-	VirtualFree(gameMemory.transientMem, 0, MEM_RELEASE);
+	VirtualFree(memory.frameMem, 0, MEM_RELEASE);
+	VirtualFree(memory.stackMem, 0, MEM_RELEASE);
+	VirtualFree(memory.transientMem, 0, MEM_RELEASE);
 
 	wglMakeCurrent(NULL,NULL);
 	wglDeleteContext(glContext);

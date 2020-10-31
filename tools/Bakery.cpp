@@ -40,16 +40,19 @@ inline bool Win32GetLastWriteTime(const char *filename, FILETIME *lastWriteTime)
 }
 
 #include "General.h"
+#include "MemoryAlloc.h"
 #include "Maths.h"
 #include "BakeryInterop.h"
-#include "Platform.h"
 #include "Containers.h"
+#include "OpenGL.h" // @Todo: including only for Render.h
+#include "Render.h" // @Todo: including only for DeviceMesh. Put opaque handle instead.
 #include "Geometry.h"
+#include "Platform.h"
 #include "Bakery.h"
 
-GameMemory *g_gameMemory;
+Memory *g_memory;
 
-#include "Memory.cpp"
+#include "MemoryAlloc.cpp"
 
 void GetDataPath(char *dataPath)
 {
@@ -280,15 +283,15 @@ int main(int argc, char **argv)
 	AttachConsole(ATTACH_PARENT_PROCESS);
 	g_hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
 
-	GameMemory gameMemory;
-	g_gameMemory = &gameMemory;
+	Memory memory;
+	g_memory = &memory;
 
-	gameMemory.stackMem = malloc(stackSize);
-	gameMemory.stackPtr = gameMemory.stackMem;
-	gameMemory.frameMem = malloc(frameSize);
-	gameMemory.framePtr = gameMemory.frameMem;
-	gameMemory.transientMem = malloc(transientSize);
-	gameMemory.transientPtr = gameMemory.transientMem;
+	memory.stackMem = malloc(stackSize);
+	memory.stackPtr = memory.stackMem;
+	memory.frameMem = malloc(frameSize);
+	memory.framePtr = memory.frameMem;
+	memory.transientMem = malloc(transientSize);
+	memory.transientPtr = memory.transientMem;
 
 	Array_FileCacheEntry cache;
 	ArrayInit_FileCacheEntry(&cache, 1024, TransientAlloc);
@@ -342,15 +345,15 @@ int main(int argc, char **argv)
 			cacheEntry->changed = false;
 		}
 
-#if 0
+#if 1
 		Sleep(500);
 #else
 		break;
 #endif
 	}
 
-	free(gameMemory.stackMem);
-	free(gameMemory.frameMem);
+	free(memory.stackMem);
+	free(memory.frameMem);
 
 	return error;
 }
