@@ -61,51 +61,15 @@ NOMANGLE START_GAME(StartGame)
 #endif
 
 		// Shaders
-		DeviceShader vertexShader = platformCode->LoadShader(vertexShaderSource, SHADERTYPE_VERTEX);
-		DeviceShader fragmentShader = platformCode->LoadShader(fragShaderSource, SHADERTYPE_FRAGMENT);
-		gameState->program = platformCode->CreateDeviceProgram(vertexShader, fragmentShader);
+		const Resource *shaderRes = platformCode->ResourceLoadShader("data/shaders/shader_general.bin");
+		gameState->program = shaderRes->shader.programHandle;
 
-		DeviceShader skinVertexShader = platformCode->LoadShader(skinVertexShaderSource, SHADERTYPE_VERTEX);
-		DeviceShader skinFragmentShader = fragmentShader;
-		gameState->skinnedMeshProgram = platformCode->CreateDeviceProgram(skinVertexShader, skinFragmentShader);
+		const Resource *shaderSkinnedRes = platformCode->ResourceLoadShader("data/shaders/shader_skinned.bin");
+		gameState->skinnedMeshProgram = shaderSkinnedRes->shader.programHandle;
 
 #if DEBUG_BUILD
-		DeviceShader debugDrawVertexShader = vertexShader;
-		DeviceShader debugDrawFragmentShader = platformCode->LoadShader(debugDrawFragShaderSource,
-				SHADERTYPE_FRAGMENT);
-
-		gameState->debugDrawProgram = platformCode->CreateDeviceProgram(debugDrawVertexShader,
-				debugDrawFragmentShader);
-#endif
-
-		const f32 fov = HALFPI;
-		const f32 near = 0.01f;
-		const f32 far = 2000.0f;
-		const f32 aspectRatio = (16.0f / 9.0f);
-
-		const f32 top = Tan(HALFPI - fov / 2.0f);
-		const f32 right = top / aspectRatio;
-
-		mat4 proj =
-		{
-			right, 0.0f, 0.0f, 0.0f,
-			0.0f, top, 0.0f, 0.0f,
-			0.0f, 0.0f, -(far + near) / (far - near), -1.0f,
-			0.0f, 0.0f, -(2.0f * far * near) / (far - near), 0.0f
-		};
-
-		platformCode->UseProgram(gameState->program);
-		DeviceUniform projUniform = platformCode->GetUniform(gameState->program, "projection");
-		platformCode->UniformMat4(projUniform, 1, proj.m);
-
-		platformCode->UseProgram(gameState->skinnedMeshProgram);
-		projUniform = platformCode->GetUniform(gameState->skinnedMeshProgram, "projection");
-		platformCode->UniformMat4(projUniform, 1, proj.m);
-
-#if DEBUG_BUILD
-		platformCode->UseProgram(gameState->debugDrawProgram);
-		projUniform = platformCode->GetUniform(gameState->debugDrawProgram, "projection");
-		platformCode->UniformMat4(projUniform, 1, proj.m);
+		const Resource *shaderDebugRes = platformCode->ResourceLoadShader("data/shaders/shader_debug.bin");
+		gameState->debugDrawProgram = shaderDebugRes->shader.programHandle;
 #endif
 	}
 
@@ -232,17 +196,20 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 #endif
 
 #if DEBUG_BUILD
+		const ResourceSkinnedMesh *skinnedMesh = &platformCode->GetResource("data/Sparkus.bin")->skinnedMesh;
 		if (controller->debugUp.endedDown && controller->debugUp.changed)
 		{
+			gameState->animationTime = 0;
 			++gameState->animationIdx;
-			if (gameState->animationIdx >= (i32)gameState->skinnedMesh.animationCount)
+			if (gameState->animationIdx >= (i32)skinnedMesh->animationCount)
 				gameState->animationIdx = 0;
 		}
 		if (controller->debugDown.endedDown && controller->debugDown.changed)
 		{
+			gameState->animationTime = 0;
 			--gameState->animationIdx;
 			if (gameState->animationIdx < 0)
-				gameState->animationIdx = gameState->skinnedMesh.animationCount - 1;
+				gameState->animationIdx = skinnedMesh->animationCount - 1;
 		}
 #endif
 
@@ -442,6 +409,26 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 	// Draw
 	{
+		// Projection matrix
+		mat4 proj;
+		{
+			const f32 fov = HALFPI;
+			const f32 near = 0.01f;
+			const f32 far = 2000.0f;
+			const f32 aspectRatio = (16.0f / 9.0f);
+
+			const f32 top = Tan(HALFPI - fov / 2.0f);
+			const f32 right = top / aspectRatio;
+
+			proj =
+			{
+				right, 0.0f, 0.0f, 0.0f,
+				0.0f, top, 0.0f, 0.0f,
+				0.0f, 0.0f, -(far + near) / (far - near), -1.0f,
+				0.0f, 0.0f, -(2.0f * far * near) / (far - near), 0.0f
+			};
+		}
+
 		// View matrix
 		mat4 view;
 		{
@@ -474,6 +461,8 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		platformCode->UseProgram(gameState->program);
 		DeviceUniform viewUniform = platformCode->GetUniform(gameState->program, "view");
 		platformCode->UniformMat4(viewUniform, 1, view.m);
+		DeviceUniform projUniform = platformCode->GetUniform(gameState->program, "projection");
+		platformCode->UniformMat4(projUniform, 1, proj.m);
 
 		DeviceUniform modelUniform = platformCode->GetUniform(gameState->program, "model");
 
@@ -516,6 +505,8 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		platformCode->UseProgram(gameState->skinnedMeshProgram);
 		viewUniform = platformCode->GetUniform(gameState->skinnedMeshProgram, "view");
 		modelUniform = platformCode->GetUniform(gameState->skinnedMeshProgram, "model");
+		projUniform = platformCode->GetUniform(gameState->skinnedMeshProgram, "projection");
+		platformCode->UniformMat4(projUniform, 1, proj.m);
 
 		DeviceUniform jointsUniform = platformCode->GetUniform(gameState->skinnedMeshProgram, "joints");
 		platformCode->UniformMat4(viewUniform, 1, view.m);
@@ -677,6 +668,8 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		platformCode->UseProgram(gameState->debugDrawProgram);
 		viewUniform = platformCode->GetUniform(gameState->debugDrawProgram, "view");
 		modelUniform = platformCode->GetUniform(gameState->debugDrawProgram, "model");
+		projUniform = platformCode->GetUniform(gameState->debugDrawProgram, "projection");
+		platformCode->UniformMat4(projUniform, 1, proj.m);
 
 		platformCode->UniformMat4(viewUniform, 1, view.m);
 		// Debug draws

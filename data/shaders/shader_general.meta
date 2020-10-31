@@ -1,0 +1,4 @@
+<meta type="SHADER">
+  <shader type="VERTEX">shader_general_vertex.glsl</shader>
+  <shader type="FRAGMENT">shader_general_fragment.glsl</shader>
+</meta>

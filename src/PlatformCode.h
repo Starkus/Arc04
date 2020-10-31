@@ -48,12 +48,20 @@ typedef RENDER_SEND_INDEXED_MESH(SendIndexedMesh_t);
 		u32 vertexCount, void *indexData, u32 indexCount, bool dynamic)
 typedef RENDER_SEND_INDEXED_SKINNED_MESH(SendIndexedSkinnedMesh_t);
 
-#define RENDER_LOAD_SHADER(name) DeviceShader name(const GLchar *shaderSource, ShaderType shaderType)
+#define RENDER_CREATE_SHADER(name) DeviceShader name(ShaderType shaderType)
+typedef RENDER_CREATE_SHADER(CreateShader_t);
+
+#define RENDER_LOAD_SHADER(name) bool name(DeviceShader *shader, const GLchar *shaderSource)
 typedef RENDER_LOAD_SHADER(LoadShader_t);
 
-#define RENDER_CREATE_DEVICE_PROGRAM(name) DeviceProgram name(DeviceShader vertexShader, \
-		DeviceShader fragmentShader)
+#define RENDER_ATTACH_SHADER(name) void name(DeviceProgram program, DeviceShader shader)
+typedef RENDER_ATTACH_SHADER(AttachShader_t);
+
+#define RENDER_CREATE_DEVICE_PROGRAM(name) DeviceProgram name()
 typedef RENDER_CREATE_DEVICE_PROGRAM(CreateDeviceProgram_t);
+
+#define RENDER_LINK_DEVICE_PROGRAM(name) bool name(DeviceProgram program)
+typedef RENDER_LINK_DEVICE_PROGRAM(LinkDeviceProgram_t);
 
 #define SET_FILL_MODE(name) void name(RenderFillMode mode)
 typedef SET_FILL_MODE(SetFillMode_t);
@@ -69,6 +77,9 @@ typedef RESOURCE_LOAD_LEVEL_GEOMETRY_GRID(ResourceLoadLevelGeometryGrid_t);
 
 #define RESOURCE_LOAD_POINTS(name) const Resource *name(const char *filename)
 typedef RESOURCE_LOAD_POINTS(ResourceLoadPoints_t);
+
+#define RESOURCE_LOAD_SHADER(name) const Resource *name(const char *filename)
+typedef RESOURCE_LOAD_SHADER(ResourceLoadShader_t);
 
 #define GET_RESOURCE(name) const Resource *name(const char *filename)
 typedef GET_RESOURCE(GetResource_t);
@@ -92,14 +103,18 @@ struct PlatformCode
 	SendMesh_t *SendMesh;
 	SendIndexedMesh_t *SendIndexedMesh;
 	SendIndexedSkinnedMesh_t *SendIndexedSkinnedMesh;
+	CreateShader_t *CreateShader;
 	LoadShader_t *LoadShader;
+	AttachShader_t *AttachShader;
 	CreateDeviceProgram_t *CreateDeviceProgram;
+	LinkDeviceProgram_t *LinkDeviceProgram;
 	SetFillMode_t *SetFillMode;
 
 	ResourceLoadMesh_t *ResourceLoadMesh;
 	ResourceLoadSkinnedMesh_t *ResourceLoadSkinnedMesh;
 	ResourceLoadLevelGeometryGrid_t *ResourceLoadLevelGeometryGrid;
 	ResourceLoadPoints_t *ResourceLoadPoints;
+	ResourceLoadShader_t *ResourceLoadShader;
 	GetResource_t *GetResource;
 };
 

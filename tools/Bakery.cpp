@@ -21,24 +21,6 @@ void Log(const char *format, ...)
 	va_end(args);
 }
 
-inline bool Win32FileExists(const char *filename)
-{
-	DWORD attrib = GetFileAttributes(filename);
-	return attrib != INVALID_FILE_ATTRIBUTES && attrib != FILE_ATTRIBUTE_DIRECTORY;
-}
-
-inline bool Win32GetLastWriteTime(const char *filename, FILETIME *lastWriteTime)
-{
-	WIN32_FILE_ATTRIBUTE_DATA data;
-	const bool success = GetFileAttributesEx(filename, GetFileExInfoStandard, &data);
-	if (success)
-	{
-		*lastWriteTime = data.ftLastWriteTime;
-	}
-
-	return success;
-}
-
 #include "General.h"
 #include "MemoryAlloc.h"
 #include "Maths.h"
@@ -52,6 +34,7 @@ inline bool Win32GetLastWriteTime(const char *filename, FILETIME *lastWriteTime)
 
 Memory *g_memory;
 
+#include "Win32Common.cpp"
 #include "MemoryAlloc.cpp"
 
 void GetDataPath(char *dataPath)
@@ -219,7 +202,7 @@ bool DidMetaDependenciesChange(const char *metaFilename, const char *fullDataDir
 	return somethingChanged;
 }
 
-int ProcessMetaFile(const char *filename, const char *fullDataDir)
+ErrorCode ProcessMetaFile(const char *filename, const char *fullDataDir)
 {
 	XMLError xmlError;
 
@@ -228,7 +211,7 @@ int ProcessMetaFile(const char *filename, const char *fullDataDir)
 	if (xmlError != XML_SUCCESS)
 	{
 		Log("ERROR! Parsing XML file \"%s\" (%s)\n", filename, doc.ErrorStr());
-		return xmlError;
+		return (ErrorCode)xmlError;
 	}
 
 	XMLElement *rootEl = doc.FirstChildElement("meta");
@@ -271,9 +254,144 @@ int ProcessMetaFile(const char *filename, const char *fullDataDir)
 	{
 		ProcessMetaFileCollada(type, rootEl, filename, fullDataDir);
 	} break;
+	case METATYPE_SHADER:
+	{
+		char outputName[MAX_PATH];
+		GetOutputFilename(filename, outputName);
+
+		char vertexShaderFile[MAX_PATH];
+		char fragmentShaderFile[MAX_PATH];
+		bool vertexShaderFileFound = false;
+		bool fragmentShaderFileFound = false;
+
+		char parentDir[MAX_PATH];
+		strcpy(parentDir, filename);
+		char *lastSlash = 0;
+		for (char *scan = parentDir; *scan; ++scan)
+		{
+			if (*scan == '\\')
+				lastSlash = scan;
+		}
+		*(lastSlash + 1) = 0;
+
+		XMLElement *shaderEl = rootEl->FirstChildElement("shader");
+		while (shaderEl)
+		{
+			const char *shaderFile = shaderEl->FirstChild()->ToText()->Value();
+			const XMLAttribute *typeAttr = shaderEl->FindAttribute("type");
+			const char *shaderType = typeAttr->Value();
+			if (strcmp(shaderType, "VERTEX") == 0)
+			{
+				sprintf(vertexShaderFile, "%s%s", parentDir, shaderFile);
+				vertexShaderFileFound = true;
+			}
+			else if (strcmp(shaderType, "FRAGMENT") == 0)
+			{
+				sprintf(fragmentShaderFile, "%s%s", parentDir, shaderFile);
+				fragmentShaderFileFound = true;
+			}
+
+			shaderEl = shaderEl->NextSiblingElement("shader");
+		}
+		if (!vertexShaderFileFound)
+		{
+			Log("ERROR! Missing vertex shader!\n");
+			return ERROR_MISSING_SHADER;
+		}
+		if (!fragmentShaderFileFound)
+		{
+			Log("ERROR! Missing fragment shader!\n");
+			return ERROR_MISSING_SHADER;
+		}
+
+		// Output
+		HANDLE file = OpenForWrite(outputName);
+
+		BakeryShaderHeader header;
+		u64 vertexShaderBlobOffset = FileSeek(file, sizeof(header), FILE_BEGIN);
+
+		char *fileBuffer;
+		Win32ReadEntireFileText(vertexShaderFile, &fileBuffer, FrameAlloc);
+		WriteToFile(file, fileBuffer, strlen(fileBuffer) + 1); // Include null termination
+
+		u64 fragmentShaderBlobOffset = FilePosition(file);
+		Win32ReadEntireFileText(fragmentShaderFile, &fileBuffer, FrameAlloc);
+		WriteToFile(file, fileBuffer, strlen(fileBuffer) + 1);
+
+		FileSeek(file, 0, FILE_BEGIN);
+		header.vertexShaderBlobOffset = vertexShaderBlobOffset;
+		header.fragmentShaderBlobOffset = fragmentShaderBlobOffset;
+		WriteToFile(file, &header, sizeof(header));
+
+		CloseHandle(file);
+	};
 	};
 
-	return 0;
+	return ERROR_OK;
+}
+
+ErrorCode FindMetaFilesRecursive(const char *folder, Array_FileCacheEntry &cache)
+{
+	char filter[MAX_PATH];
+	sprintf(filter, "%s*", folder);
+	WIN32_FIND_DATA findData;
+	char fullName[MAX_PATH];
+
+	ErrorCode error = ERROR_OK;
+
+	HANDLE searchHandle = FindFirstFileA(filter, &findData);
+	while (1)
+	{
+		if (strcmp(findData.cFileName, ".") == 0 || strcmp(findData.cFileName, "..") == 0)
+			goto next;
+
+		sprintf(fullName, "%s%s", folder, findData.cFileName);
+
+		if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+		{
+			char newFolder[MAX_PATH];
+			sprintf(newFolder, "%s\\", fullName);
+			FindMetaFilesRecursive(newFolder, cache);
+			goto next;
+		}
+
+		// Check if it's a .meta file
+		const char *lastDot = 0;
+		for (const char *scan = findData.cFileName; *scan; ++scan)
+		{
+			if (*scan == '.') lastDot = scan;
+		}
+		if (!lastDot || strcmp(lastDot, ".meta") != 0)
+			goto next;
+
+		bool changed = Win32DidFileChange(fullName, cache);
+		if (!changed)
+		{
+			changed = DidMetaDependenciesChange(fullName, folder, cache);
+		}
+
+		if (!changed)
+			goto next;
+
+		Log("-- Detected file %s ---------------------\n", findData.cFileName);
+		error = ProcessMetaFile(fullName, folder);
+
+		//Log("Used %.02fkb of frame allocator\n", ((u8 *)framePtr - (u8 *)frameMem) / 1024.0f);
+		FrameWipe();
+
+		if (error != 0)
+		{
+			Log("Failed to build with error code %x\n", error);
+		}
+		Log("\n");
+
+next:
+		if (!FindNextFileA(searchHandle, &findData))
+			break;
+	}
+	FindClose(searchHandle);
+
+	return error;
 }
 
 int main(int argc, char **argv)
@@ -301,42 +419,9 @@ int main(int argc, char **argv)
 	char fullDataDir[MAX_PATH];
 	GetDataPath(fullDataDir);
 
-	char metaWildcard[MAX_PATH];
-	sprintf(metaWildcard, "%s*.meta", fullDataDir);
-	WIN32_FIND_DATA findData;
-	char fullName[MAX_PATH];
 	while (1)
 	{
-		HANDLE searchHandle = FindFirstFileA(metaWildcard, &findData);
-		while (1)
-		{
-			sprintf(fullName, "%s%s", fullDataDir, findData.cFileName);
-
-			bool changed = Win32DidFileChange(fullName, cache);
-
-			if (!changed)
-			{
-				changed = DidMetaDependenciesChange(fullName, fullDataDir, cache);
-			}
-
-			if (changed)
-			{
-				Log("-- Detected file %s ---------------------\n", findData.cFileName);
-				error = ProcessMetaFile(fullName, fullDataDir);
-
-				//Log("Used %.02fkb of frame allocator\n", ((u8 *)framePtr - (u8 *)frameMem) / 1024.0f);
-				FrameWipe();
-
-				if (error != 0)
-				{
-					Log("Failed to build with error code %x\n", error);
-				}
-				Log("\n");
-			}
-
-			if (!FindNextFileA(searchHandle, &findData))
-				break;
-		}
+		FindMetaFilesRecursive(fullDataDir, cache);
 
 		// Process dirty cache entries
 		for (u32 i = 0; i < cache.size; ++i)

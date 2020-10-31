@@ -70,18 +70,7 @@ void LoadWGLProcs()
 }
 /////////
 
-inline FILETIME Win32GetLastWriteTime(const char *filename)
-{
-	FILETIME lastWriteTime = {};
-
-	WIN32_FILE_ATTRIBUTE_DATA data;
-	if (GetFileAttributesEx(filename, GetFileExInfoStandard, &data))
-	{
-		lastWriteTime = data.ftLastWriteTime;
-	}
-
-	return lastWriteTime;
-}
+#include "Win32Common.cpp"
 
 struct Win32GameCode
 {
@@ -158,44 +147,6 @@ LRESULT CALLBACK Win32WindowCallback(HWND hWnd, UINT message, WPARAM wParam, LPA
 	return 0;
 }
 
-DWORD Win32ReadEntireFile(const char *filename, u8 **fileBuffer, void *(*allocFunc)(u64))
-{
-	HANDLE file = CreateFileA(
-			filename,
-			GENERIC_READ,
-			FILE_SHARE_READ,
-			nullptr,
-			OPEN_EXISTING,
-			FILE_ATTRIBUTE_NORMAL,
-			nullptr
-			);
-	DWORD error = GetLastError();
-	//ASSERT(file != INVALID_HANDLE_VALUE);
-
-	if (file != INVALID_HANDLE_VALUE)
-	{
-		DWORD fileSize = GetFileSize(file, nullptr);
-		ASSERT(fileSize);
-		error = GetLastError();
-
-		*fileBuffer = (u8 *)allocFunc(fileSize);
-		DWORD bytesRead;
-		bool success = ReadFile(
-				file,
-				*fileBuffer,
-				fileSize,
-				&bytesRead,
-				nullptr
-				);
-		ASSERT(success);
-		ASSERT(bytesRead == fileSize);
-
-		CloseHandle(file);
-	}
-
-	return error;
-}
-
 PLATFORM_READ_ENTIRE_FILE(ReadEntireFile)
 {
 	char fullname[MAX_PATH];
@@ -210,24 +161,9 @@ PLATFORM_READ_ENTIRE_FILE(ReadEntireFile)
 	return fileBuffer;
 }
 
-RESOURCE_LOAD_MESH(ResourceLoadMesh)
+Resource *CreateResource(const char *filename)
 {
 	Resource result = {};
-	result.type = RESOURCETYPE_MESH;
-
-	u8 *fileBuffer;
-	DWORD error = Win32ReadEntireFile(filename, &fileBuffer, FrameAlloc);
-	ASSERT(error == ERROR_SUCCESS);
-
-	Vertex *vertexData;
-	u16 *indexData;
-	u32 vertexCount;
-	u32 indexCount;
-	ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
-
-	result.mesh.deviceMesh = CreateDeviceIndexedMesh();
-	SendIndexedMesh(&result.mesh.deviceMesh, vertexData, vertexCount, indexData,
-			indexCount, false);
 
 	strcpy(result.filename, filename);
 
@@ -239,12 +175,34 @@ RESOURCE_LOAD_MESH(ResourceLoadMesh)
 	return resource;
 }
 
+RESOURCE_LOAD_MESH(ResourceLoadMesh)
+{
+	Resource *result = CreateResource(filename);
+	result->type = RESOURCETYPE_MESH;
+
+	u8 *fileBuffer;
+	DWORD error = Win32ReadEntireFile(filename, &fileBuffer, FrameAlloc);
+	ASSERT(error == ERROR_SUCCESS);
+
+	Vertex *vertexData;
+	u16 *indexData;
+	u32 vertexCount;
+	u32 indexCount;
+	ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
+
+	result->mesh.deviceMesh = CreateDeviceIndexedMesh();
+	SendIndexedMesh(&result->mesh.deviceMesh, vertexData, vertexCount, indexData,
+			indexCount, false);
+
+	return result;
+}
+
 RESOURCE_LOAD_SKINNED_MESH(ResourceLoadSkinnedMesh)
 {
-	Resource result = {};
-	result.type = RESOURCETYPE_SKINNEDMESH;
+	Resource *result = CreateResource(filename);
+	result->type = RESOURCETYPE_SKINNEDMESH;
 
-	ResourceSkinnedMesh *skinnedMesh = &result.skinnedMesh;
+	ResourceSkinnedMesh *skinnedMesh = &result->skinnedMesh;
 
 	u8 *fileBuffer;
 	DWORD error = Win32ReadEntireFile(filename, &fileBuffer, FrameAlloc);
@@ -261,22 +219,15 @@ RESOURCE_LOAD_SKINNED_MESH(ResourceLoadSkinnedMesh)
 	SendIndexedSkinnedMesh(&skinnedMesh->deviceMesh, vertexData, vertexCount, indexData,
 			indexCount, false);
 
-	strcpy(result.filename, filename);
-
-	FILETIME writeTime = Win32GetLastWriteTime(filename);
-	g_resourceBank->lastWriteTimes[g_resourceBank->lastWriteTimes.size++] = writeTime;
-
-	Resource *resource = &g_resourceBank->resources[g_resourceBank->resources.size++];
-	*resource = result;
-	return resource;
+	return result;
 }
 
 RESOURCE_LOAD_LEVEL_GEOMETRY_GRID(ResourceLoadLevelGeometryGrid)
 {
-	Resource result = {};
-	result.type = RESOURCETYPE_LEVELGEOMETRYGRID;
+	Resource *result = CreateResource(filename);
+	result->type = RESOURCETYPE_LEVELGEOMETRYGRID;
 
-	ResourceGeometryGrid *geometryGrid = &result.geometryGrid;
+	ResourceGeometryGrid *geometryGrid = &result->geometryGrid;
 
 	u8 *fileBuffer;
 	DWORD error = Win32ReadEntireFile(filename, &fileBuffer, FrameAlloc);
@@ -284,22 +235,15 @@ RESOURCE_LOAD_LEVEL_GEOMETRY_GRID(ResourceLoadLevelGeometryGrid)
 
 	ReadTriangleGeometry(fileBuffer, geometryGrid);
 
-	strcpy(result.filename, filename);
-
-	FILETIME writeTime = Win32GetLastWriteTime(filename);
-	g_resourceBank->lastWriteTimes[g_resourceBank->lastWriteTimes.size++] = writeTime;
-
-	Resource *resource = &g_resourceBank->resources[g_resourceBank->resources.size++];
-	*resource = result;
-	return resource;
+	return result;
 }
 
 RESOURCE_LOAD_POINTS(ResourceLoadPoints)
 {
-	Resource result = {};
-	result.type = RESOURCETYPE_POINTS;
+	Resource *result = CreateResource(filename);
+	result->type = RESOURCETYPE_POINTS;
 
-	ResourcePointCloud *pointCloud = &result.points;
+	ResourcePointCloud *pointCloud = &result->points;
 
 	u8 *fileBuffer;
 	DWORD error = Win32ReadEntireFile(filename, &fileBuffer, FrameAlloc);
@@ -307,14 +251,37 @@ RESOURCE_LOAD_POINTS(ResourceLoadPoints)
 
 	ReadPoints(fileBuffer, pointCloud);
 
-	strcpy(result.filename, filename);
+	return result;
+}
 
-	FILETIME writeTime = Win32GetLastWriteTime(filename);
-	g_resourceBank->lastWriteTimes[g_resourceBank->lastWriteTimes.size++] = writeTime;
+RESOURCE_LOAD_SHADER(ResourceLoadShader)
+{
+	Resource *result = CreateResource(filename);
+	result->type = RESOURCETYPE_SHADER;
 
-	Resource *resource = &g_resourceBank->resources[g_resourceBank->resources.size++];
-	*resource = result;
-	return resource;
+	ResourceShader *shader = &result->shader;
+
+	u8 *fileBuffer;
+	DWORD error = Win32ReadEntireFile(filename, &fileBuffer, FrameAlloc);
+	ASSERT(error == ERROR_SUCCESS);
+
+	const char *vertexSource, *fragmentSource;
+	ReadBakeryShader(fileBuffer, &vertexSource, &fragmentSource);
+
+	DeviceProgram programHandle = CreateDeviceProgram();
+
+	DeviceShader vertexShaderHandle = CreateShader(SHADERTYPE_VERTEX);
+	LoadShader(&vertexShaderHandle, vertexSource);
+	AttachShader(programHandle, vertexShaderHandle);
+
+	DeviceShader fragmentShaderHandle = CreateShader(SHADERTYPE_FRAGMENT);
+	LoadShader(&fragmentShaderHandle, fragmentSource);
+	AttachShader(programHandle, fragmentShaderHandle);
+
+	LinkDeviceProgram(programHandle);
+
+	shader->programHandle = programHandle;
+	return result;
 }
 
 GET_RESOURCE(GetResource)
@@ -333,7 +300,11 @@ GET_RESOURCE(GetResource)
 bool ReloadResource(Resource *resource)
 {
 	u8 *fileBuffer;
-	DWORD error = Win32ReadEntireFile(resource->filename, &fileBuffer, FrameAlloc);
+	DWORD error;
+	if (resource->type == RESOURCETYPE_SHADER)
+		error = Win32ReadEntireFileText(resource->filename, (char **)&fileBuffer, FrameAlloc);
+	else
+		error = Win32ReadEntireFile(resource->filename, &fileBuffer, FrameAlloc);
 	if (error != ERROR_SUCCESS)
 		return false;
 
@@ -379,6 +350,27 @@ bool ReloadResource(Resource *resource)
 	{
 		ResourcePointCloud *pointCloud = &resource->points;
 		ReadPoints(fileBuffer, pointCloud);
+		return true;
+	} break;
+	case RESOURCETYPE_SHADER:
+	{
+		ResourceShader *shader = &resource->shader;
+
+		const char *vertexSource, *fragmentSource;
+		ReadBakeryShader(fileBuffer, &vertexSource, &fragmentSource);
+
+		WipeDeviceProgram(shader->programHandle);
+
+		DeviceShader vertexShaderHandle = CreateShader(SHADERTYPE_VERTEX);
+		LoadShader(&vertexShaderHandle, vertexSource);
+		AttachShader(shader->programHandle, vertexShaderHandle);
+
+		DeviceShader fragmentShaderHandle = CreateShader(SHADERTYPE_FRAGMENT);
+		LoadShader(&fragmentShaderHandle, fragmentSource);
+		AttachShader(shader->programHandle, fragmentShaderHandle);
+
+		LinkDeviceProgram(shader->programHandle);
+
 		return true;
 	} break;
 	};
@@ -552,13 +544,17 @@ void Win32Start(HINSTANCE hInstance)
 	platformCode.SendMesh = SendMesh;
 	platformCode.SendIndexedMesh = SendIndexedMesh;
 	platformCode.SendIndexedSkinnedMesh = SendIndexedSkinnedMesh;
+	platformCode.CreateShader = CreateShader;
 	platformCode.LoadShader = LoadShader;
+	platformCode.AttachShader = AttachShader;
 	platformCode.CreateDeviceProgram = CreateDeviceProgram;
+	platformCode.LinkDeviceProgram = LinkDeviceProgram;
 	platformCode.SetFillMode = SetFillMode;
 	platformCode.ResourceLoadMesh = ResourceLoadMesh;
 	platformCode.ResourceLoadSkinnedMesh = ResourceLoadSkinnedMesh;
 	platformCode.ResourceLoadLevelGeometryGrid = ResourceLoadLevelGeometryGrid;
 	platformCode.ResourceLoadPoints = ResourceLoadPoints;
+	platformCode.ResourceLoadShader = ResourceLoadShader;
 	platformCode.GetResource = GetResource;
 
 	gameCode.StartGame(&memory, &platformCode);

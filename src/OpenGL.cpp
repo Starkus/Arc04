@@ -44,6 +44,7 @@ void LoadOpenGLProcs()
 	GL_GetProc(glBindRenderbuffer);
 	GL_GetProc(glRenderbufferStorage);
 	GL_GetProc(glCreateShader);
+	GL_GetProc(glDetachShader);
 	GL_GetProc(glDeleteShader);
 	GL_GetProc(glShaderSource);
 	GL_GetProc(glCompileShader);
@@ -53,6 +54,7 @@ void LoadOpenGLProcs()
 	GL_GetProc(glDeleteProgram);
 	GL_GetProc(glAttachShader);
 	GL_GetProc(glLinkProgram);
+	GL_GetProc(glGetAttachedShaders);
 	GL_GetProc(glGetProgramiv);
 	GL_GetProc(glGetProgramInfoLog);
 	GL_GetProc(glUseProgram);

@@ -51,3 +51,9 @@ struct BakeryPointsHeader
 	u32 pointCount;
 	u64 pointsBlobOffset;
 };
+
+struct BakeryShaderHeader
+{
+	u64 vertexShaderBlobOffset;
+	u64 fragmentShaderBlobOffset;
+};

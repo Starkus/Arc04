@@ -11,6 +11,13 @@ void ReadMesh(const u8 *fileBuffer, Vertex **vertexData, u16 **indexData, u32 *v
 	*indexData = (u16 *)(fileBuffer + header->indexBlobOffset);
 }
 
+void ReadBakeryShader(const u8 *fileBuffer, const char **vertexShader, const char **fragmentShader)
+{
+	BakeryShaderHeader *header = (BakeryShaderHeader *)fileBuffer;
+	*vertexShader = (const char *)(fileBuffer + header->vertexShaderBlobOffset);
+	*fragmentShader = (const char *)(fileBuffer + header->fragmentShaderBlobOffset);
+}
+
 void ReadSkinnedMesh(const u8 *fileBuffer, ResourceSkinnedMesh *skinnedMesh, SkinnedVertex **vertexData,
 		u16 **indexData, u32 *vertexCount, u32 *indexCount)
 {

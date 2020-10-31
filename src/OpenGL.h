@@ -48,6 +48,7 @@ typedef void (GLAPIENTRY *glBindRenderbufferProc)(GLenum target, GLuint renderbu
 typedef void (GLAPIENTRY *glRenderbufferStorageProc)(GLenum target, GLenum internalformat, GLsizei width, GLsizei height);
 
 typedef GLuint (GLAPIENTRY *glCreateShaderProc)(GLenum shaderType);
+typedef void (GLAPIENTRY *glDetachShaderProc)(GLuint program, GLuint shader);
 typedef void (GLAPIENTRY *glDeleteShaderProc)(GLuint shader);
 typedef void (GLAPIENTRY *glShaderSourceProc)(GLuint shader, GLsizei count, const GLchar **string, const GLint *length);
 typedef void (GLAPIENTRY *glCompileShaderProc)(GLuint shader);
@@ -58,6 +59,7 @@ typedef GLuint (GLAPIENTRY *glCreateProgramProc)();
 typedef void (GLAPIENTRY *glDeleteProgramProc)(GLuint program);
 typedef void (GLAPIENTRY *glAttachShaderProc)(GLuint program, GLuint shader);
 typedef void (GLAPIENTRY *glLinkProgramProc)(GLuint program);
+typedef void (GLAPIENTRY *glGetAttachedShadersProc)(GLuint program, GLsizei maxCount, GLsizei *count, GLuint *shaders);
 typedef void (GLAPIENTRY *glGetProgramivProc)(GLuint program, GLenum pname, GLint *params);
 typedef void (GLAPIENTRY *glGetProgramInfoLogProc)(GLuint program, GLsizei maxLength, GLsizei *length, GLchar *infoLog);
 typedef void (GLAPIENTRY *glUseProgramProc)(GLuint program);
@@ -122,6 +124,7 @@ GL_DeclareProc(glGenRenderbuffers);
 GL_DeclareProc(glBindRenderbuffer);
 GL_DeclareProc(glRenderbufferStorage);
 GL_DeclareProc(glCreateShader);
+GL_DeclareProc(glDetachShader);
 GL_DeclareProc(glDeleteShader);
 GL_DeclareProc(glShaderSource);
 GL_DeclareProc(glCompileShader);
@@ -131,6 +134,7 @@ GL_DeclareProc(glCreateProgram);
 GL_DeclareProc(glDeleteProgram);
 GL_DeclareProc(glAttachShader);
 GL_DeclareProc(glLinkProgram);
+GL_DeclareProc(glGetAttachedShaders);
 GL_DeclareProc(glGetProgramiv);
 GL_DeclareProc(glGetProgramInfoLog);
 GL_DeclareProc(glUseProgram);
@@ -188,6 +192,7 @@ GL_DeclareProc(glDrawElements);
 #define glBindRenderbuffer glBindRenderbufferPointer
 #define glRenderbufferStorage glRenderbufferStoragePointer
 #define glCreateShader glCreateShaderPointer
+#define glDetachShader glDetachShaderPointer
 #define glDeleteShader glDeleteShaderPointer
 #define glShaderSource glShaderSourcePointer
 #define glCompileShader glCompileShaderPointer
@@ -197,6 +202,7 @@ GL_DeclareProc(glDrawElements);
 #define glDeleteProgram glDeleteProgramPointer
 #define glAttachShader glAttachShaderPointer
 #define glLinkProgram glLinkProgramPointer
+#define glGetAttachedShaders glGetAttachedShadersPointer
 #define glGetProgramiv glGetProgramivPointer
 #define glGetProgramInfoLog glGetProgramInfoLogPointer
 #define glUseProgram glUseProgramPointer

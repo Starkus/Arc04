@@ -217,7 +217,7 @@ void SendIndexedSkinnedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount,
 			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
 }
 
-DeviceShader LoadShader(const GLchar *shaderSource, ShaderType shaderType)
+DeviceShader CreateShader(ShaderType shaderType)
 {
 	DeviceShader result;
 	GLDeviceShader *glShader = (GLDeviceShader *)&result;
@@ -227,39 +227,65 @@ DeviceShader LoadShader(const GLchar *shaderSource, ShaderType shaderType)
 		glType = GL_VERTEX_SHADER;
 	else if (shaderType == SHADERTYPE_FRAGMENT)
 		glType = GL_FRAGMENT_SHADER;
+
 	GLuint shader = glCreateShader(glType);
-	glShaderSource(shader, 1, &shaderSource, nullptr);
-	glCompileShader(shader);
+	glShader->shader = shader;
+
+	return result;
+}
+
+bool LoadShader(DeviceShader *shader, const GLchar *shaderSource)
+{
+	GLDeviceShader *glShader = (GLDeviceShader *)shader;
+
+	glShaderSource(glShader->shader, 1, &shaderSource, nullptr);
+	glCompileShader(glShader->shader);
 
 #if defined(DEBUG_BUILD)
 	{
 		GLint status;
-		glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
+		glGetShaderiv(glShader->shader, GL_COMPILE_STATUS, &status);
 		if (status != GL_TRUE)
 		{
 			char msg[256];
 			GLsizei len;
-			glGetShaderInfoLog(shader, sizeof(msg), &len, msg);
+			glGetShaderInfoLog(glShader->shader, sizeof(msg), &len, msg);
 			Log("Error compiling shader: %s", msg);
+
+			return false;
 		}
 	}
 #endif
 
-	glShader->shader = shader;
-	return result;
+	return true;
 }
 
-DeviceProgram CreateDeviceProgram(DeviceShader vertexShader, DeviceShader fragmentShader)
+void AttachShader(DeviceProgram program, DeviceShader shader)
+{
+	GLDeviceProgram *glProgram = (GLDeviceProgram *)&program;
+	GLDeviceShader *glShader = (GLDeviceShader *)&shader;
+	glAttachShader(glProgram->program, glShader->shader);
+}
+
+DeviceProgram CreateDeviceProgram()
 {
 	DeviceProgram result;
 	GLDeviceProgram *glProgram = (GLDeviceProgram *)&result;
 
-	GLDeviceShader *glVertexShader = (GLDeviceShader *)&vertexShader;
-	GLDeviceShader *glFragmentShader = (GLDeviceShader *)&fragmentShader;
+	//GLDeviceShader *glVertexShader = (GLDeviceShader *)&vertexShader;
+	//GLDeviceShader *glFragmentShader = (GLDeviceShader *)&fragmentShader;
 
 	glProgram->program = glCreateProgram();
-	glAttachShader(glProgram->program, glVertexShader->shader);
-	glAttachShader(glProgram->program, glFragmentShader->shader);
+	//glAttachShader(glProgram->program, glVertexShader->shader);
+	//glAttachShader(glProgram->program, glFragmentShader->shader);
+
+	return result;
+}
+
+bool LinkDeviceProgram(DeviceProgram program)
+{
+	GLDeviceProgram *glProgram = (GLDeviceProgram *)&program;
+
 	glLinkProgram(glProgram->program);
 #if defined(DEBUG_BUILD)
 	{
@@ -271,10 +297,27 @@ DeviceProgram CreateDeviceProgram(DeviceShader vertexShader, DeviceShader fragme
 			GLsizei len;
 			glGetProgramInfoLog(glProgram->program, sizeof(msg), &len, msg);
 			Log("Error linking shader program: %s", msg);
+
+			return false;
 		}
 	}
 #endif
-	return result;
+	return true;
+}
+
+void WipeDeviceProgram(DeviceProgram program)
+{
+	GLDeviceProgram *glProgram = (GLDeviceProgram *)&program;
+
+	GLsizei count;
+	GLuint shaders[16];
+	glGetAttachedShaders(glProgram->program, 16, &count, shaders);
+
+	for (GLsizei i = 0; i < count; ++i)
+	{
+		glDetachShader(glProgram->program, shaders[i]);
+		glDeleteShader(shaders[i]);
+	}
 }
 
 void SetFillMode(RenderFillMode mode)
