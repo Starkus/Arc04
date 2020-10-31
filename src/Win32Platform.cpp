@@ -16,7 +16,6 @@
 #include "Geometry.h"
 #include "Resource.h"
 #include "Platform.h"
-// The platform functions
 #include "PlatformCode.h"
 
 DECLARE_ARRAY(Resource);
@@ -32,21 +31,7 @@ HANDLE g_hStdout;
 Memory *g_memory;
 ResourceBank *g_resourceBank;
 
-PLATFORM_LOG(Log)
-{
-	char buffer[256];
-	va_list args;
-	va_start(args, format);
-
-	StringCbVPrintfA(buffer, 512, format, args);
-	OutputDebugStringA(buffer);
-
-	DWORD bytesWritten;
-	WriteFile(g_hStdout, buffer, (DWORD)strlen(buffer), &bytesWritten, nullptr);
-
-	va_end(args);
-}
-
+#include "Win32Common.cpp"
 #include "OpenGL.cpp"
 #include "OpenGLRender.cpp"
 #include "MemoryAlloc.cpp"
@@ -115,11 +100,11 @@ bool ProcessKeyboard(Controller *controller)
 			case WM_KEYUP:
 			{
 				const bool isDown = (message.lParam & (1 << 31)) == 0;
-				//const bool wasDown = (message.lParam & (1 << 30)) != 0;
+				const bool wasDown = (message.lParam & (1 << 30)) != 0;
 
-				auto checkButton = [&isDown](Button &button)
+				auto checkButton = [&isDown, &wasDown](Button &button)
 				{
-					if (button.endedDown != isDown)
+					if (wasDown != isDown)
 					{
 						button.endedDown = isDown;
 						button.changed = true;
@@ -187,13 +172,16 @@ bool ProcessKeyboard(Controller *controller)
 	return false;
 }
 
-void ProcessXInput(Controller *controller)
+void ProcessXInput(Controller *oldController, Controller *controller)
 {
-	auto processButton = [](WORD xInputButtonState, WORD buttonBit, Button *button)
+	auto processButton = [](WORD xInputButtonState, WORD buttonBit, Button *oldButton, Button *button)
 	{
-		bool old = button->endedDown;
-		button->endedDown = xInputButtonState & buttonBit;
-		button->changed = button->endedDown == old;
+		bool isDown = xInputButtonState & buttonBit;
+		if (oldButton->endedDown != isDown)
+		{
+			button->endedDown = isDown;
+			button->changed = true;
+		}
 	};
 
 	WORD controllerIdx = 0;
@@ -201,7 +189,7 @@ void ProcessXInput(Controller *controller)
 	if (XInputGetState(controllerIdx, &xInputState) == ERROR_SUCCESS)
 	{
 		XINPUT_GAMEPAD *pad = &xInputState.Gamepad;
-		processButton(pad->wButtons, XINPUT_GAMEPAD_A, &controller->jump);
+		processButton(pad->wButtons, XINPUT_GAMEPAD_A, &oldController->jump, &controller->jump);
 
 		const f32 range = 32000.0f;
 		controller->leftStick.x = pad->sThumbLX / range;
@@ -211,8 +199,6 @@ void ProcessXInput(Controller *controller)
 	}
 }
 /////////
-
-#include "Win32Common.cpp"
 
 struct Win32GameCode
 {
@@ -736,13 +722,14 @@ void Win32Start(HINSTANCE hInstance)
 		const f32 deltaTime = (f32)(newPerfCounter - lastPerfCounter) / (f32)perfFrequency;
 
 		// Check events
+		Controller oldController = controller;
 		for (int buttonIdx = 0; buttonIdx < ArrayCount(controller.b); ++buttonIdx)
 			controller.b[buttonIdx].changed = false;
 
 		bool stop = ProcessKeyboard(&controller);
 		if (stop) running = false;
 
-		ProcessXInput(&controller);
+		ProcessXInput(&oldController, &controller);
 
 		gameCode.UpdateAndRenderGame(&controller, &memory, &platformCode, deltaTime);
 

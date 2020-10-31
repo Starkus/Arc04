@@ -5,33 +5,17 @@
 #include "tinyxml/tinyxml2.cpp"
 using namespace tinyxml2;
 
-HANDLE g_hStdout;
-void Log(const char *format, ...)
-{
-	char buffer[2048];
-	va_list args;
-	va_start(args, format);
-
-	StringCbVPrintfA(buffer, sizeof(buffer), format, args);
-	OutputDebugStringA(buffer);
-
-	DWORD bytesWritten;
-	WriteFile(g_hStdout, buffer, (DWORD)strlen(buffer), &bytesWritten, nullptr);
-
-	va_end(args);
-}
-
 #include "General.h"
 #include "MemoryAlloc.h"
 #include "Maths.h"
 #include "BakeryInterop.h"
 #include "Containers.h"
-#include "OpenGL.h" // @Todo: including only for Render.h
-#include "Render.h" // @Todo: including only for DeviceMesh. Put opaque handle instead.
+#include "Render.h"
 #include "Geometry.h"
 #include "Platform.h"
 #include "Bakery.h"
 
+HANDLE g_hStdout;
 Memory *g_memory;
 
 #include "Win32Common.cpp"

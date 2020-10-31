@@ -124,7 +124,9 @@ bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, 
 		cellY < 0 || cellY >= geometryGrid->cellsSide)
 		return false;
 
-	// @Todo: keep closest hit, not first
+	v3 closestHit = {};
+	Triangle *closestTriangle = 0;
+	f32 closestSqrLen = INFINITY;
 
 	int offsetIdx = cellX + cellY * geometryGrid->cellsSide;
 	u32 triBegin = geometryGrid->offsets[offsetIdx];
@@ -133,6 +135,7 @@ bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, 
 	{
 		Triangle *curTriangle = &geometryGrid->triangles[triIdx];
 
+#if HITTEST_VISUAL_DEBUG
 		Vertex tri[] =
 		{
 			{curTriangle->a, {}, {}},
@@ -140,15 +143,22 @@ bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, 
 			{curTriangle->c, {}, {}}
 		};
 		DrawDebugTriangles(gameState, tri, 3);
+#endif
 
-		if (RayTriangleIntersection(rayOrigin, rayDir, curTriangle, hit))
+		v3 thisHit;
+		if (RayTriangleIntersection(rayOrigin, rayDir, curTriangle, &thisHit))
 		{
-			*triangle = *curTriangle;
-			return true;
+			f32 sqrLen = V3SqrLen(thisHit - rayOrigin);
+			if (sqrLen < closestSqrLen)
+			{
+				closestHit = thisHit;
+				closestTriangle = curTriangle;
+				closestSqrLen = sqrLen;
+			}
 		}
 	}
 
-#if 1
+#if HITTEST_VISUAL_DEBUG
 	f32 cellMinX = geometryGrid->lowCorner.x + (cellX) * cellSize.x;
 	f32 cellMaxX = cellMinX + cellSize.x;
 	f32 cellMinY = geometryGrid->lowCorner.y + (cellY) * cellSize.y;
@@ -190,6 +200,13 @@ bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, 
 	};
 	DrawDebugTriangles(gameState, cellDebugTris, 24);
 #endif
+
+	if (closestTriangle)
+	{
+		*hit = closestHit;
+		*triangle = *closestTriangle;
+		return true;
+	}
 	return false;
 }
 
@@ -198,6 +215,7 @@ bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, v3 *hit, Triangle *t
 	const ResourceGeometryGrid *geometryGrid = &gameState->levelGeometry.geometryGrid->geometryGrid;
 	v2 cellSize = (geometryGrid->highCorner - geometryGrid->lowCorner) / (f32)(geometryGrid->cellsSide);
 
+#if HITTEST_VISUAL_DEBUG
 	auto ddraw = [&gameState, &cellSize, &geometryGrid](f32 relX, f32 relY)
 	{
 		DrawDebugCubeAA(gameState, v3{
@@ -205,6 +223,9 @@ bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, v3 *hit, Triangle *t
 				relY * cellSize.y + geometryGrid->lowCorner.y,
 				1}, 0.1f);
 	};
+#else
+#define ddraw(...)
+#endif
 
 	v2 p1 = { rayOrigin.x, rayOrigin.y };
 	v2 p2 = { rayOrigin.x + rayDir.x, rayOrigin.y + rayDir.y };
@@ -268,11 +289,10 @@ bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, v3 *hit, Triangle *t
 			f32 cellRelX = Fmod(curX, 1.0f) - flipX;
 			f32 projY = curY - cellRelX * slope * xSign;
 
-			f32 projX = curX - cellRelX;
 			if (!swapXY)
-				ddraw(projX, projY);
+				ddraw(curX - cellRelX, projY);
 			else
-				ddraw(projY, projX);
+				ddraw(projY, curX - cellRelX);
 
 			if ((int)Floor(projY) != newY)
 			{
@@ -314,7 +334,7 @@ inline v3 FurthestInDirection(Entity *entity, v3 dir)
 	{
 		f32 maxDist = -INFINITY;
 
-		// @Speed: inverse-transform direction, pick a point, and then transform only that // point!
+		// @Speed: inverse-transform direction, pick a point, and then transform only that point!
 		const v3 worldUp = { 0, 0, 1 };
 		const v3 pos = entity->pos;
 		const v3 fw = entity->fw;

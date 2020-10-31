@@ -1,6 +1,6 @@
 struct GLDeviceMesh
 {
-	u32 vertexCount; // @Cleanup: remove?
+	u32 vertexCount;
 	u32 indexCount;
 	GLuint vao;
 	union
@@ -188,7 +188,7 @@ void SendIndexedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, void *
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)mesh;
 
-	glMesh->vertexCount = vertexCount; // @Cleanup: can we remove?
+	glMesh->vertexCount = vertexCount;
 	glMesh->indexCount = indexCount;
 	glBindVertexArray(glMesh->vao);
 
@@ -205,7 +205,7 @@ void SendIndexedSkinnedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount,
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)mesh;
 
-	glMesh->vertexCount = vertexCount; // @Cleanup: can we remove?
+	glMesh->vertexCount = vertexCount;
 	glMesh->indexCount = indexCount;
 	glBindVertexArray(glMesh->vao);
 

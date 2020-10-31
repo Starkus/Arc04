@@ -109,6 +109,12 @@ ErrorCode ReadColladaGeometry(XMLElement *rootEl, const char *geometryId, RawGeo
 	// Get triangle source ids and index array
 	{
 		XMLElement *trianglesEl = meshEl->FirstChildElement("triangles");
+		if (trianglesEl == nullptr)
+		{
+			Log("ERROR! Geometry has no triangles! This is not supported\n");
+			return ERROR_NO_TRIANGLES;
+		}
+
 		triangleIndicesSource = trianglesEl->FirstChildElement("p");
 		result->triangleCount = trianglesEl->FindAttribute("count")->IntValue();
 
@@ -719,11 +725,33 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 	} break;
 	case METATYPE_SKINNED_MESH:
 	{
+		tinyxml2::XMLDocument controllerDoc;
+		XMLElement *controllerRootEl;
+		{
+			XMLElement *controllerEl = rootEl->FirstChildElement("controller");
+			if (controllerEl == nullptr)
+			{
+				Log("ERROR! Expected to find a \"controller\" tag!\n");
+				return ERROR_META_MISSING_CONTROLLER;
+			}
+
+			const char *controllerFile = controllerEl->FirstChild()->ToText()->Value();
+
+			const char *controllerName = 0;
+			const XMLAttribute *nameAttr = controllerEl->FindAttribute("id");
+			if (nameAttr)
+			{
+				controllerName = nameAttr->Value();
+			}
+
+			error = ReadColladaFile(&controllerDoc, controllerFile, &controllerRootEl, fullDataDir);
+			if (error != ERROR_OK)
+				return error;
+		}
+
 		Skeleton skeleton = {};
 		WeightData weightData;
-		// @Todo: just specify what file to get the controller from, should be no problem to use one
-		// from a different file.
-		error = ReadColladaController(geometryRootEl, &skeleton, &weightData);
+		error = ReadColladaController(controllerRootEl, &skeleton, &weightData);
 		if (error)
 			return error;
 

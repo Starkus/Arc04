@@ -119,7 +119,9 @@ struct GameState
 	SkinnedMesh skinnedMesh;
 
 	// Debug
+#if DEBUG_BUILD
 	DeviceProgram debugDrawProgram;
 	DebugGeometryBuffer debugGeometryBuffer;
 	int currentPolytopeStep;
+#endif
 };

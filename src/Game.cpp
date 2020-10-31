@@ -181,7 +181,7 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 	if (deltaTime < 0 || deltaTime > 1)
 	{
-		platformCode->Log("Delta time out of range! %f\n", deltaTime);
+		LOG("Delta time out of range! %f\n", deltaTime);
 		deltaTime = 1 / 60.0f;
 	}
 
@@ -220,29 +220,6 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				gameState->animationIdx = skinnedMesh->animationCount - 1;
 		}
 #endif
-
-		if (0)
-		{
-			static f32 linetimer = 0;
-			linetimer += deltaTime * 0.3f;
-			if (linetimer > PI2) linetimer -= PI2;
-
-			v3 P = { 0, 0, 1 };
-			v3 V = { 20*Sin(linetimer), 20*Cos(linetimer), 0 };
-			Vertex lineVertices[] =
-			{
-				{ P, { }, { } },
-				{ P+V, { }, { } }
-			};
-			DrawDebugLines(gameState, lineVertices, 2);
-
-			v3 hit;
-			Triangle triangle;
-			if (HitTest(gameState, P, V, &hit, &triangle))
-			{
-				DrawDebugCubeAA(gameState, hit, 1);
-			}
-		}
 
 		// Move camera
 		{
@@ -283,9 +260,9 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			{
 				const f32 deadzone = 0.17f;
 				if (Abs(controller->leftStick.x) > deadzone)
-					inputDir.x = controller->leftStick.x;
+					inputDir.x = (controller->leftStick.x - deadzone) / (1 - deadzone);
 				if (Abs(controller->leftStick.y) > deadzone)
-					inputDir.y = controller->leftStick.y;
+					inputDir.y = (controller->leftStick.y - deadzone) / (1 - deadzone);
 			}
 
 			v3 worldInputDir =
@@ -294,17 +271,6 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				-inputDir.x * Sin(gameState->camYaw) + inputDir.y * Cos(gameState->camYaw),
 				0
 			};
-#if 0
-			if (controller->up.endedDown)
-				worldInputDir += { Sin(gameState->camYaw), Cos(gameState->camYaw) };
-			else if (controller->down.endedDown)
-				worldInputDir += { -Sin(gameState->camYaw), -Cos(gameState->camYaw) };
-
-			if (controller->left.endedDown)
-				worldInputDir += { -Cos(gameState->camYaw), Sin(gameState->camYaw) };
-			else if (controller->right.endedDown)
-				worldInputDir += { Cos(gameState->camYaw), -Sin(gameState->camYaw) };
-#endif
 
 			f32 sqlen = V3SqrLen(worldInputDir);
 			if (sqlen > 1)
@@ -377,7 +343,7 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					}
 					else
 					{
-						platformCode->Log("WARNING! Ignoring huge depenetration vector... something went wrong!\n");
+						LOG("WARNING! Ignoring huge depenetration vector... something went wrong!\n");
 					}
 					break;
 				}
@@ -782,8 +748,5 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 void CleanupGame(GameState *gameState)
 {
 	(void) gameState;
-	// Cleanup
-	// @Cleanup: properly free device resources
-
 	return;
 }
