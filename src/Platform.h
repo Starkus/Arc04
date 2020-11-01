@@ -32,3 +32,18 @@ struct Controller
 		Button b[13];
 	};
 };
+
+struct PlatformFileTime
+{
+	u8 reserved[8];
+};
+
+struct PlatformFindData
+{
+	u8 reserved[8];
+};
+
+struct PlatformSearchHandle
+{
+	u8 reserved[8];
+};

@@ -4,7 +4,6 @@
 #include "General.h"
 #include "Maths.h"
 #include "MemoryAlloc.h"
-#include "OpenGL.h"
 #include "Render.h"
 #include "Geometry.h"
 #include "Primitives.h"
@@ -26,7 +25,13 @@ DECLARE_ARRAY(u32);
 #include "Collision.cpp"
 #include "BakeryInterop.cpp"
 
-NOMANGLE START_GAME(StartGame)
+#if defined(WIN32)
+#define GAMEDLL NOMANGLE __declspec(dllexport)
+#else
+#define GAMEDLL NOMANGLE __attribute__((visibility("default")))
+#endif
+
+GAMEDLL START_GAME(StartGame)
 {
 	g_memory = memory;
 	g_log = platformCode->Log;
@@ -39,15 +44,15 @@ NOMANGLE START_GAME(StartGame)
 	{
 		platformCode->SetUpDevice();
 
-		platformCode->ResourceLoadMesh("data/anvil.bin");
-		platformCode->ResourceLoadMesh("data/cube.bin");
-		platformCode->ResourceLoadMesh("data/sphere.bin");
-		platformCode->ResourceLoadMesh("data/cylinder.bin");
-		platformCode->ResourceLoadMesh("data/capsule.bin");
-		platformCode->ResourceLoadMesh("data/level_graphics.bin");
-		platformCode->ResourceLoadSkinnedMesh("data/Sparkus.bin");
-		platformCode->ResourceLoadLevelGeometryGrid("data/level.bin");
-		platformCode->ResourceLoadPoints("data/anvil_collision.bin");
+		platformCode->ResourceLoadMesh("data/anvil.b");
+		platformCode->ResourceLoadMesh("data/cube.b");
+		platformCode->ResourceLoadMesh("data/sphere.b");
+		platformCode->ResourceLoadMesh("data/cylinder.b");
+		platformCode->ResourceLoadMesh("data/capsule.b");
+		platformCode->ResourceLoadMesh("data/level_graphics.b");
+		platformCode->ResourceLoadSkinnedMesh("data/Sparkus.b");
+		platformCode->ResourceLoadLevelGeometryGrid("data/level.b");
+		platformCode->ResourceLoadPoints("data/anvil_collision.b");
 
 #if DEBUG_BUILD
 		// Debug geometry buffer
@@ -61,24 +66,24 @@ NOMANGLE START_GAME(StartGame)
 #endif
 
 		// Shaders
-		const Resource *shaderRes = platformCode->ResourceLoadShader("data/shaders/shader_general.bin");
+		const Resource *shaderRes = platformCode->ResourceLoadShader("data/shaders/shader_general.b");
 		gameState->program = shaderRes->shader.programHandle;
 
-		const Resource *shaderSkinnedRes = platformCode->ResourceLoadShader("data/shaders/shader_skinned.bin");
+		const Resource *shaderSkinnedRes = platformCode->ResourceLoadShader("data/shaders/shader_skinned.b");
 		gameState->skinnedMeshProgram = shaderSkinnedRes->shader.programHandle;
 
 #if DEBUG_BUILD
-		const Resource *shaderDebugRes = platformCode->ResourceLoadShader("data/shaders/shader_debug.bin");
+		const Resource *shaderDebugRes = platformCode->ResourceLoadShader("data/shaders/shader_debug.b");
 		gameState->debugDrawProgram = shaderDebugRes->shader.programHandle;
 #endif
 	}
 
 	// Init level
 	{
-		const Resource *levelGraphicsRes = platformCode->GetResource("data/level_graphics.bin");
+		const Resource *levelGraphicsRes = platformCode->GetResource("data/level_graphics.b");
 		gameState->levelGeometry.renderMesh = levelGraphicsRes;
 
-		const Resource *levelCollisionRes = platformCode->GetResource("data/level.bin");
+		const Resource *levelCollisionRes = platformCode->GetResource("data/level.b");
 		gameState->levelGeometry.geometryGrid = levelCollisionRes;
 	}
 
@@ -106,10 +111,10 @@ NOMANGLE START_GAME(StartGame)
 		Collider collider;
 		collider.type = COLLIDER_CONVEX_HULL;
 
-		const Resource *pointsRes = platformCode->GetResource("data/anvil_collision.bin");
+		const Resource *pointsRes = platformCode->GetResource("data/anvil_collision.b");
 		collider.convexHull.pointCloud = pointsRes;
 
-		const Resource *anvilRes = platformCode->GetResource("data/anvil.bin");
+		const Resource *anvilRes = platformCode->GetResource("data/anvil.b");
 
 		Entity *testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { -6.0f, 3.0f, 1.0f };
@@ -135,7 +140,7 @@ NOMANGLE START_GAME(StartGame)
 		testEntity->mesh = anvilRes;
 		testEntity->collider = collider;
 
-		const Resource *sphereRes = platformCode->GetResource("data/sphere.bin");
+		const Resource *sphereRes = platformCode->GetResource("data/sphere.b");
 		testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { -6.0f, 7.0f, 1.0f };
 		testEntity->fw = { 0.0f, 1.0f, 0.0f };
@@ -144,7 +149,7 @@ NOMANGLE START_GAME(StartGame)
 		testEntity->collider.sphere.radius = 1;
 		testEntity->collider.sphere.offset = {};
 
-		const Resource *cylinderRes = platformCode->GetResource("data/cylinder.bin");
+		const Resource *cylinderRes = platformCode->GetResource("data/cylinder.b");
 		testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { -3.0f, 7.0f, 1.0f };
 		testEntity->fw = { 0.0f, 1.0f, 0.0f };
@@ -154,7 +159,7 @@ NOMANGLE START_GAME(StartGame)
 		testEntity->collider.cylinder.height = 2;
 		testEntity->collider.cylinder.offset = {};
 
-		const Resource *capsuleRes = platformCode->GetResource("data/capsule.bin");
+		const Resource *capsuleRes = platformCode->GetResource("data/capsule.b");
 		testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { 0.0f, 7.0f, 2.0f };
 		testEntity->fw = { 0.0f, 1.0f, 0.0f };
@@ -174,7 +179,7 @@ void ChangeState(GameState *gameState, PlayerState newState, PlayerAnim newAnim)
 	gameState->player.state = newState;
 }
 
-NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
+GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 {
 	g_memory = memory;
 	g_log = platformCode->Log;
@@ -205,7 +210,7 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 #endif
 
 #if DEBUG_BUILD
-		const ResourceSkinnedMesh *skinnedMesh = &platformCode->GetResource("data/Sparkus.bin")->skinnedMesh;
+		const ResourceSkinnedMesh *skinnedMesh = &platformCode->GetResource("data/Sparkus.b")->skinnedMesh;
 		if (controller->debugUp.endedDown && controller->debugUp.changed)
 		{
 			gameState->animationTime = 0;
@@ -373,7 +378,7 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				{ rayLen, 0, 0 },
 				{ -rayLen, 0, 0 },
 			};
-			for (int i = 0; i < ArrayCount(dirs); ++i)
+			for (u32 i = 0; i < ArrayCount(dirs); ++i)
 			{
 				if (HitTest(gameState, origin, dirs[i], &hit, &triangle))
 				{
@@ -543,7 +548,7 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				joints[i] = MAT4_IDENTITY;
 			}
 
-			const Resource *skinnedMeshRes = platformCode->GetResource("data/Sparkus.bin");
+			const Resource *skinnedMeshRes = platformCode->GetResource("data/Sparkus.b");
 			const ResourceSkinnedMesh *skinnedMesh = &skinnedMeshRes->skinnedMesh;
 
 			Animation *animation = &skinnedMesh->animations[gameState->animationIdx];

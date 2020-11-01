@@ -1,5 +1,3 @@
-#include <windows.h>
-#include <strsafe.h>
 #include <stdio.h>
 
 #include "tinyxml/tinyxml2.cpp"
@@ -15,14 +13,31 @@ using namespace tinyxml2;
 #include "Platform.h"
 #include "Bakery.h"
 
-HANDLE g_hStdout;
 Memory *g_memory;
 
+// Windows
+#if defined(WIN32)
+HANDLE g_hStdout;
+#include <windows.h>
+#include <strsafe.h>
 #include "Win32Common.cpp"
+// Linux
+#else
+#include <string.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <time.h>
+#include "LinuxCommon.cpp"
+#endif
+
 #include "MemoryAlloc.cpp"
 
 void GetDataPath(char *dataPath)
 {
+#if defined(WIN32)
 	GetModuleFileNameA(0, dataPath, MAX_PATH);
 
 	// Get parent directory
@@ -30,7 +45,7 @@ void GetDataPath(char *dataPath)
 	char *secondLastSlash = dataPath;
 	for (char *scan = dataPath; *scan != 0; ++scan)
 	{
-		if (*scan == '\\')
+		if (*scan == '/')
 		{
 			secondLastSlash = lastSlash;
 			lastSlash = scan;
@@ -39,14 +54,28 @@ void GetDataPath(char *dataPath)
 
 	// Go into data dir
 	strcpy(secondLastSlash + 1, dataDir);
+#else
+	// Just use working directory in Unix
+	getcwd(dataPath, PATH_MAX);
+
+	// Get parent directory
+	char *last = dataPath + strlen(dataPath) - 1;
+	if (*last != '/')
+	{
+		*++last = '/';
+	}
+
+	// Go into data dir
+	strcpy(last + 1, dataDir);
+#endif
 }
 
-bool Win32DidFileChange(const char *fullName, Array_FileCacheEntry &cache)
+bool DidFileChange(const char *fullName, Array_FileCacheEntry &cache)
 {
 	bool changed = true;
 	FileCacheEntry *cacheEntry = 0;
-	FILETIME newWriteTime;
-	if (!Win32GetLastWriteTime(fullName, &newWriteTime))
+	PlatformFileTime newWriteTime;
+	if (!PlatformGetLastWriteTime(fullName, &newWriteTime))
 	{
 		Log("ERROR! Couldn't retrieve file write time: %s\n", fullName);
 		return false;
@@ -58,7 +87,7 @@ bool Win32DidFileChange(const char *fullName, Array_FileCacheEntry &cache)
 		{
 			cacheEntry = &cache[i];
 
-			if (!cacheEntry->changed && CompareFileTime(&newWriteTime, &cache[i].lastWriteTime) == 0)
+			if (!cacheEntry->changed && PlatformCompareFileTime(&newWriteTime, &cache[i].lastWriteTime) == 0)
 			{
 				changed = false;
 			}
@@ -78,50 +107,8 @@ bool Win32DidFileChange(const char *fullName, Array_FileCacheEntry &cache)
 	return changed;
 }
 
-HANDLE OpenForWrite(const char *filename)
-{
-	HANDLE file = CreateFileA(
-			filename,
-			GENERIC_WRITE,
-			0, // Share
-			nullptr,
-			CREATE_ALWAYS,
-			FILE_ATTRIBUTE_NORMAL,
-			nullptr
-			);
-	ASSERT(file != INVALID_HANDLE_VALUE);
-
-	return file;
-}
-
-u64 WriteToFile(HANDLE file, void *buffer, u64 size)
-{
-	DWORD writtenBytes;
-	WriteFile(
-			file,
-			buffer,
-			(DWORD)size,
-			&writtenBytes,
-			nullptr
-			);
-	ASSERT(writtenBytes == size);
-
-	return (u64)writtenBytes;
-}
-
-u64 FileSeek(HANDLE file, i64 shift, DWORD mode)
-{
-	LARGE_INTEGER lInt;
-	LARGE_INTEGER lIntRes;
-	lInt.QuadPart = shift;
-
-	SetFilePointerEx(file, lInt, &lIntRes, mode);
-
-	return lIntRes.QuadPart;
-}
-
-#define FilePosition(file) FileSeek(file, 0, FILE_CURRENT)
-#define FileAlign(fileHandle) FileSeek(fileHandle, FilePosition(fileHandle) & 0b11, FILE_CURRENT)
+#define FilePosition(file) PlatformFileSeek(file, 0, SEEK_CUR)
+#define FileAlign(fileHandle) PlatformFileSeek(fileHandle, FilePosition(fileHandle) & 0b11, SEEK_CUR)
 
 void GetOutputFilename(const char *metaFilename, char *outputFilename)
 {
@@ -176,7 +163,7 @@ bool DidMetaDependenciesChange(const char *metaFilename, const char *fullDataDir
 		char fullName[MAX_PATH];
 		sprintf(fullName, "%s%s", fullDataDir, filename);
 
-		if (Win32FileExists(fullName) && Win32DidFileChange(fullName, cache))
+		if (PlatformFileExists(fullName) && DidFileChange(fullName, cache))
 		{
 			somethingChanged = true;
 		}
@@ -253,7 +240,7 @@ ErrorCode ProcessMetaFile(const char *filename, const char *fullDataDir)
 		char *lastSlash = 0;
 		for (char *scan = parentDir; *scan; ++scan)
 		{
-			if (*scan == '\\')
+			if (*scan == '/')
 				lastSlash = scan;
 		}
 		*(lastSlash + 1) = 0;
@@ -289,26 +276,34 @@ ErrorCode ProcessMetaFile(const char *filename, const char *fullDataDir)
 		}
 
 		// Output
-		HANDLE file = OpenForWrite(outputName);
+		FileHandle file = PlatformOpenForWrite(outputName);
 
 		BakeryShaderHeader header;
-		u64 vertexShaderBlobOffset = FileSeek(file, sizeof(header), FILE_BEGIN);
+		u64 vertexShaderBlobOffset = PlatformFileSeek(file, sizeof(header), SEEK_SET);
 
-		char *fileBuffer;
-		Win32ReadEntireFileText(vertexShaderFile, &fileBuffer, FrameAlloc);
-		WriteToFile(file, fileBuffer, strlen(fileBuffer) + 1); // Include null termination
+		const u8 zero = 0;
+		u8 *fileBuffer;
+		u64 fileSize;
+		PlatformReadEntireFile(vertexShaderFile, &fileBuffer, &fileSize, FrameAlloc);
+		PlatformWriteToFile(file, fileBuffer, fileSize);
+		PlatformWriteToFile(file, &zero, 1);
 
 		u64 fragmentShaderBlobOffset = FilePosition(file);
-		Win32ReadEntireFileText(fragmentShaderFile, &fileBuffer, FrameAlloc);
-		WriteToFile(file, fileBuffer, strlen(fileBuffer) + 1);
+		PlatformReadEntireFile(fragmentShaderFile, &fileBuffer, &fileSize, FrameAlloc);
+		PlatformWriteToFile(file, fileBuffer, fileSize);
+		PlatformWriteToFile(file, &zero, 1);
 
-		FileSeek(file, 0, FILE_BEGIN);
+		PlatformFileSeek(file, 0, SEEK_SET);
 		header.vertexShaderBlobOffset = vertexShaderBlobOffset;
 		header.fragmentShaderBlobOffset = fragmentShaderBlobOffset;
-		WriteToFile(file, &header, sizeof(header));
+		PlatformWriteToFile(file, &header, sizeof(header));
 
-		CloseHandle(file);
+		PlatformCloseFile(file);
 	};
+	default:
+	{
+		return ERROR_META_WRONG_TYPE;
+	} break;
 	};
 
 	return ERROR_OK;
@@ -316,48 +311,48 @@ ErrorCode ProcessMetaFile(const char *filename, const char *fullDataDir)
 
 ErrorCode FindMetaFilesRecursive(const char *folder, Array_FileCacheEntry &cache)
 {
-	char filter[MAX_PATH];
-	sprintf(filter, "%s*", folder);
-	WIN32_FIND_DATA findData;
 	char fullName[MAX_PATH];
 
 	ErrorCode error = ERROR_OK;
 
-	HANDLE searchHandle = FindFirstFileA(filter, &findData);
-	while (1)
+	PlatformFindData findData;
+	PlatformSearchHandle searchHandle;
+	bool success = PlatformFindFirstFile(&searchHandle, folder, &findData);
+	do
 	{
-		if (strcmp(findData.cFileName, ".") == 0 || strcmp(findData.cFileName, "..") == 0)
-			goto next;
+		const char *curFilename = PlatformGetCurrentFilename(&findData);
+		if (strcmp(curFilename, ".") == 0 || strcmp(curFilename, "..") == 0)
+			continue;
 
-		sprintf(fullName, "%s%s", folder, findData.cFileName);
+		sprintf(fullName, "%s%s", folder, curFilename);
 
-		if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+		if (PlatformIsDirectory(fullName))
 		{
 			char newFolder[MAX_PATH];
-			sprintf(newFolder, "%s\\", fullName);
+			sprintf(newFolder, "%s/", fullName);
 			FindMetaFilesRecursive(newFolder, cache);
-			goto next;
+			continue;
 		}
 
 		// Check if it's a .meta file
 		const char *lastDot = 0;
-		for (const char *scan = findData.cFileName; *scan; ++scan)
+		for (const char *scan = curFilename; *scan; ++scan)
 		{
 			if (*scan == '.') lastDot = scan;
 		}
 		if (!lastDot || strcmp(lastDot, ".meta") != 0)
-			goto next;
+			continue;
 
-		bool changed = Win32DidFileChange(fullName, cache);
+		bool changed = DidFileChange(fullName, cache);
 		if (!changed)
 		{
 			changed = DidMetaDependenciesChange(fullName, folder, cache);
 		}
 
 		if (!changed)
-			goto next;
+			continue;
 
-		Log("-- Detected file %s ---------------------\n", findData.cFileName);
+		Log("-- Detected file %s ---------------------\n", curFilename);
 		error = ProcessMetaFile(fullName, folder);
 
 		//Log("Used %.02fkb of frame allocator\n", ((u8 *)framePtr - (u8 *)frameMem) / 1024.0f);
@@ -368,12 +363,9 @@ ErrorCode FindMetaFilesRecursive(const char *folder, Array_FileCacheEntry &cache
 			Log("Failed to build with error code %x\n", error);
 		}
 		Log("\n");
-
-next:
-		if (!FindNextFileA(searchHandle, &findData))
-			break;
 	}
-	FindClose(searchHandle);
+	while(PlatformFindNextFile(searchHandle, &findData));
+	PlatformFindClose(searchHandle);
 
 	return error;
 }
@@ -382,8 +374,10 @@ int main(int argc, char **argv)
 {
 	(void) argc, argv;
 
+#if defined(WIN32)
 	AttachConsole(ATTACH_PARENT_PROCESS);
 	g_hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
+#endif
 
 	Memory memory;
 	g_memory = &memory;

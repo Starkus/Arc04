@@ -1,8 +1,9 @@
 #define PLATFORM_LOG(name) void name(const char *format, ...)
 typedef PLATFORM_LOG(Log_t);
 
-#define PLATFORM_READ_ENTIRE_FILE(name) u8 *name(const char *filename, void *(*allocFunc)(u64))
-typedef PLATFORM_READ_ENTIRE_FILE(ReadEntireFile_t);
+#define PLATFORM_READ_ENTIRE_FILE(name) bool name(const char *filename, u8 **fileBuffer, \
+		u64 *fileSize, void *(*allocFunc)(u64))
+typedef PLATFORM_READ_ENTIRE_FILE(PlatformReadEntireFile_t);
 
 #define RENDER_SET_UP_DEVICE(name) void name()
 typedef RENDER_SET_UP_DEVICE(SetUpDevice_t);
@@ -51,7 +52,7 @@ typedef RENDER_SEND_INDEXED_SKINNED_MESH(SendIndexedSkinnedMesh_t);
 #define RENDER_CREATE_SHADER(name) DeviceShader name(ShaderType shaderType)
 typedef RENDER_CREATE_SHADER(CreateShader_t);
 
-#define RENDER_LOAD_SHADER(name) bool name(DeviceShader *shader, const GLchar *shaderSource)
+#define RENDER_LOAD_SHADER(name) bool name(DeviceShader *shader, const char *shaderSource)
 typedef RENDER_LOAD_SHADER(LoadShader_t);
 
 #define RENDER_ATTACH_SHADER(name) void name(DeviceProgram program, DeviceShader shader)
@@ -87,7 +88,7 @@ typedef GET_RESOURCE(GetResource_t);
 struct PlatformCode
 {
 	Log_t *Log;
-	ReadEntireFile_t *ReadEntireFile;
+	PlatformReadEntireFile_t *PlatformReadEntireFile;
 
 	SetUpDevice_t *SetUpDevice;
 	ClearBuffers_t *ClearBuffers;

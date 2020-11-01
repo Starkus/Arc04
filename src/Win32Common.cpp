@@ -1,3 +1,33 @@
+struct Win32FileTime
+{
+	FILETIME lastWriteTime;
+};
+static_assert(sizeof(Win32FileTime) <= sizeof(PlatformFileTime),
+		"Win32FileTime doesn't fit in opaque handle!");
+
+struct Win32FindData
+{
+	WIN32_FIND_DATA findData;
+};
+static_assert(sizeof(Win32FindData) <= sizeof(PlatformFindData),
+		"Win32FindData doesn't fit in opaque handle!");
+
+struct Win32SearchHandle
+{
+	HANDLE handle;
+};
+static_assert(sizeof(Win32SearchHandle) <= sizeof(PlatformSearchHandle),
+		"Win32SearchHandle doesn't fit in opaque handle!");
+
+typedef HANDLE FileHandle;
+
+enum
+{
+	SEEK_SET = FILE_BEGIN,
+	SEEK_CUR = FILE_CURRENT,
+	SEEK_END = FILE_END
+};
+
 void Log(const char *format, ...)
 {
 	char buffer[2048];
@@ -58,7 +88,11 @@ DWORD Win32ReadEntireFile(const char *filename, u8 **fileBuffer, void *(*allocFu
 	DWORD error = GetLastError();
 	//ASSERT(file != INVALID_HANDLE_VALUE);
 
-	if (file != INVALID_HANDLE_VALUE)
+	if (file == INVALID_HANDLE_VALUE)
+	{
+		*fileBuffer = nullptr;
+	}
+	else
 	{
 		DWORD fileSize = GetFileSize(file, nullptr);
 		ASSERT(fileSize);
@@ -82,40 +116,75 @@ DWORD Win32ReadEntireFile(const char *filename, u8 **fileBuffer, void *(*allocFu
 	return error;
 }
 
-DWORD Win32ReadEntireFileText(const char *filename, char **fileBuffer, void *(*allocFunc)(u64))
+bool PlatformGetLastWriteTime(const char *filename, PlatformFileTime *writeTime)
+{
+	Win32FileTime *wWriteTime = (Win32FileTime *)writeTime;
+	wWriteTime->lastWriteTime = Win32GetLastWriteTime(filename);
+	return true;
+}
+
+int PlatformCompareFileTime(PlatformFileTime *a, PlatformFileTime *b)
+{
+	Win32FileTime *wa = (LinuxFileTime *)a;
+	Win32FileTime *wb = (LinuxFileTime *)b;
+	return CompareFileTime(wa->lastWriteTime, wb->lastWriteTime);
+}
+
+bool PlatformFileExists(const char *filename)
+{
+	return Win32FileExists(filename);
+}
+
+FileHandle PlatformOpenForWrite(const char *filename)
 {
 	HANDLE file = CreateFileA(
 			filename,
-			GENERIC_READ,
-			FILE_SHARE_READ,
+			GENERIC_WRITE,
+			0, // Share
 			nullptr,
-			OPEN_EXISTING,
+			CREATE_ALWAYS,
 			FILE_ATTRIBUTE_NORMAL,
 			nullptr
 			);
-	DWORD error = GetLastError();
+	ASSERT(file != INVALID_HANDLE_VALUE);
 
-	if (file != INVALID_HANDLE_VALUE)
-	{
-		DWORD fileSize = GetFileSize(file, nullptr);
-		ASSERT(fileSize);
-		error = GetLastError();
+	return file;
+}
 
-		*fileBuffer = (char *)allocFunc(fileSize + 1);
-		(*fileBuffer)[fileSize] = 0; // Null terminate!
-		DWORD bytesRead;
-		bool success = ReadFile(
-				file,
-				*fileBuffer,
-				fileSize,
-				&bytesRead,
-				nullptr
-				);
-		ASSERT(success);
-		ASSERT(bytesRead == fileSize);
+u64 PlatformWriteToFile(FileHandle file, void *buffer, u64 size)
+{
+	DWORD writtenBytes;
+	WriteFile(
+			file,
+			buffer,
+			(DWORD)size,
+			&writtenBytes,
+			nullptr
+			);
+	ASSERT(writtenBytes == size);
 
-		CloseHandle(file);
-	}
+	return (u64)writtenBytes;
+}
 
-	return error;
+u64 PlatformFileSeek(FileHandle file, i64 shift, int mode)
+{
+	LARGE_INTEGER lInt;
+	LARGE_INTEGER lIntRes;
+	lInt.QuadPart = shift;
+
+	SetFilePointerEx(file, lInt, &lIntRes, mode);
+
+	return lIntRes.QuadPart;
+}
+
+PlatformSearchHandle PlatformFindFirstFile(const char *filter, PlatformFindData *findData)
+{
+	char filter[MAX_PATH];
+	sprintf(filter, "%s*", folder);
+
+	PlatformSearchHandle result;
+	Win32SearchHandle *win32Handle = (Win32SearchHandle *)result;
+	Win32FindData *win32FindData = (Win32FindData *)findData;
+	*win32Handle = FindFirstFileA(filter, &win32FindData->findData);
+	return result;
 }

@@ -652,14 +652,16 @@ ErrorCode ReadColladaAnimation(XMLElement *rootEl, Animation &animation, Skeleto
 ErrorCode ReadColladaFile(tinyxml2::XMLDocument *dataDoc, const char *dataFileName,
 		XMLElement **dataRootEl, const char *fullDataDir)
 {
-	char fullname[MAX_PATH];
+	char fullname[PATH_MAX];
 	sprintf(fullname, "%s%s", fullDataDir, dataFileName);
 
+	/* @Todo
 	if (!Win32FileExists(fullname))
 	{
 		Log("ERROR! Geometry file doesn't exists: %s\n", fullname);
 		return ERROR_META_MISSING_DEPENDENCY;
 	}
+	*/
 
 	XMLError xmlError = dataDoc->LoadFile(fullname);
 	if (xmlError != XML_SUCCESS)
@@ -682,7 +684,7 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 		const char *fullDataDir)
 {
 	ErrorCode error;
-	char outputName[MAX_PATH];
+	char outputName[PATH_MAX];
 	GetOutputFilename(filename, outputName);
 
 	tinyxml2::XMLDocument geometryDoc;
@@ -829,32 +831,32 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 		GenerateGeometryGrid(triangles, &geometryGrid);
 
 		// Output
-		HANDLE file = OpenForWrite(outputName);
+		int file = PlatformOpenForWrite(outputName);
 
 		BakeryTriangleDataHeader header;
-		u64 offsetsBlobOffset = FileSeek(file, sizeof(header), FILE_BEGIN);
+		u64 offsetsBlobOffset = PlatformFileSeek(file, sizeof(header), SEEK_SET);
 
 		u32 offsetCount = geometryGrid.cellsSide * geometryGrid.cellsSide + 1;
-		WriteToFile(file, geometryGrid.offsets, sizeof(geometryGrid.offsets[0]) * offsetCount);
+		PlatformWriteToFile(file, geometryGrid.offsets, sizeof(geometryGrid.offsets[0]) * offsetCount);
 
 		u64 trianglesBlobOffset = FilePosition(file);
 		u32 triangleCount = geometryGrid.offsets[offsetCount - 1];
-		WriteToFile(file, geometryGrid.triangles, sizeof(Triangle) * triangleCount);
+		PlatformWriteToFile(file, geometryGrid.triangles, sizeof(Triangle) * triangleCount);
 
-		FileSeek(file, 0, FILE_BEGIN);
+		PlatformFileSeek(file, 0, SEEK_SET);
 		header.lowCorner = geometryGrid.lowCorner;
 		header.highCorner = geometryGrid.highCorner;
 		header.cellsSide = geometryGrid.cellsSide;
 		header.offsetsBlobOffset = offsetsBlobOffset;
 		header.trianglesBlobOffset = trianglesBlobOffset;
-		WriteToFile(file, &header, sizeof(header));
+		PlatformWriteToFile(file, &header, sizeof(header));
 
-		CloseHandle(file);
+		PlatformCloseFile(file);
 	} break;
 	case METATYPE_POINTS:
 	{
 		// Output
-		HANDLE file = OpenForWrite(outputName);
+		int file = PlatformOpenForWrite(outputName);
 
 		const u32 pointCount = rawGeometry.positions.size;
 
@@ -862,10 +864,14 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 		header.pointCount = pointCount;
 		header.pointsBlobOffset = sizeof(header);
 
-		WriteToFile(file, &header, sizeof(header));
-		WriteToFile(file, rawGeometry.positions.data, sizeof(v3) * pointCount);
+		PlatformWriteToFile(file, &header, sizeof(header));
+		PlatformWriteToFile(file, rawGeometry.positions.data, sizeof(v3) * pointCount);
 
-		CloseHandle(file);
+		PlatformCloseFile(file);
+	} break;
+	default:
+	{
+		return ERROR_META_WRONG_TYPE;
 	} break;
 	}
 

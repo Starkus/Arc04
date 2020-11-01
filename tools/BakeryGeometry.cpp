@@ -179,7 +179,7 @@ ErrorCode OutputMesh(const char *filename, DynamicArray_RawVertex &finalVertices
 {
 	// Output!
 	{
-		HANDLE newFile = OpenForWrite(filename);
+		int newFile = PlatformOpenForWrite(filename);
 		u64 filePos = 0;
 		{
 			u64 vertexBlobSize = sizeof(Vertex) * finalVertices.size;
@@ -190,7 +190,7 @@ ErrorCode OutputMesh(const char *filename, DynamicArray_RawVertex &finalVertices
 			header.vertexBlobOffset = sizeof(header);
 			header.indexBlobOffset = header.vertexBlobOffset + vertexBlobSize;
 
-			filePos += WriteToFile(newFile, &header, sizeof(header));
+			filePos += PlatformWriteToFile(newFile, &header, sizeof(header));
 
 			ASSERT(filePos == header.vertexBlobOffset);
 
@@ -203,7 +203,7 @@ ErrorCode OutputMesh(const char *filename, DynamicArray_RawVertex &finalVertices
 				gameVertex.uv = rawVertex->uv;
 				gameVertex.nor = rawVertex->normal;
 
-				filePos += WriteToFile(newFile, &gameVertex, sizeof(gameVertex));
+				filePos += PlatformWriteToFile(newFile, &gameVertex, sizeof(gameVertex));
 			}
 
 			ASSERT(filePos == header.indexBlobOffset);
@@ -212,10 +212,10 @@ ErrorCode OutputMesh(const char *filename, DynamicArray_RawVertex &finalVertices
 			for (u32 i = 0; i < finalIndices.size; ++i)
 			{
 				u16 outputIdx = finalIndices[i];
-				filePos += WriteToFile(newFile, &outputIdx, sizeof(outputIdx));
+				filePos += PlatformWriteToFile(newFile, &outputIdx, sizeof(outputIdx));
 			}
 		}
-		CloseHandle(newFile);
+		PlatformCloseFile(newFile);
 	}
 
 	return ERROR_OK;
@@ -227,14 +227,14 @@ ErrorCode OutputSkinnedMesh(const char *filename,
 {
 	void *oldStackPtr = g_memory->stackPtr;
 
-	HANDLE newFile = OpenForWrite(filename);
+	int newFile = PlatformOpenForWrite(filename);
 	
 	BakerySkinnedMeshHeader header;
 	header.vertexCount = finalVertices.size;
 	header.indexCount = finalIndices.size;
 	header.jointCount = skeleton.jointCount;
 	header.animationCount = animations.size;
-	FileSeek(newFile, sizeof(header), FILE_BEGIN);
+	PlatformFileSeek(newFile, sizeof(header), SEEK_SET);
 
 	// Write vertex data
 	header.vertexBlobOffset = FilePosition(newFile);
@@ -251,7 +251,7 @@ ErrorCode OutputSkinnedMesh(const char *filename,
 			gameVertex.weights[j] = rawVertex->skinnedPos.jointWeights[j];
 		}
 
-		WriteToFile(newFile, &gameVertex, sizeof(gameVertex));
+		PlatformWriteToFile(newFile, &gameVertex, sizeof(gameVertex));
 	}
 
 	FileAlign(newFile);
@@ -261,22 +261,22 @@ ErrorCode OutputSkinnedMesh(const char *filename,
 	for (u32 i = 0; i < finalIndices.size; ++i)
 	{
 		u16 outputIdx = finalIndices[i];
-		WriteToFile(newFile, &outputIdx, sizeof(outputIdx));
+		PlatformWriteToFile(newFile, &outputIdx, sizeof(outputIdx));
 	}
 
 	FileAlign(newFile);
 
 	// Write skeleton
 	header.bindPosesBlobOffset = FilePosition(newFile);
-	WriteToFile(newFile, skeleton.bindPoses, sizeof(mat4) * skeleton.jointCount);
+	PlatformWriteToFile(newFile, skeleton.bindPoses, sizeof(mat4) * skeleton.jointCount);
 	FileAlign(newFile);
 
 	header.jointParentsBlobOffset = FilePosition(newFile);
-	WriteToFile(newFile, skeleton.jointParents, skeleton.jointCount);
+	PlatformWriteToFile(newFile, skeleton.jointParents, skeleton.jointCount);
 	FileAlign(newFile);
 
 	header.restPosesBlobOffset = FilePosition(newFile);
-	WriteToFile(newFile, skeleton.restPoses, sizeof(mat4) * skeleton.jointCount);
+	PlatformWriteToFile(newFile, skeleton.restPoses, sizeof(mat4) * skeleton.jointCount);
 	FileAlign(newFile);
 
 	// Write animations
@@ -292,7 +292,7 @@ ErrorCode OutputSkinnedMesh(const char *filename,
 		animationHeader->loop = animation->loop;
 
 		animationHeader->timestampsBlobOffset = FilePosition(newFile);
-		WriteToFile(newFile, animation->timestamps, sizeof(u32) * animation->frameCount);
+		PlatformWriteToFile(newFile, animation->timestamps, sizeof(u32) * animation->frameCount);
 
 		Array_BakerySkinnedMeshAnimationChannelHeader channelHeaders;
 		ArrayInit_BakerySkinnedMeshAnimationChannelHeader(&channelHeaders, animation->channelCount,
@@ -304,14 +304,14 @@ ErrorCode OutputSkinnedMesh(const char *filename,
 			BakerySkinnedMeshAnimationChannelHeader *channelHeader = &channelHeaders[channelIdx];
 			channelHeader->jointIndex = channel->jointIndex;
 			channelHeader->transformsBlobOffset = FilePosition(newFile);
-			WriteToFile(newFile, channel->transforms, sizeof(mat4) * animation->frameCount);
+			PlatformWriteToFile(newFile, channel->transforms, sizeof(mat4) * animation->frameCount);
 		}
 
 		animationHeader->channelsBlobOffset = FilePosition(newFile);
 		for (u32 channelIdx = 0; channelIdx < animation->channelCount; ++channelIdx)
 		{
 			BakerySkinnedMeshAnimationChannelHeader *channelHeader = &channelHeaders[channelIdx];
-			WriteToFile(newFile, channelHeader, sizeof(*channelHeader));
+			PlatformWriteToFile(newFile, channelHeader, sizeof(*channelHeader));
 		}
 	}
 
@@ -319,13 +319,13 @@ ErrorCode OutputSkinnedMesh(const char *filename,
 	for (u32 animIdx = 0; animIdx < animations.size; ++animIdx)
 	{
 		BakerySkinnedMeshAnimationHeader *animationHeader = &animationHeaders[animIdx];
-		WriteToFile(newFile, animationHeader, sizeof(*animationHeader));
+		PlatformWriteToFile(newFile, animationHeader, sizeof(*animationHeader));
 	}
 
-	FileSeek(newFile, 0, FILE_BEGIN);
-	WriteToFile(newFile, &header, sizeof(header));
+	PlatformFileSeek(newFile, 0, SEEK_SET);
+	PlatformWriteToFile(newFile, &header, sizeof(header));
 
-	CloseHandle(newFile);
+	PlatformCloseFile(newFile);
 
 	StackFree(oldStackPtr);
 
@@ -548,7 +548,6 @@ void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
 		for (int x = 0; x < cellsSide; ++x)
 		{
 			int i = x + y * cellsSide;
-			ASSERT(triangleCount < U32_MAX);
 			geometryGrid->offsets[i] = (u32)triangleCount;
 
 			DynamicArray_Triangle &bucket = cellBuckets[i];

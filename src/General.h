@@ -2,6 +2,10 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+#if !defined(WIN32)
+#include <assert.h>
+#endif
+
 // I hate this programming language
 #undef near
 #undef far
@@ -42,7 +46,11 @@ typedef double f64;
 #define DEBUG_ONLY(a) a
 
 #if DEBUG_BUILD
+#if defined(WIN32)
 #define ASSERT(expr) do { if (!(expr)) __debugbreak(); } while (false)
+#else
+#define ASSERT(expr) assert(expr)
+#endif
 #else
 #define ASSERT(expr)
 #endif

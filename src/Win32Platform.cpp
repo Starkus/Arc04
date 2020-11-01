@@ -275,18 +275,17 @@ LRESULT CALLBACK Win32WindowCallback(HWND hWnd, UINT message, WPARAM wParam, LPA
 	return 0;
 }
 
-PLATFORM_READ_ENTIRE_FILE(ReadEntireFile)
+PLATFORM_READ_ENTIRE_FILE(PlatformReadEntireFile)
 {
 	char fullname[MAX_PATH];
 	DWORD written = GetCurrentDirectory(MAX_PATH, fullname);
 	fullname[written++] = '/';
 	strcpy(fullname + written, filename);
 
-	u8 *fileBuffer;
-	DWORD error = Win32ReadEntireFile(filename, &fileBuffer, allocFunc);
+	DWORD error = Win32ReadEntireFile(filename, fileBuffer, fileSize, allocFunc);
 	ASSERT(error == ERROR_SUCCESS);
 
-	return fileBuffer;
+	return error == ERROR_SUCCESS;
 }
 
 Resource *CreateResource(const char *filename)
@@ -303,114 +302,7 @@ Resource *CreateResource(const char *filename)
 	return resource;
 }
 
-RESOURCE_LOAD_MESH(ResourceLoadMesh)
-{
-	Resource *result = CreateResource(filename);
-	result->type = RESOURCETYPE_MESH;
-
-	u8 *fileBuffer;
-	DWORD error = Win32ReadEntireFile(filename, &fileBuffer, FrameAlloc);
-	ASSERT(error == ERROR_SUCCESS);
-
-	Vertex *vertexData;
-	u16 *indexData;
-	u32 vertexCount;
-	u32 indexCount;
-	ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
-
-	result->mesh.deviceMesh = CreateDeviceIndexedMesh();
-	SendIndexedMesh(&result->mesh.deviceMesh, vertexData, vertexCount, indexData,
-			indexCount, false);
-
-	return result;
-}
-
-RESOURCE_LOAD_SKINNED_MESH(ResourceLoadSkinnedMesh)
-{
-	Resource *result = CreateResource(filename);
-	result->type = RESOURCETYPE_SKINNEDMESH;
-
-	ResourceSkinnedMesh *skinnedMesh = &result->skinnedMesh;
-
-	u8 *fileBuffer;
-	DWORD error = Win32ReadEntireFile(filename, &fileBuffer, FrameAlloc);
-	ASSERT(error == ERROR_SUCCESS);
-
-	SkinnedVertex *vertexData;
-	u16 *indexData;
-	u32 vertexCount;
-	u32 indexCount;
-	ReadSkinnedMesh(fileBuffer, skinnedMesh, &vertexData, &indexData, &vertexCount, &indexCount);
-
-	// @Broken: This allocs things on transient memory and never frees them
-	skinnedMesh->deviceMesh = CreateDeviceIndexedSkinnedMesh();
-	SendIndexedSkinnedMesh(&skinnedMesh->deviceMesh, vertexData, vertexCount, indexData,
-			indexCount, false);
-
-	return result;
-}
-
-RESOURCE_LOAD_LEVEL_GEOMETRY_GRID(ResourceLoadLevelGeometryGrid)
-{
-	Resource *result = CreateResource(filename);
-	result->type = RESOURCETYPE_LEVELGEOMETRYGRID;
-
-	ResourceGeometryGrid *geometryGrid = &result->geometryGrid;
-
-	u8 *fileBuffer;
-	DWORD error = Win32ReadEntireFile(filename, &fileBuffer, FrameAlloc);
-	ASSERT(error == ERROR_SUCCESS);
-
-	ReadTriangleGeometry(fileBuffer, geometryGrid);
-
-	return result;
-}
-
-RESOURCE_LOAD_POINTS(ResourceLoadPoints)
-{
-	Resource *result = CreateResource(filename);
-	result->type = RESOURCETYPE_POINTS;
-
-	ResourcePointCloud *pointCloud = &result->points;
-
-	u8 *fileBuffer;
-	DWORD error = Win32ReadEntireFile(filename, &fileBuffer, FrameAlloc);
-	ASSERT(error == ERROR_SUCCESS);
-
-	ReadPoints(fileBuffer, pointCloud);
-
-	return result;
-}
-
-RESOURCE_LOAD_SHADER(ResourceLoadShader)
-{
-	Resource *result = CreateResource(filename);
-	result->type = RESOURCETYPE_SHADER;
-
-	ResourceShader *shader = &result->shader;
-
-	u8 *fileBuffer;
-	DWORD error = Win32ReadEntireFile(filename, &fileBuffer, FrameAlloc);
-	ASSERT(error == ERROR_SUCCESS);
-
-	const char *vertexSource, *fragmentSource;
-	ReadBakeryShader(fileBuffer, &vertexSource, &fragmentSource);
-
-	DeviceProgram programHandle = CreateDeviceProgram();
-
-	DeviceShader vertexShaderHandle = CreateShader(SHADERTYPE_VERTEX);
-	LoadShader(&vertexShaderHandle, vertexSource);
-	AttachShader(programHandle, vertexShaderHandle);
-
-	DeviceShader fragmentShaderHandle = CreateShader(SHADERTYPE_FRAGMENT);
-	LoadShader(&fragmentShaderHandle, fragmentSource);
-	AttachShader(programHandle, fragmentShaderHandle);
-
-	LinkDeviceProgram(programHandle);
-
-	shader->programHandle = programHandle;
-	return result;
-}
+#include "Resource.cpp"
 
 GET_RESOURCE(GetResource)
 {
@@ -428,11 +320,7 @@ GET_RESOURCE(GetResource)
 bool ReloadResource(Resource *resource)
 {
 	u8 *fileBuffer;
-	DWORD error;
-	if (resource->type == RESOURCETYPE_SHADER)
-		error = Win32ReadEntireFileText(resource->filename, (char **)&fileBuffer, FrameAlloc);
-	else
-		error = Win32ReadEntireFile(resource->filename, &fileBuffer, FrameAlloc);
+	DWORD error = Win32ReadEntireFile(resource->filename, &fileBuffer, FrameAlloc);
 	if (error != ERROR_SUCCESS)
 		return false;
 
@@ -659,7 +547,7 @@ void Win32Start(HINSTANCE hInstance)
 	// Pass functions
 	PlatformCode platformCode;
 	platformCode.Log = Log;
-	platformCode.ReadEntireFile = ReadEntireFile;
+	platformCode.PlatformReadEntireFile = PlatformReadEntireFile;
 	platformCode.SetUpDevice = SetUpDevice;
 	platformCode.ClearBuffers = ClearBuffers;
 	platformCode.GetUniform = GetUniform;
@@ -692,6 +580,11 @@ void Win32Start(HINSTANCE hInstance)
 	bool running = true;
 	while (running)
 	{
+		QueryPerformanceCounter(&largeInteger);
+		const u64 newPerfCounter = largeInteger.LowPart;
+		const f64 time = (f64)newPerfCounter / (f64)perfFrequency;
+		const f32 deltaTime = (f32)(newPerfCounter - lastPerfCounter) / (f32)perfFrequency;
+
 		// Hot reload
 		FILETIME newDllWriteTime = Win32GetLastWriteTime(gameDllFilename);
 		if (CompareFileTime(&newDllWriteTime, &gameCode.lastWriteTime) != 0)
@@ -715,11 +608,6 @@ void Win32Start(HINSTANCE hInstance)
 				}
 			}
 		}
-
-		QueryPerformanceCounter(&largeInteger);
-		const u64 newPerfCounter = largeInteger.LowPart;
-		const f64 time = (f64)newPerfCounter / (f64)perfFrequency;
-		const f32 deltaTime = (f32)(newPerfCounter - lastPerfCounter) / (f32)perfFrequency;
 
 		// Check events
 		Controller oldController = controller;
