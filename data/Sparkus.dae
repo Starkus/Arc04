@@ -5,8 +5,8 @@
       <author>Blender User</author>
       <authoring_tool>Blender 2.90.1 commit date:2020-09-23, commit time:06:43, hash:3e85bb34d0d7</authoring_tool>
     </contributor>
-    <created>2020-10-12T11:06:04</created>
-    <modified>2020-10-12T11:06:04</modified>
+    <created>2020-10-31T19:26:33</created>
+    <modified>2020-10-31T19:26:33</modified>
     <unit name="meter" meter="1"/>
     <up_axis>Z_UP</up_axis>
   </asset>
@@ -50,6 +50,212 @@
     </material>
   </library_materials>
   <library_geometries>
+    <geometry id="Cube_000-mesh" name="Cube.000">
+      <mesh>
+        <source id="Cube_000-mesh-positions">
+          <float_array id="Cube_000-mesh-positions-array" count="189">-0.05738252 -0.3557355 0 -0.05924463 -0.2587347 0 -0.0486117 -0.212099 0 0.05568569 -0.002067685 0 0.002608478 -2.44834e-4 0 0.007961511 -0.2230849 0 -0.05298066 -0.2233253 0 -0.04596126 -0.3374754 0 -0.04076993 -0.3809693 0 0.1034135 -0.01216584 0 -0.108587 -0.3580991 0 -0.09208595 -0.3812741 0 -0.06965023 -0.3801268 0 0.008083283 -0.2668543 0 -0.02587622 -0.4024603 0 -0.001616179 -0.4010418 0 0.01112943 -0.3785047 0 0.1313585 -0.1788232 0 0.1099143 -0.3315164 0 0.09518706 -0.3324253 0 0.0703485 -0.2055763 0 0.07486921 -0.3187341 0 0.05857253 -0.3778953 0 0.04007387 -0.378906 0 -0.1142558 -0.2616046 0 -0.1299363 -0.1030437 0 -0.1044896 -0.08217704 0 -0.1384115 -0.2176394 0 -0.1892265 -0.2284425 0 -0.162113 -0.2435777 0 -0.08991277 -0.05182111 0 -0.105921 -0.04157531 0 -0.1939391 -0.2178823 0 -0.1763952 -0.181123 0 -0.1479604 -0.1425192 0 0.07905584 -0.2452138 0 0.08307754 -0.2847157 0 0.08272427 -0.3196442 0 0.119762 -0.3163939 0 -0.05305105 -0.00680828 0 -0.1119537 -0.3162302 0 -0.1095888 -0.2108643 0 -0.1043614 -0.1601068 0 0.1040505 -0.03229749 0 0.08911055 -0.005909442 0 0.08339911 -0.04214477 0 0.09837669 -0.06913483 0 -0.04917335 -0.2707911 0 -0.1071842 -0.02123326 0 0.007927417 -0.2085434 0 0.01234066 -0.3349938 0 0.01511925 -0.2598434 0 0.02019536 -0.3219093 0 0.12421 -0.1202808 0 0.1226413 -0.2395393 0 -0.1043614 -0.1601068 0 0.07313501 -0.3597564 0 0.02536851 -0.3628224 0 -0.1773258 -0.2395649 0 -0.09289753 -0.01375865 0 0.07274651 -0.256543 0 0.1232998 -0.2824113 0 -0.05733865 -0.3138399 0</float_array>
+          <technique_common>
+            <accessor source="#Cube_000-mesh-positions-array" count="63" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="Cube_000-mesh-normals">
+          <float_array id="Cube_000-mesh-normals-array" count="0"/>
+          <technique_common>
+            <accessor source="#Cube_000-mesh-normals-array" count="0" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="Cube_000-mesh-map-0">
+          <float_array id="Cube_000-mesh-map-0-array" count="0"/>
+          <technique_common>
+            <accessor source="#Cube_000-mesh-map-0-array" count="0" stride="2">
+              <param name="S" type="float"/>
+              <param name="T" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="Cube_000-mesh-vertices">
+          <input semantic="POSITION" source="#Cube_000-mesh-positions"/>
+        </vertices>
+        <lines count="62">
+          <input semantic="VERTEX" source="#Cube_000-mesh-vertices" offset="0"/>
+          <p>39 4 14 8 26 25 61 54 61 38 52 51 31 30 33 32 34 25 19 18 30 26 29 27 8 7 12 11 13 5 45 43 47 2 44 9 32 28 36 35 15 14 59 39 42 41 34 33 16 15 48 31 43 9 51 49 40 10 46 45 23 22 37 36 57 52 11 10 4 3 41 24 60 20 62 0 18 38 35 20 54 17 50 13 53 17 59 48 21 60 58 29 1 62 27 55 56 21 23 57 40 24 37 19 13 49 0 12 50 16 1 6 7 47 58 28 46 53 22 56 44 3 2 6</p>
+        </lines>
+      </mesh>
+    </geometry>
+    <geometry id="Mesh-mesh" name="Mesh">
+      <mesh>
+        <source id="Mesh-mesh-positions">
+          <float_array id="Mesh-mesh-positions-array" count="144">0.3416565 0 0 0.3385365 0.03464961 0 0.3294484 0.06788504 0 0.3147997 0.09940147 0 0.2949982 0.1288943 0 0.2704515 0.1560586 0 0.2415671 0.1805897 0 0.2087529 0.202183 0 0.1724163 0.2205335 0 0.1329651 0.2353366 0 0.0908069 0.2462876 0 0.04634928 0.2530816 0 0 0.2554141 0 -0.04634928 0.2530817 0 -0.0908069 0.2462877 0 -0.1329651 0.2353367 0 -0.1724163 0.2205336 0 -0.2087529 0.202183 0 -0.2415671 0.1805897 0 -0.2704514 0.1560586 0 -0.2949982 0.1288943 0 -0.3147997 0.09940147 0 -0.3294484 0.06788504 0 -0.3385365 0.03464961 0 -0.3416565 0 0 -0.3385365 -0.03464961 0 -0.3294484 -0.06788504 0 -0.3147997 -0.09940147 0 -0.2949982 -0.1288943 0 -0.2704515 -0.1560586 0 -0.2415671 -0.1805897 0 -0.2087529 -0.202183 0 -0.1724163 -0.2205335 0 -0.1329651 -0.2353366 0 -0.0908069 -0.2462876 0 -0.04634928 -0.2530816 0 0 -0.2554141 0 0.04634928 -0.2530817 0 0.0908069 -0.2462877 0 0.1329651 -0.2353367 0 0.1724163 -0.2205336 0 0.2087529 -0.202183 0 0.2415671 -0.1805897 0 0.2704514 -0.1560586 0 0.2949982 -0.1288943 0 0.3147997 -0.09940147 0 0.3294484 -0.06788504 0 0.3385365 -0.03464961 0</float_array>
+          <technique_common>
+            <accessor source="#Mesh-mesh-positions-array" count="48" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="Mesh-mesh-normals">
+          <float_array id="Mesh-mesh-normals-array" count="0"/>
+          <technique_common>
+            <accessor source="#Mesh-mesh-normals-array" count="0" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="Mesh-mesh-vertices">
+          <input semantic="POSITION" source="#Mesh-mesh-positions"/>
+        </vertices>
+        <lines count="48">
+          <input semantic="VERTEX" source="#Mesh-mesh-vertices" offset="0"/>
+          <p>1 0 2 1 3 2 4 3 5 4 6 5 7 6 8 7 9 8 10 9 11 10 12 11 13 12 14 13 15 14 16 15 17 16 18 17 19 18 20 19 21 20 22 21 23 22 24 23 25 24 26 25 27 26 28 27 29 28 30 29 31 30 32 31 33 32 34 33 35 34 36 35 37 36 38 37 39 38 40 39 41 40 42 41 43 42 44 43 45 44 46 45 47 46 0 47</p>
+        </lines>
+      </mesh>
+    </geometry>
+    <geometry id="Cube_001-mesh" name="Cube.001">
+      <mesh>
+        <source id="Cube_001-mesh-positions">
+          <float_array id="Cube_001-mesh-positions-array" count="189">0.05738252 -0.3557355 0 0.05924463 -0.2587347 0 0.0486117 -0.212099 0 -0.05568569 -0.002067685 0 -0.002608478 -2.44834e-4 0 -0.007961511 -0.2230849 0 0.05298066 -0.2233253 0 0.04596126 -0.3374754 0 0.04076993 -0.3809693 0 -0.1034135 -0.01216584 0 0.108587 -0.3580991 0 0.09208595 -0.3812741 0 0.06965023 -0.3801268 0 -0.008083283 -0.2668543 0 0.02587622 -0.4024603 0 0.001616179 -0.4010418 0 -0.01112943 -0.3785047 0 -0.1313585 -0.1788232 0 -0.1099143 -0.3315164 0 -0.09518706 -0.3324253 0 -0.0703485 -0.2055763 0 -0.07486921 -0.3187341 0 -0.05857253 -0.3778953 0 -0.04007387 -0.378906 0 0.1142558 -0.2616046 0 0.1299363 -0.1030437 0 0.1044896 -0.08217704 0 0.1384115 -0.2176394 0 0.1892265 -0.2284425 0 0.162113 -0.2435777 0 0.08991277 -0.05182111 0 0.105921 -0.04157531 0 0.1939391 -0.2178823 0 0.1763952 -0.181123 0 0.1479604 -0.1425192 0 -0.07905584 -0.2452138 0 -0.08307754 -0.2847157 0 -0.08272427 -0.3196442 0 -0.119762 -0.3163939 0 0.05305105 -0.00680828 0 0.1119537 -0.3162302 0 0.1095888 -0.2108643 0 0.1043614 -0.1601068 0 -0.1040505 -0.03229749 0 -0.08911055 -0.005909442 0 -0.08339911 -0.04214477 0 -0.09837669 -0.06913483 0 0.04917335 -0.2707911 0 0.1071842 -0.02123326 0 -0.007927417 -0.2085434 0 -0.01234066 -0.3349938 0 -0.01511925 -0.2598434 0 -0.02019536 -0.3219093 0 -0.12421 -0.1202808 0 -0.1226413 -0.2395393 0 0.1043614 -0.1601068 0 -0.07313501 -0.3597564 0 -0.02536851 -0.3628224 0 0.1773258 -0.2395649 0 0.09289753 -0.01375865 0 -0.07274651 -0.256543 0 -0.1232998 -0.2824113 0 0.05733865 -0.3138399 0</float_array>
+          <technique_common>
+            <accessor source="#Cube_001-mesh-positions-array" count="63" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="Cube_001-mesh-normals">
+          <float_array id="Cube_001-mesh-normals-array" count="0"/>
+          <technique_common>
+            <accessor source="#Cube_001-mesh-normals-array" count="0" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="Cube_001-mesh-map-0">
+          <float_array id="Cube_001-mesh-map-0-array" count="0"/>
+          <technique_common>
+            <accessor source="#Cube_001-mesh-map-0-array" count="0" stride="2">
+              <param name="S" type="float"/>
+              <param name="T" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="Cube_001-mesh-vertices">
+          <input semantic="POSITION" source="#Cube_001-mesh-positions"/>
+        </vertices>
+        <lines count="62">
+          <input semantic="VERTEX" source="#Cube_001-mesh-vertices" offset="0"/>
+          <p>39 4 14 8 26 25 61 54 61 38 52 51 31 30 33 32 34 25 19 18 30 26 29 27 8 7 12 11 13 5 45 43 47 2 44 9 32 28 36 35 15 14 59 39 42 41 34 33 16 15 48 31 43 9 51 49 40 10 46 45 23 22 37 36 57 52 11 10 4 3 41 24 60 20 62 0 18 38 35 20 54 17 50 13 53 17 59 48 21 60 58 29 1 62 27 55 56 21 23 57 40 24 37 19 13 49 0 12 50 16 1 6 7 47 58 28 46 53 22 56 44 3 2 6</p>
+        </lines>
+      </mesh>
+    </geometry>
+    <geometry id="Plane-mesh" name="Plane">
+      <mesh>
+        <source id="Plane-mesh-positions">
+          <float_array id="Plane-mesh-positions-array" count="12">0.1401133 0.4535951 0 -0.1401133 0.4535951 0 0.1401133 -0.1386971 0 -0.1401133 -0.1386971 0</float_array>
+          <technique_common>
+            <accessor source="#Plane-mesh-positions-array" count="4" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="Plane-mesh-normals">
+          <float_array id="Plane-mesh-normals-array" count="0"/>
+          <technique_common>
+            <accessor source="#Plane-mesh-normals-array" count="0" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="Plane-mesh-vertices">
+          <input semantic="POSITION" source="#Plane-mesh-positions"/>
+        </vertices>
+        <lines count="4">
+          <input semantic="VERTEX" source="#Plane-mesh-vertices" offset="0"/>
+          <p>0 2 1 0 3 1 2 3</p>
+        </lines>
+      </mesh>
+    </geometry>
+    <geometry id="Cube-mesh" name="Cube">
+      <mesh>
+        <source id="Cube-mesh-positions">
+          <float_array id="Cube-mesh-positions-array" count="27">0.4683808 0.06227523 -0.1178632 0.4924632 0.08199542 0.09171843 0.2744521 0.08023476 -0.2124919 0.274452 0.09166318 0.1777668 0.5887754 0.09843742 -0.03067409 0.5887754 0.09843742 0.01139348 0.480422 0.1230522 -0.01307237 0.2744521 0.1318293 -0.01736247 0.5887754 0.09843742 -0.009640276</float_array>
+          <technique_common>
+            <accessor source="#Cube-mesh-positions-array" count="9" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="Cube-mesh-normals">
+          <float_array id="Cube-mesh-normals-array" count="24">0.03218209 0.9318553 0.3614004 0.2215272 0.9751542 0 0.1114673 0.8540344 -0.5081344 0.2095112 0.9453191 -0.2499538 0.1220917 0.972137 0.2001085 0.1321445 0.9279854 0.3483979 0.2215275 0.9751542 0 0.04724323 0.861706 -0.5052039</float_array>
+          <technique_common>
+            <accessor source="#Cube-mesh-normals-array" count="8" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="Cube-mesh-vertices">
+          <input semantic="POSITION" source="#Cube-mesh-positions"/>
+        </vertices>
+        <triangles count="8">
+          <input semantic="VERTEX" source="#Cube-mesh-vertices" offset="0"/>
+          <input semantic="NORMAL" source="#Cube-mesh-normals" offset="1"/>
+          <p>7 0 1 0 6 0 6 1 5 1 8 1 6 2 4 2 0 2 7 3 0 3 2 3 7 4 3 4 1 4 6 5 1 5 5 5 6 6 8 6 4 6 7 7 6 7 0 7</p>
+        </triangles>
+      </mesh>
+    </geometry>
+    <geometry id="Icosphere-mesh" name="Icosphere">
+      <mesh>
+        <source id="Icosphere-mesh-positions">
+          <float_array id="Icosphere-mesh-positions-array" count="15">0 -1.225949 0 -0.4716866 -0.6515006 0 0 -0.8734005 -0.3330833 0 -0.8734005 0.3330833 0.4716866 -0.6515006 0</float_array>
+          <technique_common>
+            <accessor source="#Icosphere-mesh-positions-array" count="5" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="Icosphere-mesh-normals">
+          <float_array id="Icosphere-mesh-normals-array" count="12">0.641559 -0.5267916 0.5575774 -0.641559 -0.5267916 0.5575774 0.641559 -0.5267917 -0.5575775 -0.641559 -0.5267917 -0.5575775</float_array>
+          <technique_common>
+            <accessor source="#Icosphere-mesh-normals-array" count="4" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="Icosphere-mesh-vertices">
+          <input semantic="POSITION" source="#Icosphere-mesh-positions"/>
+        </vertices>
+        <triangles count="4">
+          <input semantic="VERTEX" source="#Icosphere-mesh-vertices" offset="0"/>
+          <input semantic="NORMAL" source="#Icosphere-mesh-normals" offset="1"/>
+          <p>4 0 3 0 0 0 3 1 1 1 0 1 2 2 4 2 0 2 1 3 2 3 0 3</p>
+        </triangles>
+      </mesh>
+    </geometry>
     <geometry id="sparkusMesh-mesh" name="sparkusMesh">
       <mesh>
         <source id="sparkusMesh-mesh-positions">
@@ -134,780 +340,48 @@
       </skin>
     </controller>
   </library_controllers>
-  <library_animations>
-    <animation id="action_container-sparkusSkel" name="sparkusSkel">
-      <animation id="sparkusSkel_Run_foot_L_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_foot_L_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_foot_L_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_foot_L_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_foot_L_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_foot_L_pose_matrix-output-array" count="320">0.9902149 0.09985883 -0.09748064 -0.1736387 -0.07348865 0.9669718 0.2440598 -0.8250043 0.1186325 -0.234508 0.9648485 -0.5802014 0 0 0 1 0.9895621 0.08124316 -0.119023 -0.1729415 -0.04306637 0.9549111 0.2937511 -0.7615417 0.1375216 -0.2855591 0.9484426 -0.5208836 0 0 0 1 0.9875714 0.06198397 -0.1444328 -0.1722424 -0.007987374 0.9375562 0.3477419 -0.6958175 0.1569683 -0.3422663 0.9263988 -0.4670655 0 0 0 1 0.9853635 0.04801333 -0.1635649 -0.1715478 0.0192285 0.9220849 0.3865099 -0.6355612 0.1693783 -0.3839978 0.9076656 -0.399951 0 0 0 1 0.9846507 0.04167021 -0.1694891 -0.1708618 0.03007327 0.9160522 0.3999299 -0.5855045 0.171926 -0.3988884 0.9007383 -0.3080335 0 0 0 1 0.9843053 0.03051929 -0.1738148 -0.1700762 0.01640719 0.9648402 0.2623248 -0.5470493 0.1757095 -0.2610595 0.9491966 -0.1798491 0 0 0 1 0.9834874 -0.003796082 -0.1809368 -0.1691494 -0.03401252 0.9780874 -0.2053966 -0.5198236 0.1777517 0.2081591 0.9618075 -0.01324589 0 0 0 1 0.9853047 -0.05107762 -0.1629901 -0.1682819 -0.0990294 0.6066637 -0.7887662 -0.4985444 0.1391685 0.7933158 0.5926905 0.1638071 0 0 0 1 0.9891978 -0.07337824 -0.1268988 -0.1677067 -0.1232549 0.05223818 -0.9909992 -0.4742184 0.07934674 0.9959351 0.04262968 0.3116976 0 0 0 1 0.9918459 -0.07500269 -0.1030352 -0.1675196 -0.1200173 -0.2777756 -0.9531193 -0.4406969 0.04286587 0.9577135 -0.2845122 0.4080441 0 0 0 1 0.9937738 -0.07021571 -0.08650625 -0.1675346 -0.1086853 -0.4400839 -0.8913549 -0.4031874 0.02451711 0.8952071 -0.4449753 0.4637455 0 0 0 1 0.9958382 -0.05965968 -0.0688977 -0.1676642 -0.08969918 -0.5077822 -0.8568028 -0.3586098 0.01613156 0.8594171 -0.5110204 0.4866459 0 0 0 1 0.997586 -0.04566698 -0.05231375 -0.1679793 -0.06843387 -0.5186092 -0.8522682 -0.294773 0.01179012 0.8537909 -0.5204824 0.4893066 0 0 0 1 0.9990919 -0.02821182 -0.03193006 -0.1686332 -0.04139458 -0.4651217 -0.8842784 -0.1857955 0.01009574 0.884797 -0.4658671 0.3922045 0 0 0 1 0.9998982 -0.01099217 -0.009095682 -0.1697377 -0.01178687 -0.2772065 -0.960738 -0.05424522 0.00803921 0.9607474 -0.2773078 0.1396721 0 0 0 1 1 2.05909e-7 4.26326e-14 -0.1708617 1.42109e-14 1.02955e-7 -0.9999999 -0.001257732 -2.05909e-7 0.9999999 1.19209e-7 -0.09536116 0 0 0 1 0.9996873 0.01517112 -0.01987915 -0.1721493 -0.02402866 0.3625983 -0.9316356 -0.1179144 -0.006925806 0.9318219 0.3628495 -0.3094329 0 0 0 1 0.9967836 0.05247005 -0.06057536 -0.1735064 -0.07926732 0.7567788 -0.6488468 -0.4054396 0.01179713 0.6515615 0.7585039 -0.5171102 0 0 0 1 0.9928326 0.09031536 -0.07827219 -0.1740238 -0.1091635 0.9518981 -0.2863097 -0.6389073 0.04864897 0.2928021 0.9549346 -0.5932506 0 0 0 1 0.9912781 0.1005948 -0.08513703 -0.17389 -0.1013767 0.9948359 -0.004900618 -0.7501958 0.08420441 0.01348877 0.9963571 -0.5887178 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_foot_L_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_foot_L_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_foot_L_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_foot_L_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_foot_L_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_foot_L_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_foot_L_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_foot_L_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_foot_L_pose_matrix-sampler" target="sparkusSkel_foot_L/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_foot_piston0_L_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_foot_piston0_L_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_foot_piston0_L_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_foot_piston0_L_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_foot_piston0_L_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_foot_piston0_L_pose_matrix-output-array" count="320">-0.9970394 -0.06063956 -0.04727963 0.04269168 0.04436129 -0.9558582 0.2904607 -0.1051137 -0.06280599 0.2875029 0.9557192 -0.07904667 0 0 0 1 -0.9979922 -0.06063955 -0.01830056 0.04269169 0.05277905 -0.9558583 0.2890498 -0.1051137 -0.03502055 0.287503 0.9571403 -0.07904664 0 0 0 1 -0.998077 -0.06063959 0.01286158 0.04269166 0.06177629 -0.9558582 0.2872612 -0.1051138 -0.005125561 0.2875028 0.957767 -0.07904664 0 0 0 1 -0.9975123 -0.06063954 0.03594575 0.04269168 0.06840464 -0.9558582 0.2857555 -0.1051137 0.01703091 0.2875028 0.9576294 -0.07904661 0 0 0 1 -0.9971359 -0.06063955 0.04520172 0.04269169 0.07105371 -0.9558581 0.2851083 -0.1051138 0.02591754 0.287503 0.95743 -0.07904659 0 0 0 1 -0.9964707 -0.06063955 0.05804671 0.04269168 0.07472157 -0.9558583 0.284169 -0.1051138 0.03825248 0.2875028 0.9570167 -0.07904664 0 0 0 1 -0.9906589 -0.06063955 0.122139 0.04269169 0.09287821 -0.9558581 0.2787632 -0.1051137 0.09984343 0.2875027 0.9525625 -0.07904667 0 0 0 1 0.9772103 -0.06063968 0.2034282 0.04269163 0.001850963 -0.9558581 -0.2938228 -0.1051138 0.2122658 0.2875029 -0.9339632 -0.07904661 0 0 0 1 0.9980984 -0.06063949 0.01106749 0.04269169 -0.05487239 -0.9558581 -0.2886596 -0.1051137 0.02808309 0.287503 -0.957369 -0.07904667 0 0 0 1 0.9980066 -0.06063967 -0.01749161 0.04269165 -0.06310836 -0.9558582 -0.2869719 -0.1051137 6.82376e-4 0.2875031 -0.9577805 -0.0790467 0 0 0 1 0.9978629 -0.06063961 -0.02434508 0.04269168 -0.06507762 -0.9558581 -0.2865314 -0.1051137 -0.005895291 0.2875029 -0.9577626 -0.07904664 0 0 0 1 0.9980614 -0.06063946 -0.01401148 0.04269168 -0.0621071 -0.9558581 -0.2871899 -0.1051137 0.004022047 0.2875029 -0.9577723 -0.07904658 0 0 0 1 0.9981419 -0.06063955 0.005974262 0.04269168 -0.05634473 -0.955858 -0.288376 -0.1051137 0.02319751 0.287503 -0.9574996 -0.07904661 0 0 0 1 0.9973055 -0.06063952 0.04128791 0.04269166 -0.04610576 -0.9558582 -0.290189 -0.1051137 0.05706225 0.287503 -0.9560792 -0.07904664 0 0 0 1 0.9930769 -0.06063951 0.1006057 0.04269168 -0.02874283 -0.9558582 -0.2924196 -0.1051137 0.1138968 0.2875028 -0.9509845 -0.07904666 0 0 0 1 0.9843427 -0.06063947 0.1655079 0.04269168 -0.009506218 -0.9558583 -0.2936749 -0.1051137 0.1760102 0.287503 -0.9414694 -0.07904664 0 0 0 1 0.9676722 -0.06063957 0.244814 0.04269166 0.01434837 -0.9558583 -0.293478 -0.1051138 0.2518037 0.2875029 -0.9240884 -0.07904662 0 0 0 1 0.09908859 -0.06063955 0.99323 0.04269168 0.2808455 -0.9558582 -0.08637656 -0.1051138 0.9546244 0.2875029 -0.0776843 -0.07904661 0 0 0 1 -0.9980029 -0.06063963 -0.01769478 0.04269168 0.05295456 -0.9558582 0.2890173 -0.1051137 -0.03443958 0.2875029 0.9571613 -0.07904655 0 0 0 1 -0.9968774 -0.06063955 -0.05057889 0.04269166 0.04339986 -0.9558582 0.2906058 -0.1051137 -0.0659684 0.2875028 0.9555063 -0.07904673 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_foot_piston0_L_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_foot_piston0_L_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_foot_piston0_L_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_foot_piston0_L_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_foot_piston0_L_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_foot_piston0_L_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_foot_piston0_L_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_foot_piston0_L_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_foot_piston0_L_pose_matrix-sampler" target="sparkusSkel_foot_piston0_L/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_foot_piston1_L_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_foot_piston1_L_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_foot_piston1_L_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_foot_piston1_L_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_foot_piston1_L_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_foot_piston1_L_pose_matrix-output-array" count="320">-0.9505067 0.2066948 -0.2319801 -0.0197107 -0.2630371 -0.9327079 0.2467136 -0.1105177 -0.1653754 0.2955221 0.9409134 -0.08091851 0 0 0 1 -0.9605292 0.2066949 -0.1861755 -0.01971072 -0.2509155 -0.9327081 0.2590323 -0.1105175 -0.1201068 0.2955221 0.9477561 -0.08091846 0 0 0 1 -0.9688355 0.2066949 -0.1365126 -0.01971067 -0.2372566 -0.932708 0.2715979 -0.1105177 -0.07118851 0.295522 0.9526801 -0.08091849 0 0 0 1 -0.9732803 0.2066948 -0.1000167 -0.0197107 -0.2268849 -0.9327079 0.28032 -0.1105176 -0.03534573 0.2955219 0.954682 -0.08091848 0 0 0 1 -0.9746101 0.2066948 -0.08609618 -0.01971069 -0.2228554 -0.9327078 0.283534 -0.1105176 -0.02169765 0.2955219 0.9550897 -0.08091851 0 0 0 1 -0.9704025 0.2066948 -0.1248872 -0.0197107 -0.2339832 -0.9327078 0.2744231 -0.1105176 -0.05976149 0.295522 0.9534652 -0.08091848 0 0 0 1 -0.9137369 0.2066948 -0.3498032 -0.0197107 -0.2920055 -0.9327078 0.2116339 -0.1105176 -0.2825207 0.295522 0.9126058 -0.08091846 0 0 0 1 0.7041554 0.2066948 -0.6792956 -0.0197107 -0.06789621 -0.9327078 -0.3541839 -0.1105176 -0.7067925 0.2955219 -0.6427376 -0.08091849 0 0 0 1 0.9523533 0.2066948 -0.2242785 -0.01971073 0.1225571 -0.9327078 -0.3391695 -0.1105176 -0.2792909 0.2955221 -0.9135996 -0.08091849 0 0 0 1 0.9697521 0.2066948 -0.1298404 -0.0197107 0.1552151 -0.9327079 -0.3255221 -0.1105176 -0.1883869 0.295522 -0.9365777 -0.08091852 0 0 0 1 0.974567 0.2066948 -0.0865839 -0.01971069 0.1695385 -0.9327078 -0.3182967 -0.1105176 -0.1465477 0.2955219 -0.9440291 -0.08091852 0 0 0 1 0.9767979 0.2066948 -0.05606391 -0.01971067 0.1794097 -0.9327078 -0.312839 -0.1105176 -0.1169534 0.2955217 -0.9481504 -0.08091852 0 0 0 1 0.9778312 0.2066947 -0.03352272 -0.0197107 0.1865764 -0.9327076 -0.3086187 -0.1105176 -0.09505674 0.295522 -0.9505953 -0.08091845 0 0 0 1 0.9782755 0.2066948 -0.01595696 -0.01971072 0.1920886 -0.9327078 -0.3052181 -0.1105176 -0.07797012 0.2955219 -0.9521491 -0.08091849 0 0 0 1 0.9782568 0.2066948 -0.01706291 -0.0197107 0.1917435 -0.932708 -0.3054351 -0.1105176 -0.07904651 0.2955219 -0.9520605 -0.08091853 0 0 0 1 0.9767845 0.2066948 -0.05630076 -0.01971069 0.1793338 -0.9327079 -0.3128826 -0.1105176 -0.1171834 0.2955221 -0.948122 -0.08091849 0 0 0 1 0.9520763 0.2066948 -0.2254512 -0.0197107 0.1221393 -0.9327079 -0.3393199 -0.1105176 -0.2804158 0.2955219 -0.9132549 -0.08091849 0 0 0 1 0.09305553 0.2066948 -0.9739703 -0.0197107 -0.2819348 -0.9327079 -0.224875 -0.1105176 -0.9549105 0.2955219 -0.02851915 -0.08091849 0 0 0 1 -0.8161438 0.2066947 -0.5396175 -0.0197107 -0.3309488 -0.932708 0.1432789 -0.1105177 -0.4736907 0.2955219 0.8296291 -0.0809184 0 0 0 1 -0.9145018 0.2066948 -0.3477985 -0.0197107 -0.2915406 -0.9327079 0.2122737 -0.1105177 -0.2805186 0.295522 0.9132232 -0.08091852 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_foot_piston1_L_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_foot_piston1_L_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_foot_piston1_L_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_foot_piston1_L_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_foot_piston1_L_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_foot_piston1_L_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_foot_piston1_L_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_foot_piston1_L_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_foot_piston1_L_pose_matrix-sampler" target="sparkusSkel_foot_piston1_L/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_foot_R_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_foot_R_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_foot_R_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_foot_R_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_foot_R_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_foot_R_pose_matrix-output-array" count="320">0.9942243 0.06817732 0.0828854 0.1675348 0.1046087 -0.4430386 -0.8903784 -0.4044422 -0.02398218 0.8939064 -0.4476117 0.4637454 0 0 0 1 0.9960679 0.05785143 0.06709684 0.1676512 0.0870105 -0.4962899 -0.8637856 -0.3561714 -0.01667176 0.8662271 -0.4993721 0.4804274 0 0 0 1 0.997586 0.04566733 0.05231353 0.1679794 0.06843386 -0.5186092 -0.8522682 -0.294773 -0.01179053 0.8537909 -0.5204824 0.4893065 0 0 0 1 0.9990665 0.02867171 0.03231264 0.1687254 0.04188208 -0.4595754 -0.8871506 -0.1841856 -0.01058603 0.8876758 -0.4603472 0.3922044 0 0 0 1 0.9998927 0.01122987 0.009413972 0.169781 0.01212082 -0.2727789 -0.9620003 -0.05348788 -0.008235203 0.9620112 -0.2728857 0.139672 0 0 0 1 1 2.05909e-7 4.26326e-14 0.1708617 1.42109e-14 1.02955e-7 -0.9999999 -0.001257732 -2.05909e-7 0.9999999 1.19209e-7 -0.09536125 0 0 0 1 0.9996978 -0.014865 0.01957937 0.1721492 0.02360306 0.3577857 -0.9335053 -0.1207956 0.006871331 0.9336853 0.3580285 -0.309433 0 0 0 1 0.9967959 -0.05233818 0.0604866 0.1735061 0.07910194 0.7572007 -0.6483748 -0.4115646 -0.01186573 0.6510819 0.7589146 -0.5171103 0 0 0 1 0.9928326 -0.09031526 0.07827257 0.1740235 0.1091635 0.951898 -0.2863097 -0.6389073 -0.04864938 0.2928022 0.9549345 -0.5932508 0 0 0 1 0.9910077 -0.1047745 0.08322328 0.1739425 0.1033327 0.9944154 0.02145934 -0.7625782 -0.08500689 -0.0126667 0.9962999 -0.5918924 0 0 0 1 0.990131 -0.1007983 0.0973676 0.1736384 0.07255987 0.9631011 0.259174 -0.8315021 -0.1198991 -0.2495513 0.96091 -0.5802016 0 0 0 1 0.9890839 -0.09002283 0.1166572 0.1731545 0.04257853 0.9325171 0.3586069 -0.8473681 -0.1410677 -0.3497252 0.9261706 -0.5517655 0 0 0 1 0.9874411 -0.07386133 0.1396589 0.1725019 0.01389522 0.9211624 0.3889303 -0.7983295 -0.1573754 -0.3821051 0.9106199 -0.5019237 0 0 0 1 0.9852542 -0.0529827 0.1626869 0.171659 -0.01669864 0.9165296 0.3996181 -0.678978 -0.1702802 -0.396442 0.9021298 -0.4165943 0 0 0 1 0.9846506 -0.04167035 0.1694895 0.1708616 -0.03007326 0.9160522 0.3999297 -0.5855045 -0.1719264 -0.3988882 0.9007382 -0.3080336 0 0 0 1 0.9845583 -0.03226816 0.1720569 0.170051 -0.02114194 0.9537517 0.2998501 -0.5362228 -0.1737752 -0.2988575 0.938342 -0.179971 0 0 0 1 0.9834635 -0.006350612 0.1809949 0.1691196 0.01877959 0.9975734 -0.06703973 -0.5048065 -0.18013 0.06933013 0.9811963 -0.02404634 0 0 0 1 0.9839654 0.03954672 0.1739197 0.1682628 0.08681476 0.7456104 -0.6607026 -0.4858091 -0.155805 0.6652074 0.7302216 0.141868 0 0 0 1 0.9879634 0.07162055 0.1371087 0.1677012 0.1248682 0.1539164 -0.980162 -0.4675658 -0.09130302 0.9854848 0.1431206 0.2911994 0 0 0 1 0.9918459 0.07500309 0.103035 0.1675197 0.1200173 -0.2777756 -0.9531193 -0.4406969 -0.04286627 0.9577135 -0.2845123 0.408044 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_foot_R_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_foot_R_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_foot_R_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_foot_R_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_foot_R_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_foot_R_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_foot_R_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_foot_R_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_foot_R_pose_matrix-sampler" target="sparkusSkel_foot_R/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_foot_piston0_R_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_foot_piston0_R_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_foot_piston0_R_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_foot_piston0_R_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_foot_piston0_R_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_foot_piston0_R_pose_matrix-output-array" count="320">0.9979492 0.0606396 0.02050271 -0.04269168 0.06397383 -0.9558583 -0.2867798 -0.1051137 0.002207488 0.2875028 -0.9577777 -0.07904665 0 0 0 1 0.9981132 0.06063958 0.009645178 -0.04269166 0.06085027 -0.9558582 -0.2874587 -0.1051137 -0.008211959 0.2875028 -0.9577452 -0.07904665 0 0 0 1 0.9981418 0.0606395 -0.00597425 -0.04269166 0.05634467 -0.9558581 -0.2883759 -0.1051138 -0.02319749 0.287503 -0.9574993 -0.07904655 0 0 0 1 0.9972921 0.06063962 -0.04161259 -0.04269168 0.04601137 -0.9558583 -0.2902038 -0.1051137 -0.05737354 0.2875029 -0.9560605 -0.07904665 0 0 0 1 0.9930413 0.06063949 -0.1009552 -0.04269169 0.02863987 -0.9558583 -0.2924297 -0.1051138 -0.1142316 0.2875029 -0.9509439 -0.07904663 0 0 0 1 0.9843426 0.06063958 -0.1655079 -0.04269166 0.009506293 -0.9558582 -0.2936748 -0.1051137 -0.1760103 0.287503 -0.9414688 -0.07904663 0 0 0 1 0.9680611 0.0606396 -0.2432711 -0.04269168 -0.01388049 -0.9558583 -0.2935003 -0.1051138 -0.2503303 0.2875029 -0.924488 -0.07904664 0 0 0 1 0.08753562 0.06063955 -0.9943146 -0.04269168 -0.2818305 -0.9558583 -0.08310558 -0.1051137 -0.9554629 0.2875029 -0.06658161 -0.07904658 0 0 0 1 -0.9980029 0.06063961 0.01769471 -0.04269163 -0.0529546 -0.9558582 0.2890172 -0.1051138 0.03443948 0.2875027 0.9571612 -0.07904667 0 0 0 1 -0.9965229 0.06063951 0.05714022 -0.04269165 -0.04148582 -0.9558582 0.2908848 -0.1051138 0.07225706 0.2875027 0.9550508 -0.07904664 0 0 0 1 -0.9969901 0.0606395 0.04830703 -0.04269169 -0.04406193 -0.9558581 0.2905062 -0.1051137 0.06379079 0.287503 0.9556537 -0.07904655 0 0 0 1 -0.9977617 0.06063967 0.02818648 -0.04269168 -0.04991305 -0.9558583 0.2895582 -0.1051137 0.04450098 0.2875029 0.9567461 -0.07904667 0 0 0 1 -0.9981592 0.06063959 0.00109235 -0.04269168 -0.05775446 -0.9558582 0.2880966 -0.1051137 0.01851421 0.2875028 0.9576014 -0.07904663 0 0 0 1 -0.9976891 0.06063959 -0.03065159 -0.04269166 -0.06688728 -0.9558582 0.2861143 -0.1051137 -0.01194868 0.287503 0.9577058 -0.07904656 0 0 0 1 -0.9971359 0.06063961 -0.04520177 -0.04269168 -0.07105377 -0.9558583 0.2851082 -0.1051137 -0.0259176 0.287503 0.9574296 -0.07904659 0 0 0 1 -0.9966115 0.06063961 -0.05557506 -0.04269165 -0.07401665 -0.9558582 0.2843533 -0.1051137 -0.0358788 0.2875031 0.957108 -0.07904663 0 0 0 1 -0.9935308 0.06063959 -0.09601949 -0.04269166 -0.0855082 -0.9558582 0.2811113 -0.1051137 -0.07473452 0.2875028 0.9548602 -0.07904664 0 0 0 1 0.4124789 0.06063959 -0.908947 -0.04269165 -0.2382926 -0.9558581 -0.1719063 -0.1051137 -0.8792486 0.2875028 -0.3798216 -0.07904662 0 0 0 1 0.9979918 0.0606395 -0.01832233 -0.04269169 0.05277269 -0.9558583 -0.2890508 -0.1051138 -0.03504145 0.2875029 -0.9571393 -0.07904667 0 0 0 1 0.9980065 0.06063963 0.01749158 -0.04269168 0.06310833 -0.9558581 -0.2869716 -0.1051138 -6.82384e-4 0.2875029 -0.9577801 -0.07904658 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_foot_piston0_R_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_foot_piston0_R_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_foot_piston0_R_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_foot_piston0_R_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_foot_piston0_R_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_foot_piston0_R_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_foot_piston0_R_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_foot_piston0_R_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_foot_piston0_R_pose_matrix-sampler" target="sparkusSkel_foot_piston0_R/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_foot_piston1_R_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_foot_piston1_R_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_foot_piston1_R_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_foot_piston1_R_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_foot_piston1_R_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_foot_piston1_R_pose_matrix-output-array" count="320">0.9749597 -0.2066949 0.08204111 0.01971069 -0.17102 -0.932708 -0.3175031 -0.1105176 0.1421466 0.2955219 -0.9447015 -0.08091855 0 0 0 1 0.9768343 -0.2066948 0.05542656 0.01971069 -0.1796137 -0.9327077 -0.312722 -0.1105176 0.1163348 0.295522 -0.9482261 -0.08091843 0 0 0 1 0.9778309 -0.2066948 0.03352271 0.01971069 -0.1865764 -0.9327077 -0.3086185 -0.1105176 0.09505671 0.2955219 -0.950595 -0.08091842 0 0 0 1 0.9782516 -0.2066948 0.01735427 0.01971069 -0.1916525 -0.9327078 -0.305492 -0.1105176 0.07933006 0.2955219 -0.9520364 -0.08091852 0 0 0 1 0.978237 -0.2066948 0.01816426 0.01971072 -0.1913995 -0.9327079 -0.3056507 -0.1105176 0.08011834 0.2955219 -0.9519704 -0.08091849 0 0 0 1 0.9767843 -0.2066948 0.05630068 0.01971072 -0.1793338 -0.9327079 -0.3128825 -0.1105176 0.1171833 0.2955221 -0.9481217 -0.08091848 0 0 0 1 0.9529681 -0.2066948 0.2216515 0.0197107 -0.1234919 -0.932708 -0.3388299 -0.1105176 0.2767706 0.295522 -0.9143659 -0.08091849 0 0 0 1 0.09018574 -0.2066948 0.9742398 0.0197107 0.2825961 -0.9327078 -0.2240433 -0.1105176 0.9549903 0.295522 -0.02570582 -0.08091843 0 0 0 1 -0.8161435 -0.2066947 0.5396174 0.01971072 0.3309488 -0.9327079 0.1432789 -0.1105177 0.4736907 0.2955219 0.8296289 -0.08091852 0 0 0 1 -0.9177002 -0.2066948 0.3392692 0.01971072 0.2895516 -0.9327079 0.2149787 -0.1105176 0.2720042 0.2955219 0.9157949 -0.08091852 0 0 0 1 -0.9516766 -0.2066948 0.2271317 0.01971069 0.2617761 -0.9327078 0.248051 -0.1105176 0.1605768 0.2955219 0.941744 -0.08091845 0 0 0 1 -0.9631885 -0.2066948 0.1718872 0.0197107 0.2470399 -0.9327077 0.2627309 -0.1105176 0.1060155 0.2955223 0.9494352 -0.0809185 0 0 0 1 -0.9690128 -0.2066948 0.1352458 0.0197107 0.2369013 -0.9327078 0.271908 -0.1105176 0.06994302 0.295522 0.952772 -0.08091843 0 0 0 1 -0.9732245 -0.2066948 0.1005559 0.01971069 0.2270402 -0.9327077 0.2801944 -0.1105175 0.03587462 0.2955221 0.9546619 -0.08091844 0 0 0 1 -0.9746102 -0.2066949 0.08609624 0.01971069 0.2228555 -0.9327079 0.2835342 -0.1105176 0.02169768 0.2955221 0.9550894 -0.08091848 0 0 0 1 -0.9718948 -0.2066948 0.1126846 0.0197107 0.2305169 -0.9327078 0.2773412 -0.1105176 0.04777689 0.2955221 0.9541403 -0.08091848 0 0 0 1 -0.9439389 -0.2066948 0.2574039 0.0197107 0.2695632 -0.9327078 0.2395658 -0.1105176 0.1905658 0.2955219 0.9361362 -0.08091849 0 0 0 1 0.1630918 -0.2066948 0.9647163 0.01971072 0.2649737 -0.9327077 -0.2446323 -0.1105176 0.9503633 0.2955219 -0.09734841 -0.08091848 0 0 0 1 0.9410886 -0.2066948 0.2676374 0.01971069 -0.106903 -0.932708 -0.344424 -0.1105176 0.3208182 0.295522 -0.8998569 -0.08091855 0 0 0 1 0.9697519 -0.2066948 0.1298403 0.01971069 -0.155215 -0.9327078 -0.3255218 -0.1105176 0.1883868 0.295522 -0.9365772 -0.08091846 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_foot_piston1_R_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_foot_piston1_R_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_foot_piston1_R_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_foot_piston1_R_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_foot_piston1_R_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_foot_piston1_R_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_foot_piston1_R_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_foot_piston1_R_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_foot_piston1_R_pose_matrix-sampler" target="sparkusSkel_foot_piston1_R/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_mid_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_mid_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_mid_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_mid_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_mid_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_mid_pose_matrix-output-array" count="320">-0.9987661 0.01042233 0.04855553 0.01461299 -0.04966149 -0.209613 -0.9765224 -1.253114 2.2869e-7 -0.9777288 0.2098719 0.007771365 0 0 0 1 -0.9987143 0.01063882 0.04956406 0.01914551 -0.050693 -0.2096022 -0.9764717 -1.232 2.29255e-7 -0.9777288 0.209872 0.007771358 0 0 0 1 -0.9985737 0.01120503 0.05220186 0.03100141 -0.05339088 -0.2095727 -0.9763343 -1.172246 2.28699e-7 -0.9777288 0.209872 0.007771358 0 0 0 1 -0.9984258 0.01177116 0.05483928 0.04285731 -0.05608838 -0.2095416 -0.9761897 -1.100284 2.2983e-7 -0.9777288 0.209872 0.007771358 0 0 0 1 -0.9983674 0.01198757 0.05584746 0.04738984 -0.05711953 -0.2095294 -0.9761325 -1.048354 2.3026e-7 -0.9777288 0.209872 0.00777135 0 0 0 1 -0.9986323 0.01097242 0.05111824 0.04457723 -0.05228258 -0.2095849 -0.9763916 -1.026078 2.31408e-7 -0.9777288 0.2098719 0.007771358 0 0 0 1 -0.9996715 0.005378643 0.02505858 0.01997802 -0.02562932 -0.209803 -0.9774076 -1.091117 2.37455e-7 -0.9777288 0.2098719 0.007771358 0 0 0 1 -0.9999782 -0.001386413 -0.006457721 -0.005139159 0.006604869 -0.2098674 -0.9777075 -1.148194 2.418e-7 -0.9777288 0.2098719 0.007771365 0 0 0 1 -0.9996293 -0.005714006 -0.02661863 -0.0102448 0.02722501 -0.2097941 -0.9773664 -1.198501 2.45381e-7 -0.9777288 0.2098719 0.007771365 0 0 0 1 -0.999112 -0.00884298 -0.04119555 -0.01135173 0.04213397 -0.2096856 -0.9768606 -1.239514 2.46754e-7 -0.9777288 0.209872 0.007771365 0 0 0 1 -0.9987661 -0.01042276 -0.04855526 -0.01461295 0.04966132 -0.209613 -0.9765224 -1.253114 2.47654e-7 -0.9777288 0.209872 0.007771365 0 0 0 1 -0.9985537 -0.01128365 -0.05256586 -0.02279458 0.05376328 -0.2095685 -0.9763147 -1.232 2.47847e-7 -0.9777288 0.209872 0.007771373 0 0 0 1 -0.9984202 -0.01179237 -0.05493584 -0.0343254 0.05618724 -0.2095404 -0.9761843 -1.172246 2.4697e-7 -0.9777288 0.209872 0.007771373 0 0 0 1 -0.9983728 -0.01196803 -0.05575417 -0.04396997 0.05702421 -0.2095305 -0.9761379 -1.100284 2.46112e-7 -0.9777288 0.209872 0.007771373 0 0 0 1 -0.9983674 -0.011988 -0.05584719 -0.04738984 0.05711936 -0.2095294 -0.9761326 -1.048354 2.46371e-7 -0.9777288 0.209872 0.00777138 0 0 0 1 -0.9986323 -0.01097285 -0.05111798 -0.04457723 0.05228242 -0.2095849 -0.9763916 -1.026078 2.43991e-7 -0.9777288 0.209872 0.007771373 0 0 0 1 -0.9997889 -0.004311819 -0.02008629 -0.01459985 0.02054388 -0.2098277 -0.9775225 -1.091117 2.39132e-7 -0.9777288 0.209872 0.007771365 0 0 0 1 -0.9999782 0.001385984 0.006457992 0.005139174 -0.006605044 -0.2098674 -0.9777075 -1.148194 2.34844e-7 -0.9777288 0.209872 0.007771365 0 0 0 1 -0.9995968 0.005958932 0.02776194 0.011633 -0.02839426 -0.2097873 -0.9773346 -1.198501 2.31763e-7 -0.9777288 0.2098719 0.007771365 0 0 0 1 -0.9990041 0.009363887 0.04362456 0.0143028 -0.04461821 -0.2096629 -0.9767551 -1.239514 2.30701e-7 -0.9777288 0.2098719 0.007771365 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_mid_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_mid_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_mid_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_mid_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_mid_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_mid_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_mid_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_mid_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_mid_pose_matrix-sampler" target="sparkusSkel_mid/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_waist_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_waist_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_waist_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_waist_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_waist_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_waist_pose_matrix-output-array" count="320">-0.9961393 0.04637869 -0.07453472 -4.65661e-9 -0.07438193 0.0050143 0.9972172 0 0.04662336 0.9989115 -0.001545191 -9.31323e-9 0 0 0 1 -0.9964735 0.04432977 -0.07124193 -5.58794e-9 -0.07109588 0.004864708 0.9974577 -1.49012e-8 0.04456364 0.9990053 -0.001695886 1.21072e-7 0 0 0 1 -0.9973883 0.03815746 -0.06132246 5.58794e-9 -0.06119674 0.004455179 0.9981158 2.98023e-8 0.03835876 0.9992619 -0.00210844 4.65661e-8 0 0 0 1 -0.998584 0.02810545 -0.04516794 -3.72529e-9 -0.04507534 0.003919989 0.9989759 2.98023e-8 0.02825372 0.9995974 -0.002647549 3.35276e-8 0 0 0 1 -0.9996004 0.01493559 -0.02400278 3.72529e-9 -0.02395358 0.003465012 0.9997072 1.49012e-8 0.0150144 0.9998826 -0.003105849 1.49012e-8 0 0 0 1 -0.9999999 9.31323e-8 -6.89179e-8 0 -7.26432e-8 0.003286108 0.9999946 0 9.68575e-8 0.9999946 -0.003286079 7.45058e-9 0 0 0 1 -0.9996003 -0.0149354 0.02400265 0 0.02395344 0.003465042 0.9997071 7.45058e-9 -0.0150142 0.9998826 -0.003105864 4.84288e-8 0 0 0 1 -0.998584 -0.02810525 0.04516782 -9.31323e-10 0.04507522 0.003919989 0.9989759 0 -0.02825352 0.9995974 -0.002647549 1.50874e-7 0 0 0 1 -0.9973883 -0.03815726 0.06132233 1.86265e-9 0.06119661 0.004455179 0.9981158 -1.49012e-8 -0.03835857 0.9992619 -0.002108425 1.78814e-7 0 0 0 1 -0.9964737 -0.04432959 0.07124183 -2.79397e-9 0.07109576 0.004864708 0.9974577 -2.98023e-8 -0.04456346 0.9990053 -0.001695871 8.3819e-8 0 0 0 1 -0.9961394 -0.04637852 0.07453461 5.58794e-9 0.07438181 0.005014315 0.9972172 -2.98023e-8 -0.0466232 0.9989116 -0.001545191 -1.67638e-8 0 0 0 1 -0.9964736 -0.04432959 0.07124182 3.72529e-9 0.07109576 0.004864708 0.9974577 -3.72529e-8 -0.04456347 0.9990052 -0.001695886 1.45286e-7 0 0 0 1 -0.9973884 -0.03815728 0.06132234 0 0.06119661 0.004455194 0.9981158 2.23517e-8 -0.03835858 0.9992619 -0.002108455 1.47149e-7 0 0 0 1 -0.998584 -0.02810525 0.0451678 -3.72529e-9 0.0450752 0.003920004 0.9989758 2.98023e-8 -0.02825353 0.9995974 -0.002647549 -4.74975e-8 0 0 0 1 -0.9996004 -0.0149354 0.02400263 0 0.02395342 0.003465027 0.9997072 7.45058e-9 -0.0150142 0.9998826 -0.003105864 5.58794e-9 0 0 0 1 -0.9999999 1.00583e-7 -8.84756e-8 -3.72529e-9 -8.47504e-8 0.003286108 0.9999946 -7.45058e-9 1.00583e-7 0.9999946 -0.003286079 -9.31323e-10 0 0 0 1 -0.9996003 0.01493559 -0.02400279 1.86265e-9 -0.02395358 0.003465027 0.9997071 -7.45058e-9 0.01501439 0.9998826 -0.003105849 1.06171e-7 0 0 0 1 -0.998584 0.02810544 -0.04516795 0 -0.04507535 0.003919989 0.9989759 -1.49012e-8 0.02825371 0.9995974 -0.002647549 1.52737e-7 0 0 0 1 -0.9973884 0.03815747 -0.06132248 9.31323e-10 -0.06119676 0.004455194 0.9981158 3.72529e-8 0.03835878 0.9992619 -0.002108425 3.72529e-9 0 0 0 1 -0.9964736 0.04432977 -0.07124192 -9.31323e-10 -0.07109585 0.004864722 0.9974576 3.72529e-8 0.04456364 0.9990051 -0.001695886 1.15484e-7 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_waist_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_waist_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_waist_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_waist_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_waist_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_waist_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_waist_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_waist_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_waist_pose_matrix-sampler" target="sparkusSkel_waist/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_leg0_L_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_leg0_L_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_leg0_L_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_leg0_L_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_leg0_L_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_leg0_L_pose_matrix-output-array" count="320">-0.9492213 0.3138371 0.02203178 -0.1358964 0.3145237 0.9450002 0.0897207 -0.1769315 0.007337641 0.09209429 -0.9957232 -0.005864099 0 0 0 1 -0.9541565 0.2957196 0.04620216 -0.1358964 0.2988818 0.9331573 0.1997211 -0.1769315 0.01594754 0.2043742 -0.9787631 -0.005864024 0 0 0 1 -0.9553269 0.2806221 0.09274479 -0.1358964 0.2955146 0.9118813 0.2848578 -0.1769318 -0.004634842 0.2995398 -0.9540725 -0.005864039 0 0 0 1 -0.9546978 0.2540904 0.1548876 -0.1358964 0.2957801 0.8673741 0.4002211 -0.1769316 -0.0326531 0.4279029 -0.903235 -0.005864061 0 0 0 1 -0.9570494 0.2086091 0.2013417 -0.1358964 0.2875098 0.7723334 0.5664278 -0.1769316 -0.03734078 0.5999871 -0.7991379 -0.005864047 0 0 0 1 -0.9586724 0.1650593 0.2317388 -0.1358964 0.2843957 0.5326104 0.7971485 -0.1769316 0.00815035 0.8301097 -0.5575409 -0.005864106 0 0 0 1 -0.9652709 0.1155536 0.2343055 -0.1358964 0.2537599 0.201487 0.9460489 -0.1769313 0.06210985 0.9726511 -0.2238123 -0.005864084 0 0 0 1 -0.9640492 0.1033846 0.244787 -0.1358964 0.2373568 -0.07910364 0.9681965 -0.1769314 0.1194601 0.9914911 0.05172104 -0.005864039 0 0 0 1 -0.9693962 0.2030024 0.1380588 -0.1358963 0.1108725 -0.1397284 0.983963 -0.1769313 0.2190375 0.9691575 0.112945 -0.005864039 0 0 0 1 -0.9423733 0.3240375 -0.08326084 -0.1358964 -0.09097482 -0.008702293 0.9958154 -0.1769316 0.3219568 0.9460049 0.03768 -0.005864069 0 0 0 1 -0.9146842 0.3388824 -0.220253 -0.1358964 -0.188272 0.1249597 0.9741346 -0.1769313 0.3576398 0.9324936 -0.05049662 -0.005864076 0 0 0 1 -0.9067798 0.3172956 -0.2776208 -0.1358964 -0.2254502 0.191503 0.9552481 -0.1769313 0.356261 0.9287902 -0.1021167 -0.005864099 0 0 0 1 -0.9075734 0.2969024 -0.2969166 -0.1358964 -0.2440979 0.2023 0.948415 -0.1769314 0.3416527 0.9332336 -0.1111287 -0.005864069 0 0 0 1 -0.9361737 0.2773506 -0.215999 -0.1358964 -0.1526968 0.2326209 0.9605058 -0.1769316 0.3166426 0.9321831 -0.1754228 -0.005864054 0 0 0 1 -0.9608768 0.2453567 -0.1285136 -0.1358964 -9.39683e-4 0.4610984 0.8873487 -0.1769318 0.2769743 0.8527539 -0.442828 -0.005864084 0 0 0 1 -0.9706243 0.2175168 -0.1028354 -0.1358964 0.08435531 0.7079354 0.7012218 -0.1769316 0.2253282 0.6719484 -0.7054876 -0.005864106 0 0 0 1 -0.9721715 0.219061 -0.08303244 -0.1358964 0.1517729 0.8589334 0.4890793 -0.1769316 0.1784574 0.4628671 -0.868278 -0.005864143 0 0 0 1 -0.9587307 0.2834252 -0.02248013 -0.1358964 0.2589619 0.9031425 0.3424518 -0.1769314 0.1173622 0.3224976 -0.9392664 -0.005864054 0 0 0 1 -0.9506431 0.3102246 0.006196326 -0.1358964 0.3051454 0.9310864 0.1999131 -0.1769315 0.05624862 0.1919367 -0.9797937 -0.005864024 0 0 0 1 -0.952171 0.3049072 0.02006164 -0.1358964 0.3043856 0.9406798 0.1499084 -0.1769315 0.02683661 0.1488449 -0.9884969 -0.005864106 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_leg0_L_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_leg0_L_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_leg0_L_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_leg0_L_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_leg0_L_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_leg0_L_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_leg0_L_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_leg0_L_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_leg0_L_pose_matrix-sampler" target="sparkusSkel_leg0_L/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_leg1_L_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_leg1_L_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_leg1_L_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_leg1_L_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_leg1_L_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_leg1_L_pose_matrix-output-array" count="320">-0.9748133 0.169014 0.1455072 0 0.1656132 0.1116255 0.9798528 -0.4163434 0.1493666 0.9792728 -0.1368047 -1.49012e-8 0 0 0 1 -0.9748679 0.1689774 0.1451878 0 0.1655772 0.1135292 0.9796401 -0.4163433 0.1490538 0.9790605 -0.1386552 1.49012e-8 0 0 0 1 -0.9733285 0.1697784 0.1542947 -1.49012e-8 0.1663622 0.05922505 0.9842843 -0.4163432 0.1579721 0.9837016 -0.08588972 7.45058e-9 0 0 0 1 -0.969816 0.1697205 0.1750786 1.49012e-8 0.1663055 -0.06471133 0.9839487 -0.4163434 0.1783257 0.9833658 0.03453279 -3.72529e-9 0 0 0 1 -0.9662141 0.1669205 0.1963855 1.49012e-8 0.1635617 -0.1917667 0.9677153 -0.4163433 0.1991915 0.9671429 0.1579853 -2.6077e-8 0 0 0 1 -0.9630901 0.1621358 0.2148711 0 0.1588735 -0.3019977 0.9399772 -0.4163433 0.2172945 0.9394202 0.265092 2.98023e-8 0 0 0 1 -0.9670429 0.1678149 0.191486 5.96046e-8 0.1644382 -0.1625502 0.9729013 -0.4163434 0.1943934 0.972325 0.1295979 -1.49012e-8 0 0 0 1 -0.971459 0.1700731 0.1653574 1.49012e-8 0.1666509 -0.006743245 0.9859928 -0.4163433 0.1688058 0.9854088 -0.02179192 -8.56817e-8 0 0 0 1 -0.9762908 0.1677817 0.1367688 -1.49012e-8 0.1644056 0.1637339 0.9727087 -0.4163433 0.1408089 0.9721325 -0.1874357 -2.04891e-8 0 0 0 1 -0.9828172 0.1563203 0.0981553 0 0.1531748 0.3939893 0.9062614 -0.4163435 0.1029949 0.9057245 -0.4111633 -5.96046e-8 0 0 0 1 -0.9882031 0.1380582 0.06628753 0 0.1352804 0.5840192 0.800388 -0.4163433 0.07178694 0.7999143 -0.595806 2.98023e-8 0 0 0 1 -0.9906954 0.1259606 0.05154417 1.49012e-8 0.1234261 0.6719356 0.7302524 -0.4163435 0.05734868 0.7298199 -0.6812299 2.98023e-8 0 0 0 1 -0.9910444 0.1240263 0.04947705 0 0.1215307 0.684262 0.7190384 -0.4163432 0.05532436 0.7186123 -0.6932066 1.49012e-8 0 0 0 1 -0.9874523 0.14119 0.07072887 -2.98023e-8 0.138349 0.5575353 0.8185439 -0.4163433 0.07613629 0.8180592 -0.5700726 2.98023e-8 0 0 0 1 -0.9841343 0.1526901 0.09036161 -2.98023e-8 0.1496177 0.4404633 0.8852154 -0.4163435 0.09536257 0.8846914 -0.4563199 0 0 0 0 1 -0.9862793 0.1456719 0.07767126 -2.98023e-8 0.1427408 0.5161375 0.8445278 -0.4163432 0.08293495 0.8440282 -0.5298486 0 0 0 0 1 -0.9880233 0.1388294 0.06735311 0 0.136036 0.5776656 0.8048588 -0.4163435 0.07283044 0.8043822 -0.5896323 7.45058e-9 0 0 0 1 -0.9794114 0.1635762 0.1183053 -2.98023e-8 0.1602847 0.2738325 0.9483269 -0.4163434 0.1227278 0.9477658 -0.2944134 -7.45058e-9 0 0 0 1 -0.9753758 0.1686012 0.1421831 2.98023e-8 0.1652087 0.1314475 0.9774595 -0.4163435 0.1461112 0.9768811 -0.1560649 7.45058e-9 0 0 0 1 -0.9750623 0.1688397 0.144036 2.98023e-8 0.1654424 0.1203989 0.9788424 -0.4163434 0.1479257 0.9782631 -0.1453294 -1.49012e-8 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_leg1_L_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_leg1_L_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_leg1_L_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_leg1_L_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_leg1_L_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_leg1_L_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_leg1_L_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_leg1_L_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_leg1_L_pose_matrix-sampler" target="sparkusSkel_leg1_L/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_leg0_R_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_leg0_R_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_leg0_R_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_leg0_R_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_leg0_R_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_leg0_R_pose_matrix-output-array" count="320">-0.9132963 -0.3410586 0.2226401 0.1358963 0.1921488 0.1211828 0.9738549 -0.1769314 -0.3591216 0.9321986 -0.04514177 -0.005864069 0 0 0 1 -0.9187737 -0.307274 0.2478652 0.1358964 0.1952452 0.1920231 0.9617725 -0.1769313 -0.3431234 0.9320465 -0.116432 -0.005864009 0 0 0 1 -0.9230433 -0.2839436 0.2595523 0.1358963 0.2087482 0.197031 0.9579158 -0.1769318 -0.3231337 0.9383791 -0.1225953 -0.005864032 0 0 0 1 -0.947125 -0.2612971 0.1862203 0.1358964 0.1251769 0.2334837 0.96427 -0.1769316 -0.2954403 0.9365953 -0.1884298 -0.005864047 0 0 0 1 -0.9661324 -0.2336252 0.1095783 0.1358964 -0.01099711 0.4615367 0.8870534 -0.1769316 -0.2578122 0.8558062 -0.4484743 -0.005864017 0 0 0 1 -0.9736522 -0.2101285 0.08858621 0.1358964 -0.08895324 0.7076699 0.7009218 -0.1769317 -0.2099734 0.6745744 -0.7077157 -0.005864076 0 0 0 1 -0.9738618 -0.2159462 0.0704309 0.1358963 -0.1535581 0.8544076 0.4963949 -0.1769313 -0.1673712 0.4726048 -0.8652351 -0.005864069 0 0 0 1 -0.9590819 -0.2827598 0.01443585 0.1358964 -0.2604317 0.9010549 0.3468088 -0.1769314 -0.111071 0.3288585 -0.9378248 -0.005864032 0 0 0 1 -0.9514893 -0.3075719 -0.008188369 0.1358963 -0.3029487 0.9318749 0.1995786 -0.1769313 -0.05375429 0.1923778 -0.9798475 -0.005864032 0 0 0 1 -0.9521407 -0.3050788 -0.0188456 0.1358964 -0.3047432 0.9427066 0.1357849 -0.1769313 -0.02365919 0.1350293 -0.9905596 -0.005864009 0 0 0 1 -0.948577 -0.3157849 -0.02193952 0.1358964 -0.3164938 0.9448848 0.08381324 -0.1769313 -0.005736656 0.08644699 -0.9962403 -0.005864069 0 0 0 1 -0.9418338 -0.3326345 -0.04799251 0.1358963 -0.3358957 0.9363877 0.1017509 -0.1769314 0.01109368 0.1119526 -0.9936517 -0.005864091 0 0 0 1 -0.9392971 -0.3271527 -0.1034059 0.1358964 -0.3414682 0.9207601 0.1886841 -0.1769313 0.03348355 0.2125399 -0.9765787 -0.005864039 0 0 0 1 -0.9481388 -0.2731357 -0.1625728 0.1358964 -0.3149777 0.8760449 0.3651517 -0.1769318 0.04268508 0.3974211 -0.9166433 -0.005864032 0 0 0 1 -0.9570494 -0.2086093 -0.2013415 0.1358964 -0.2875098 0.7723331 0.5664278 -0.1769317 0.03734053 0.599987 -0.799138 -0.005864054 0 0 0 1 -0.961336 -0.1644721 -0.2208674 0.1358964 -0.275326 0.5583633 0.7825769 -0.1769316 -0.005387865 0.8131298 -0.5820582 -0.005864106 0 0 0 1 -0.9714094 -0.126663 -0.2007969 0.1358964 -0.2305312 0.301151 0.9252908 -0.1769316 -0.05672991 0.945127 -0.3217407 -0.005864128 0 0 0 1 -0.9713532 -0.1360596 -0.1948351 0.1358964 -0.2016665 0.03823985 0.9787076 -0.1769314 -0.125712 0.9899625 -0.06458272 -0.005864039 0 0 0 1 -0.9689348 -0.2248219 -0.1030548 0.1358964 -0.08446667 -0.09081149 0.9922798 -0.1769315 -0.2324446 0.9701592 0.06900081 -0.005864047 0 0 0 1 -0.9345944 -0.3382103 0.1102156 0.1358963 0.118947 -0.005131021 0.9928879 -0.1769316 -0.3352392 0.9410573 0.0450246 -0.005864091 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_leg0_R_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_leg0_R_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_leg0_R_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_leg0_R_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_leg0_R_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_leg0_R_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_leg0_R_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_leg0_R_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_leg0_R_pose_matrix-sampler" target="sparkusSkel_leg0_R/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_leg1_R_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_leg1_R_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_leg1_R_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_leg1_R_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_leg1_R_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_leg1_R_pose_matrix-output-array" count="320">-0.9880214 -0.138837 -0.06736369 2.98023e-8 -0.1360433 0.577603 0.8049023 -0.4163433 -0.07284071 0.8044256 -0.5895714 1.49012e-8 0 0 0 1 -0.9906576 -0.1261646 -0.05176611 -2.98023e-8 -0.1236259 0.6706127 0.7314339 -0.4163435 -0.05756606 0.731001 -0.679944 -5.96046e-8 0 0 0 1 -0.9910891 -0.1237743 -0.04921282 2.98023e-8 -0.1212838 0.6858379 0.7175772 -0.4163431 -0.05506563 0.7171525 -0.694738 2.98023e-8 0 0 0 1 -0.9877346 -0.140039 -0.06906086 0 -0.1372212 0.5674826 0.8118708 -0.4163433 -0.07450274 0.8113902 -0.5797378 2.98023e-8 0 0 0 1 -0.9842914 -0.1522246 -0.08943327 0 -0.1491615 0.4459994 0.8825163 -0.4163434 -0.09445346 0.881994 -0.4616992 4.47035e-8 0 0 0 1 -0.9862796 -0.145672 -0.07767138 1.49012e-8 -0.1427408 0.5161371 0.8445281 -0.4163434 -0.08293501 0.8440279 -0.5298482 -1.49012e-8 0 0 0 1 -0.987471 -0.141117 -0.0706218 0 -0.1382775 0.5581748 0.8181205 -0.4163432 -0.07603139 0.8176359 -0.570694 -3.53903e-8 0 0 0 1 -0.978825 -0.1645371 -0.1217738 -1.49012e-8 -0.1612263 0.2531501 0.9538975 -0.4163433 -0.1261244 0.953333 -0.2743176 -1.11759e-8 0 0 0 1 -0.9753513 -0.1686208 -0.142328 2.98023e-8 -0.1652278 0.1305844 0.9775724 -0.4163435 -0.1462531 0.9769933 -0.1552259 -1.49012e-8 0 0 0 1 -0.9748102 -0.1690164 -0.1455274 0 -0.1656155 0.1115053 0.9798662 -0.4163434 -0.1493863 0.9792861 -0.1366882 1.49012e-8 0 0 0 1 -0.9746532 -0.1691195 -0.1464571 0 -0.1657165 0.1059625 0.9804643 -0.4163434 -0.1502966 0.9798834 -0.1313023 0 0 0 0 1 -0.9721833 -0.170047 -0.1610697 0 -0.1666253 0.01882535 0.9858403 -0.4163433 -0.1646069 0.9852568 -0.04663577 0 0 0 0 1 -0.9689187 -0.1692856 -0.1803864 0 -0.1658792 -0.09636295 0.9814264 -0.4163432 -0.1835237 0.9808457 0.06528594 0 0 0 0 1 -0.9676151 -0.1683448 -0.1881004 -1.49012e-8 -0.1649573 -0.1423617 0.9759721 -0.4163434 -0.191078 0.9753946 0.109981 -1.49012e-8 0 0 0 1 -0.9662139 -0.1669205 -0.1963855 0 -0.1635617 -0.1917665 0.967715 -0.4163433 -0.1991915 0.9671422 0.1579851 -3.35276e-8 0 0 0 1 -0.9643378 -0.1643204 -0.2074877 -1.49012e-8 -0.161014 -0.2579687 0.9526418 -0.4163434 -0.2100638 0.9520774 0.2223116 0 0 0 0 1 -0.9694518 -0.1695648 -0.1772319 -2.98023e-8 -0.1661529 -0.07755098 0.9830458 -0.4163433 -0.1804343 0.9824635 0.04700831 0 0 0 0 1 -0.974135 -0.1694221 -0.1495246 -5.96046e-8 -0.1660131 0.08767 0.982219 -0.4163433 -0.1533007 0.9816368 -0.1135285 -4.84288e-8 0 0 0 1 -0.9771873 -0.1667996 -0.1314637 -1.49012e-8 -0.1634433 0.1953692 0.9670145 -0.4163433 -0.1356137 0.9664417 -0.2181738 3.72529e-8 0 0 0 1 -0.9827685 -0.1564448 -0.09844214 -1.49012e-8 -0.1532968 0.392279 0.9069822 -0.4163432 -0.1032758 0.9064455 -0.4095016 -8.9407e-8 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_leg1_R_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_leg1_R_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_leg1_R_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_leg1_R_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_leg1_R_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_leg1_R_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_leg1_R_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_leg1_R_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_leg1_R_pose_matrix-sampler" target="sparkusSkel_leg1_R/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_spine0_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_spine0_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_spine0_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_spine0_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_spine0_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_spine0_pose_matrix-output-array" count="320">-0.9985828 -0.002466213 0.05316263 0 -0.05296596 -0.05139579 -0.997273 7.23079e-5 0.005191814 -0.9986755 0.05119213 0.001094187 0 0 0 1 -0.9989472 -0.001784917 0.04583965 -5.58794e-9 -0.04562103 -0.06622194 -0.9967616 7.22557e-5 0.004814725 -0.9978034 0.06607062 0.001094187 0 0 0 1 -0.9996454 -5.18143e-4 0.02662405 3.72529e-9 -0.02642261 -0.1049654 -0.9941249 7.23153e-5 0.003309693 -0.9944759 0.1049143 0.00109417 0 0 0 1 -0.9999729 -8.56817e-8 0.007363831 3.72529e-9 -0.007287535 -0.1435669 -0.9896139 7.23302e-5 0.001057286 -0.9896408 0.1435629 0.001094231 0 0 0 1 -1 -9.31323e-8 2.5332e-7 3.72529e-9 -2.35625e-7 -0.158264 -0.987397 7.23153e-5 1.3411e-7 -0.9873971 0.1582639 0.001094102 0 0 0 1 -0.9999999 -8.9407e-8 2.49594e-7 0 -2.37487e-7 -0.1313131 -0.9913411 7.22855e-5 1.22935e-7 -0.9913411 0.1313129 0.001094129 0 0 0 1 -0.9999888 8.2789e-5 -0.004731731 0 0.004694624 -0.1088175 -0.9940509 7.23079e-5 -5.97196e-4 -0.994062 0.1088157 0.001094112 0 0 0 1 -0.9998369 5.23699e-4 -0.01805593 -9.31323e-10 0.0179441 -0.08595719 -0.9961373 7.2293e-5 -0.002073712 -0.9962988 0.08593359 0.00109428 0 0 0 1 -0.9993811 0.001358323 -0.03514913 1.86265e-9 0.03498005 -0.06677884 -0.9971545 7.22557e-5 -0.003701678 -0.997767 0.06668982 0.001094211 0 0 0 1 -0.9988236 0.002158605 -0.04844549 -3.72529e-9 0.04825357 -0.0550258 -0.9973184 7.22706e-5 -0.004818562 -0.9984828 0.05485673 0.00109414 0 0 0 1 -0.9985828 0.002465952 -0.05316216 9.31323e-10 0.05296551 -0.05139579 -0.9972729 7.22855e-5 -0.005191524 -0.9986756 0.0511921 0.001094177 0 0 0 1 -0.9989473 0.001784667 -0.04583916 -1.86265e-9 0.04562056 -0.06622195 -0.9967617 7.22557e-5 -0.004814431 -0.9978035 0.06607062 0.001094192 0 0 0 1 -0.9996455 5.17897e-4 -0.02662356 3.72529e-9 0.02642215 -0.1049653 -0.9941249 7.23302e-5 -0.003309399 -0.9944759 0.1049142 0.001094239 0 0 0 1 -0.9999729 -1.30385e-7 -0.007363324 3.72529e-9 0.007287065 -0.1435669 -0.9896138 7.23228e-5 -0.001056995 -0.9896407 0.1435628 0.001094027 0 0 0 1 -1 -1.22935e-7 2.50293e-7 0 -2.27243e-7 -0.158264 -0.987397 7.23153e-5 1.56462e-7 -0.987397 0.1582639 0.001094092 0 0 0 1 -0.9999999 -1.3411e-7 2.47732e-7 -3.72529e-9 -2.2538e-7 -0.1313131 -0.991341 7.22706e-5 1.67638e-7 -0.9913411 0.1313129 0.00109412 0 0 0 1 -0.9999889 -8.30293e-5 0.004732219 1.86265e-9 -0.004695084 -0.1088175 -0.9940509 7.22855e-5 5.97481e-4 -0.9940618 0.1088158 0.001094159 0 0 0 1 -0.9998369 -5.23944e-4 0.01805641 4.65661e-10 -0.01794455 -0.08595719 -0.9961373 7.23004e-5 0.002073996 -0.9962988 0.08593359 0.00109428 0 0 0 1 -0.9993811 -0.00135858 0.03514959 1.86265e-9 -0.03498049 -0.06677894 -0.9971544 7.23302e-5 0.003701959 -0.9977671 0.06668988 0.001094107 0 0 0 1 -0.9988234 -0.002158862 0.04844594 -9.31323e-10 -0.04825401 -0.05502586 -0.9973183 7.23302e-5 0.004818846 -0.9984828 0.05485679 0.001094162 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_spine0_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_spine0_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_spine0_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_spine0_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_spine0_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_spine0_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_spine0_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_spine0_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_spine0_pose_matrix-sampler" target="sparkusSkel_spine0/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_spine1_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_spine1_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_spine1_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_spine1_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_spine1_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_spine1_pose_matrix-output-array" count="320">0.9989204 0.01011191 -0.04533759 3.72529e-9 -0.01289511 0.9980224 -0.06152248 -0.1810438 0.04462583 0.06204069 0.9970754 3.72529e-8 0 0 0 1 0.9991983 0.009007443 -0.03901273 3.72529e-9 -0.01082753 0.9988505 -0.04669672 -0.181044 0.03854726 0.04708172 0.9981471 -7.45058e-9 0 0 0 1 0.99973 0.005669583 -0.0225384 -7.45058e-9 -0.005846635 0.9999526 -0.007797576 -0.1810439 0.02249312 0.007927239 0.9997156 -1.49012e-8 0 0 0 1 0.9999795 0.001689155 -0.006200646 3.72529e-9 -0.00149497 0.9995124 0.0311901 -0.1810438 0.006250306 -0.03118016 0.9994943 -7.45058e-9 0 0 0 1 1 -2.23517e-8 -6.14673e-8 3.72529e-9 1.49012e-8 0.998937 0.04609636 -0.1810437 6.26314e-8 -0.04609635 0.9989369 -7.45058e-9 0 0 0 1 1 -1.49012e-8 -6.28643e-8 0 1.11759e-8 0.9989371 0.04609634 -0.1810438 6.1933e-8 -0.04609634 0.9989371 -7.45058e-9 0 0 0 1 0.9999913 -0.00109636 0.003982496 -1.86265e-9 9.50215e-4 0.9993325 0.03651525 -0.1810438 -0.004019873 -0.03651115 0.9993251 0 0 0 0 1 0.9998756 -0.003979528 0.01525863 4.65661e-10 0.003834488 0.9999472 0.009523049 -0.1810439 -0.01529572 -0.009463333 0.9998382 -3.72529e-9 0 0 0 1 0.9995284 -0.007232817 0.0298449 -1.86265e-9 0.007983202 0.999653 -0.0251007 -0.1810438 -0.02965298 0.02532712 0.9992393 1.11759e-8 0 0 0 1 0.9991035 -0.009412996 0.04127046 1.86265e-9 0.01155589 0.9985803 -0.05199607 -0.1810437 -0.04072243 0.05242634 0.9977941 -3.72529e-9 0 0 0 1 0.9989205 -0.01011201 0.04533749 -7.45058e-9 0.0128952 0.9980224 -0.06152254 -0.1810438 -0.04462571 0.06204073 0.9970754 1.11759e-8 0 0 0 1 0.9991983 -0.00900754 0.0390126 -1.30385e-8 0.01082763 0.9988505 -0.04669677 -0.1810439 -0.03854713 0.04708172 0.9981471 0 0 0 0 1 0.9997299 -0.005669676 0.02253827 -3.72529e-9 0.005846716 0.9999526 -0.007797584 -0.1810438 -0.022493 0.007927291 0.9997156 2.23517e-8 0 0 0 1 0.9999796 -0.001689244 0.00620052 -3.72529e-9 0.00149506 0.9995124 0.03119013 -0.1810438 -0.006250185 -0.0311802 0.9994943 1.49012e-8 0 0 0 1 1 -6.70552e-8 -5.96046e-8 -1.11759e-8 7.45058e-8 0.998937 0.04609635 -0.1810437 5.61122e-8 -0.04609636 0.998937 -7.45058e-9 0 0 0 1 1 -7.07805e-8 -6.00703e-8 -3.72529e-9 7.45058e-8 0.9989371 0.04609633 -0.1810438 5.54137e-8 -0.04609633 0.9989371 -1.49012e-8 0 0 0 1 0.9999914 0.001096277 -0.00398262 -1.86265e-9 -9.5013e-4 0.9993326 0.03651521 -0.1810437 0.004019993 -0.03651109 0.9993252 0 0 0 0 1 0.9998756 0.00397944 -0.01525875 -9.31323e-10 -0.003834398 0.9999472 0.009523056 -0.1810439 0.01529584 -0.009463318 0.9998382 7.45058e-9 0 0 0 1 0.9995283 0.00723272 -0.029845 2.79397e-9 -0.007983113 0.999653 -0.02510069 -0.1810436 0.0296531 0.02532709 0.9992393 0 0 0 0 1 0.9991037 0.009412896 -0.04127057 3.72529e-9 -0.01155581 0.9985804 -0.05199604 -0.1810438 0.04072255 0.05242637 0.9977941 -1.11759e-8 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_spine1_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_spine1_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_spine1_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_spine1_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_spine1_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_spine1_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_spine1_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_spine1_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_spine1_pose_matrix-sampler" target="sparkusSkel_spine1/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_spine2_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_spine2_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_spine2_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_spine2_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_spine2_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_spine2_pose_matrix-output-array" count="320">0.9997328 0.0046308 0.02265252 -1.86265e-9 -0.01168762 0.946562 0.3223105 -0.1826309 -0.01994946 -0.3224891 0.9463629 0 0 0 0 1 0.9998015 0.003781926 0.01956932 0 -0.01025944 0.9394231 0.3426064 -0.182631 -0.01708815 -0.3427392 0.9392753 1.11759e-8 0 0 0 1 0.9999332 0.001874976 0.01141705 -3.72529e-9 -0.006232064 0.9186828 0.3949474 -0.1826308 -0.009748125 -0.3949921 0.918633 -1.11759e-8 0 0 0 1 0.9999949 4.29302e-4 0.003169654 -3.72529e-9 -0.001797915 0.8950293 0.4460041 -0.1826308 -0.002645473 -0.4460075 0.8950254 -1.49012e-8 0 0 0 1 1 -1.41561e-7 -5.58794e-8 -7.45058e-9 1.49012e-7 0.8852413 0.4651323 -0.1826309 -1.35042e-8 -0.4651324 0.8852413 -1.11759e-8 0 0 0 1 0.9999999 -1.41561e-7 -5.7742e-8 0 1.49012e-7 0.8852413 0.4651323 -0.1826308 -1.44355e-8 -0.4651323 0.8852412 0 0 0 0 1 0.9999979 -2.68323e-4 -0.002038348 -3.72529e-9 0.00116233 0.8915794 0.4528631 -0.1826309 0.001695832 -0.4528645 0.8915778 7.45058e-9 0 0 0 1 0.9999692 -0.001175442 -0.007761559 4.65661e-10 0.004310902 0.9085246 0.4178092 -0.1826308 0.006560459 -0.4178298 0.9085017 -1.11759e-8 0 0 0 1 0.9998832 -0.002666255 -0.01505391 3.72529e-9 0.008073457 0.9282652 0.3718317 -0.182631 0.01298264 -0.3719098 0.9281782 7.45058e-9 0 0 0 1 0.9997781 -0.004077923 -0.02067308 3.72529e-9 0.01077708 0.9420239 0.3353731 -0.1826309 0.01810694 -0.3355215 0.9418586 1.11759e-8 0 0 0 1 0.9997327 -0.004631106 -0.0226526 5.58794e-9 0.01168793 0.9465619 0.3223104 -0.1826309 0.01994944 -0.3224891 0.9463629 -1.11759e-8 0 0 0 1 0.9998014 -0.00378222 -0.01956938 -7.45058e-9 0.01025975 0.9394231 0.3426064 -0.1826308 0.01708812 -0.3427391 0.9392753 0 0 0 0 1 0.9999331 -0.001875278 -0.01141715 0 0.006232373 0.9186828 0.3949474 -0.1826308 0.009748098 -0.394992 0.918633 -7.45058e-9 0 0 0 1 0.9999949 -4.29589e-4 -0.003169769 0 0.001798231 0.8950292 0.4460042 -0.1826308 0.00264544 -0.4460076 0.8950255 0 0 0 0 1 1 -1.45286e-7 -5.96046e-8 0 1.60187e-7 0.8852412 0.4651323 -0.1826309 -1.72295e-8 -0.4651323 0.8852412 -3.72529e-9 0 0 0 1 0.9999999 -1.45286e-7 -5.96046e-8 0 1.52737e-7 0.8852413 0.4651323 -0.1826308 -1.67638e-8 -0.4651322 0.8852412 -3.72529e-9 0 0 0 1 0.9999979 2.68036e-4 0.002038236 -3.72529e-9 -0.001162022 0.8915794 0.4528631 -0.1826308 -0.001695865 -0.4528644 0.8915778 -1.11759e-8 0 0 0 1 0.9999693 0.001175153 0.007761462 0 -0.004310595 0.9085248 0.4178092 -0.1826308 -0.006560497 -0.4178297 0.9085017 0 0 0 0 1 0.9998831 0.00266595 0.01505384 0 -0.008073146 0.9282652 0.3718317 -0.182631 -0.01298267 -0.3719099 0.9281782 -7.45058e-9 0 0 0 1 0.999778 0.004077621 0.02067301 -7.45058e-9 -0.01077678 0.9420238 0.3353731 -0.1826307 -0.01810695 -0.3355215 0.9418586 -7.45058e-9 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_spine2_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_spine2_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_spine2_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_spine2_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_spine2_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_spine2_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_spine2_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_spine2_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_spine2_pose_matrix-sampler" target="sparkusSkel_spine2/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_arm0_L_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_arm0_L_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_arm0_L_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_arm0_L_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_arm0_L_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_arm0_L_pose_matrix-output-array" count="320">-0.8849432 0.3770179 0.2733707 -0.2453699 -0.4655611 -0.7020411 -0.5388781 -1.682963 -0.01124937 -0.6041484 0.7967913 0.08505921 0 0 0 1 -0.8809189 0.3917696 0.2655126 -0.2397386 -0.4731373 -0.715979 -0.5133357 -1.662292 -0.01100794 -0.577832 0.8160802 0.08625811 0 0 0 1 -0.8702883 0.4365805 0.2280218 -0.2246142 -0.4925299 -0.7683194 -0.4087762 -1.603753 -0.003270076 -0.4680615 0.8836884 0.08933211 0 0 0 1 -0.8622327 0.4923444 0.1189557 -0.2089252 -0.5054802 -0.851386 -0.1401072 -1.533079 0.03229623 -0.1809351 0.982963 0.09228821 0 0 0 1 -0.8664788 0.4991064 0.01030696 -0.2027801 -0.4940487 -0.8602945 0.1257293 -1.481657 0.07161947 0.1038498 0.9920094 0.09337988 0 0 0 1 -0.9023027 0.4305155 -0.02247126 -0.2078186 -0.4223184 -0.8722489 0.246631 -1.455685 0.08657809 0.2320261 0.9688473 0.1047114 0 0 0 1 -0.9020733 0.4168092 -0.1119508 -0.2430138 -0.4155989 -0.7689937 0.4857204 -1.512387 0.1163635 0.4846823 0.8669142 0.1142662 0 0 0 1 -0.8761129 0.4059695 -0.260026 -0.2792547 -0.4465058 -0.479871 0.7552181 -1.560663 0.1818168 0.77776 0.6016893 0.1242135 0 0 0 1 -0.8620073 0.3695433 -0.3469577 -0.2898547 -0.4518326 -0.2499174 0.8563802 -1.60606 0.2297588 0.8949734 0.3824028 0.1326295 0 0 0 1 -0.8596138 0.3425811 -0.379079 -0.2947614 -0.4461901 -0.1418248 0.8836283 -1.643778 0.2489516 0.9287209 0.2747712 0.1377627 0 0 0 1 -0.8597001 0.3340149 -0.3864568 -0.3002781 -0.4435085 -0.1127733 0.8891465 -1.655607 0.2534063 0.9357965 0.2450899 0.1393388 0 0 0 1 -0.8482091 0.3622173 -0.3864438 -0.3114764 -0.4625593 -0.1511417 0.8736098 -1.633828 0.2580289 0.9197574 0.295747 0.1330602 0 0 0 1 -0.8185412 0.4457739 -0.3623183 -0.3274374 -0.5141967 -0.2873744 0.8080944 -1.574271 0.2561065 0.8477619 0.4644438 0.1165086 0 0 0 1 -0.7972744 0.5533788 -0.2410895 -0.3406897 -0.5681568 -0.5531033 0.6093221 -1.502325 0.2038386 0.6227739 0.7553817 0.0998007 0 0 0 1 -0.8056248 0.5829462 -0.1055518 -0.3453466 -0.5756956 -0.7283071 0.3716746 -1.450297 0.1397923 0.3601961 0.9223425 0.09337994 0 0 0 1 -0.8187672 0.5704276 -0.06504791 -0.3404537 -0.5627838 -0.7750188 0.2874349 -1.426981 0.1135475 0.2719504 0.955588 0.1047114 0 0 0 1 -0.8296984 0.5571739 0.03400296 -0.298353 -0.5538689 -0.8292995 0.07409476 -1.499692 0.06948236 0.04264319 0.9966704 0.1094285 0 0 0 1 -0.8494035 0.4990946 0.1715127 -0.2694465 -0.527516 -0.812462 -0.2482556 -1.564203 0.01544454 -0.3013453 0.9533888 0.1057496 0 0 0 1 -0.8687826 0.4317405 0.2425186 -0.2559046 -0.4951412 -0.7503903 -0.4378905 -1.621339 -0.007071403 -0.5005135 0.8656987 0.09670288 0 0 0 1 -0.8810105 0.3901033 0.267653 -0.2475193 -0.4729613 -0.7128277 -0.5178635 -1.667653 -0.01122987 -0.5828338 0.8125126 0.08828209 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_arm0_L_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_arm0_L_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_arm0_L_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_arm0_L_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_arm0_L_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_arm0_L_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_arm0_L_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_arm0_L_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_arm0_L_pose_matrix-sampler" target="sparkusSkel_arm0_L/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_arm_hinge0_L_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_arm_hinge0_L_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_arm_hinge0_L_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_arm_hinge0_L_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_arm_hinge0_L_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_arm_hinge0_L_pose_matrix-output-array" count="320">0.7114174 -8.9407e-8 -0.7027693 -1.49012e-8 -5.96046e-8 1 -2.94298e-7 2.98023e-8 0.7027699 8.9407e-8 0.7114171 8.9407e-8 0 0 0 1 0.7088407 -1.19209e-7 -0.7053681 1.49012e-8 1.19209e-7 1 -2.99886e-7 1.19209e-7 0.7053686 -2.98023e-8 0.7088407 8.19564e-8 0 0 0 1 0.6972826 -5.96046e-8 -0.716796 5.96046e-8 -2.98023e-8 1 -1.41561e-7 4.47035e-8 0.7167966 2.98023e-8 0.6972825 7.07805e-8 0 0 0 1 0.6627995 -8.9407e-8 -0.7487963 -4.47035e-8 5.96046e-8 1 -4.47035e-7 1.04308e-7 0.7487975 4.47035e-8 0.6627995 7.45058e-9 0 0 0 1 0.6180114 0 -0.7861686 -5.96046e-8 0 1 -1.49012e-7 7.45058e-8 0.7861701 -7.45058e-9 0.6180115 -5.82077e-9 0 0 0 1 0.5857679 -5.96046e-8 -0.8104781 1.49012e-8 -1.86265e-8 1 -1.78814e-7 2.6077e-7 0.8104794 0 0.585768 1.11759e-8 0 0 0 1 0.4940987 -2.98023e-8 -0.8694052 -1.49012e-8 -1.49012e-8 1 -4.47035e-7 1.49012e-8 0.8694063 0 0.494099 -2.98023e-8 0 0 0 1 0.3545379 -7.45058e-8 -0.9350411 -2.98023e-8 2.98023e-8 1 8.9407e-8 1.71363e-7 0.935042 2.98023e-8 0.354538 2.98023e-8 0 0 0 1 0.2883015 4.47035e-8 -0.9575395 -2.98023e-8 0 1 -5.96046e-8 5.96046e-8 0.9575396 -4.47035e-8 0.2883016 2.23517e-8 0 0 0 1 0.2628856 -2.98023e-8 -0.9648272 2.98023e-8 8.9407e-8 1 2.98023e-8 1.3411e-7 0.9648268 0 0.2628855 0 0 0 0 1 0.256392 3.35276e-8 -0.9665732 -5.96046e-8 2.08616e-7 1 4.09782e-7 1.19209e-7 0.9665726 3.72529e-8 0.2563922 -1.49012e-8 0 0 0 1 0.2657106 0 -0.9640529 -8.9407e-8 1.2666e-7 1 1.3411e-7 8.19564e-8 0.9640527 2.98023e-8 0.2657107 -4.47035e-8 0 0 0 1 0.3050399 0 -0.95234 0 -5.96046e-8 1 1.49012e-7 6.70552e-8 0.9523393 4.47035e-8 0.3050397 -7.45058e-8 0 0 0 1 0.4179194 -8.9407e-8 -0.9084842 2.98023e-8 -1.19209e-7 1 0 1.3411e-7 0.9084841 -2.98023e-8 0.4179194 -1.49012e-8 0 0 0 1 0.5401257 0 -0.8415844 -8.9407e-8 1.0943e-8 1 2.98023e-7 1.19209e-7 0.8415841 2.98023e-8 0.5401257 -2.23517e-8 0 0 0 1 0.5537171 2.98023e-8 -0.8327048 -8.9407e-8 1.11759e-8 1 -1.19209e-7 1.19209e-7 0.8327048 2.98023e-8 0.5537171 -2.23517e-8 0 0 0 1 0.5927756 0 -0.8053676 0 -1.49012e-8 1 -3.8743e-7 2.23517e-7 0.8053677 -1.49012e-8 0.5927756 -7.45058e-9 0 0 0 1 0.6640906 -8.9407e-8 -0.7476521 4.47035e-8 0 0.9999999 -5.96046e-8 1.04308e-7 0.7476522 -1.49012e-8 0.6640906 -1.86265e-9 0 0 0 1 0.6969692 2.98023e-8 -0.717101 -1.3411e-7 5.96046e-8 1 -6.70552e-8 1.11759e-7 0.7171013 2.98023e-8 0.696969 2.98023e-8 0 0 0 1 0.7086239 -2.98023e-8 -0.7055862 -1.49012e-8 1.19209e-7 1 1.08033e-7 2.75671e-7 0.7055865 0 0.7086238 8.9407e-8 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_arm_hinge0_L_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_arm_hinge0_L_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_arm_hinge0_L_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_arm_hinge0_L_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_arm_hinge0_L_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_arm_hinge0_L_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_arm_hinge0_L_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_arm_hinge0_L_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_arm_hinge0_L_pose_matrix-sampler" target="sparkusSkel_arm_hinge0_L/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_arm1_L_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_arm1_L_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_arm1_L_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_arm1_L_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_arm1_L_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_arm1_L_pose_matrix-output-array" count="320">-0.2019112 0.5391562 0.8176453 -5.96046e-8 -0.5307069 0.6414233 -0.5540099 -0.4409359 -0.8231531 -0.5457909 0.1566234 7.45058e-9 0 0 0 1 -0.1995763 0.5372677 0.8194596 0 -0.5243022 0.6479494 -0.5525117 -0.4409358 -0.8278139 -0.5399128 0.1523754 3.72529e-8 0 0 0 1 -0.1901033 0.5292513 0.8268949 -2.98023e-8 -0.4971111 0.6744107 -0.5459408 -0.440936 -0.8466055 -0.5148436 0.1348891 -7.45058e-9 0 0 0 1 -0.1663391 0.5049642 0.8469611 0 -0.4248858 0.7383963 -0.5236827 -0.4409357 -0.8898332 -0.4469706 0.09172788 1.11759e-8 0 0 0 1 -0.1362456 0.4610869 0.8768335 -5.96046e-8 -0.3390117 0.8099508 -0.4785932 -0.4409358 -0.9308643 -0.362463 0.04596161 -1.49012e-8 0 0 0 1 -0.1059908 0.3951743 0.9124714 0 -0.2655035 0.8730783 -0.4089539 -0.4409357 -0.9582658 -0.2856098 0.01238191 7.45058e-9 0 0 0 1 -0.1060715 0.4644265 0.879237 0 -0.2427906 0.8453662 -0.4758253 -0.4409359 -0.964262 -0.2639421 0.02308907 2.98023e-8 0 0 0 1 -0.1123106 0.6299077 0.7685073 0 -0.2176129 0.7390345 -0.6375524 -0.4409357 -0.9695516 -0.2388411 0.05407461 -7.45058e-8 0 0 0 1 -0.1166942 0.7366613 0.6661181 2.98023e-8 -0.2029718 0.6388553 -0.7420693 -0.4409359 -0.9722059 -0.2217984 0.07497074 -8.9407e-8 0 0 0 1 -0.1190086 0.7835443 0.6098325 2.98023e-8 -0.1962991 0.5835066 -0.7880274 -0.4409359 -0.9732947 -0.2134917 0.08436677 1.49012e-8 0 0 0 1 -0.1197387 0.7961342 0.5931552 -2.98023e-8 -0.1944597 0.5670736 -0.8003832 -0.4409358 -0.9735743 -0.2111816 0.08691537 2.98023e-8 0 0 0 1 -0.1194272 0.7801343 0.6141073 -5.96046e-8 -0.197521 0.5875006 -0.7847476 -0.4409359 -0.9729963 -0.2150192 0.08392941 -3.72529e-8 0 0 0 1 -0.1184692 0.7162011 0.6877654 2.98023e-8 -0.209116 0.6591129 -0.7223855 -0.4409359 -0.9706879 -0.2294031 0.07168451 -8.9407e-8 0 0 0 1 -0.1144662 0.5591674 0.8211148 2.98023e-8 -0.2339009 0.7881408 -0.5693194 -0.4409358 -0.9654983 -0.2572274 0.04057425 1.49012e-8 0 0 0 1 -0.1063657 0.4236513 0.8995588 -5.96046e-8 -0.2506365 0.8640547 -0.4365667 -0.4409358 -0.9622198 -0.2718979 0.01427673 0 0 0 0 1 -0.101084 0.4041315 0.9090983 -1.78814e-7 -0.2493032 0.874334 -0.416398 -0.4409358 -0.9631352 -0.2687322 0.01237009 0 0 0 0 1 -0.1101807 0.4270886 0.897472 2.98023e-8 -0.2962658 0.8478079 -0.4398269 -0.4409358 -0.9487287 -0.3143505 0.0331197 -1.86265e-9 0 0 0 1 -0.1467669 0.4823455 0.8635987 -2.98023e-8 -0.4116896 0.7640584 -0.4967155 -0.4409359 -0.8994279 -0.428436 0.08643821 0 0 0 0 1 -0.1795586 0.5185329 0.8359924 -1.78814e-7 -0.4882976 0.6907476 -0.5333228 -0.4409359 -0.8540041 -0.5039759 0.1291688 -6.70552e-8 0 0 0 1 -0.1969035 0.5347451 0.8217527 -1.19209e-7 -0.52185 0.6524022 -0.5495855 -0.4409357 -0.8300003 -0.5370473 0.1505966 1.49012e-8 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_arm1_L_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_arm1_L_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_arm1_L_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_arm1_L_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_arm1_L_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_arm1_L_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_arm1_L_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_arm1_L_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_arm1_L_pose_matrix-sampler" target="sparkusSkel_arm1_L/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_arm0_R_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_arm0_R_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_arm0_R_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_arm0_R_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_arm0_R_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_arm0_R_pose_matrix-output-array" count="320">-0.8597003 -0.3340145 0.386457 0.300278 0.4435087 -0.1127734 0.8891466 -1.655607 -0.2534059 0.9357967 0.2450898 0.1393387 0 0 0 1 -0.8482093 -0.362217 0.3864439 0.3065904 0.4625594 -0.1511418 0.8736099 -1.634714 -0.2580285 0.9197575 0.2957469 0.1330601 0 0 0 1 -0.8185414 -0.4457736 0.3623186 0.3229863 0.5141968 -0.2873745 0.8080944 -1.57509 -0.256106 0.847762 0.4644437 0.1165085 0 0 0 1 -0.7972746 -0.5533786 0.2410899 0.3392 0.5681568 -0.5531034 0.6093222 -1.502603 -0.2038382 0.6227741 0.7553816 0.09980052 0 0 0 1 -0.805625 -0.5829461 0.1055522 0.3453466 0.5756957 -0.7283072 0.3716746 -1.450297 -0.1397919 0.3601964 0.9223425 0.09337975 0 0 0 1 -0.8187674 -0.5704276 0.06504838 0.3404536 0.5627839 -0.7750189 0.2874349 -1.426981 -0.1135471 0.2719507 0.955588 0.1047112 0 0 0 1 -0.8307261 -0.5556395 -0.03402172 0.3058057 0.5523433 -0.8303277 0.07396907 -1.498243 -0.06934934 0.04265643 0.9966792 0.1094284 0 0 0 1 -0.8521644 -0.4947178 -0.1704952 0.2694465 0.5230258 -0.8152848 -0.2485025 -1.564203 -0.01606349 -0.3009388 0.9535071 0.1057495 0 0 0 1 -0.8714688 -0.4272777 -0.2407784 0.2577871 0.4904148 -0.7533772 -0.4380806 -1.621026 0.005785021 -0.4998556 0.8660883 0.09670276 0 0 0 1 -0.8825802 -0.3874018 -0.2664027 0.251534 0.4700478 -0.7146786 -0.5179653 -1.667001 0.01026846 -0.5823689 0.8128586 0.088282 0 0 0 1 -0.8849432 -0.377018 -0.2733701 0.2453699 0.465561 -0.702041 -0.5388782 -1.682963 0.01124975 -0.6041481 0.7967913 0.0850591 0 0 0 1 -0.8793912 -0.3943798 -0.2667093 0.2347652 0.4759483 -0.7141858 -0.5132347 -1.663086 0.01192935 -0.578275 0.8157532 0.08625799 0 0 0 1 -0.8679633 -0.4404564 -0.2294264 0.2200806 0.4966082 -0.7657757 -0.4086151 -1.604468 0.004287971 -0.4685987 0.8833992 0.08933201 0 0 0 1 -0.8609738 -0.4944686 -0.1192639 0.2074066 0.5076298 -0.8501264 -0.1399852 -1.533314 -0.03217109 -0.1810658 0.982943 0.09228813 0 0 0 1 -0.8664787 -0.4991065 -0.01030648 0.2027801 0.4940488 -0.8602944 0.1257293 -1.481657 -0.07161903 0.10385 0.9920094 0.09337979 0 0 0 1 -0.9023029 -0.4305152 0.02247168 0.2078186 0.4223183 -0.872249 0.246631 -1.455685 -0.08657765 0.2320263 0.9688473 0.1047113 0 0 0 1 -0.9020731 -0.416809 0.1119512 0.2505314 0.415599 -0.7689935 0.4857205 -1.511044 -0.1163631 0.4846825 0.8669142 0.1142661 0 0 0 1 -0.8761131 -0.4059691 0.2600263 0.2792546 0.4465058 -0.4798709 0.7552183 -1.560663 -0.1818163 0.7777604 0.601689 0.1242134 0 0 0 1 -0.8620075 -0.3695428 0.346958 0.2917193 0.4518327 -0.2499175 0.8563802 -1.605732 -0.2297585 0.8949736 0.3824026 0.1326293 0 0 0 1 -0.8596141 -0.3425807 0.3790793 0.2987168 0.4461903 -0.141825 0.8836284 -1.643072 -0.2489512 0.9287211 0.2747711 0.1377625 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_arm0_R_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_arm0_R_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_arm0_R_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_arm0_R_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_arm0_R_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_arm0_R_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_arm0_R_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_arm0_R_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_arm0_R_pose_matrix-sampler" target="sparkusSkel_arm0_R/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_arm_hinge0_R_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_arm_hinge0_R_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_arm_hinge0_R_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_arm_hinge0_R_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_arm_hinge0_R_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_arm_hinge0_R_pose_matrix-output-array" count="320">0.2563919 1.86265e-8 0.9665729 2.98023e-8 -1.49012e-7 0.9999999 3.05474e-7 1.49012e-8 -0.9665725 4.47035e-8 0.256392 -2.98023e-8 0 0 0 1 0.2657107 -2.23517e-8 0.9640529 2.98023e-8 -1.49012e-7 0.9999999 1.41561e-7 4.47035e-8 -0.9640527 5.96046e-8 0.2657106 4.47035e-8 0 0 0 1 0.3050396 0 0.9523398 8.9407e-8 -5.96046e-8 0.9999998 5.96046e-8 2.23517e-8 -0.9523395 1.49012e-8 0.3050397 -5.96046e-8 0 0 0 1 0.4179196 2.98023e-8 0.9084841 2.98023e-8 -1.49012e-8 0.9999999 2.38419e-7 4.47035e-8 -0.908484 -1.19209e-7 0.4179197 -5.21541e-8 0 0 0 1 0.5401258 0 0.8415843 1.19209e-7 1.35391e-7 1 4.47035e-7 -1.49012e-8 -0.8415844 -5.96046e-8 0.5401256 0 0 0 0 1 0.5537173 0 0.8327046 0 -8.56817e-8 0.9999999 -8.9407e-8 1.49012e-8 -0.8327048 1.49012e-8 0.5537173 5.96046e-8 0 0 0 1 0.5927756 5.96046e-8 0.8053676 8.9407e-8 5.96046e-8 0.9999999 2.98023e-8 -2.98023e-8 -0.8053676 8.19564e-8 0.5927755 6.51926e-9 0 0 0 1 0.6640908 -5.96046e-8 0.7476519 -2.98023e-8 2.98023e-8 1 -1.78814e-7 1.49012e-7 -0.7476522 0 0.6640907 1.86265e-8 0 0 0 1 0.6969694 -8.9407e-8 0.7171007 1.63913e-7 -1.19209e-7 0.9999999 -2.64496e-7 2.01166e-7 -0.7171008 5.96046e-8 0.6969695 -5.21541e-8 0 0 0 1 0.7086239 5.96046e-8 0.7055863 1.49012e-8 -2.98023e-8 0.9999999 7.82311e-8 -2.23517e-8 -0.7055867 5.96046e-8 0.7086237 2.98023e-8 0 0 0 1 0.7114176 5.96046e-8 0.7027694 -2.98023e-8 8.9407e-8 1 -3.20375e-7 -2.23517e-8 -0.7027699 0 0.7114175 -4.47035e-8 0 0 0 1 0.7088406 -5.96046e-8 0.7053684 4.47035e-8 0 1 -3.70666e-7 2.98023e-8 -0.7053689 5.96046e-8 0.7088407 9.68575e-8 0 0 0 1 0.6972829 -2.98023e-8 0.7167956 0 -2.98023e-8 0.9999999 -3.68804e-7 0 -0.7167966 -2.98023e-8 0.6972827 3.35276e-8 0 0 0 1 0.6627994 1.78814e-7 0.7487962 1.49012e-8 5.96046e-8 0.9999999 -7.45058e-8 -9.68575e-8 -0.7487979 0 0.6627993 1.67638e-8 0 0 0 1 0.6180114 5.96046e-8 0.7861682 1.19209e-7 5.96046e-8 1 0 -7.45058e-8 -0.7861698 3.72529e-8 0.6180115 1.35042e-8 0 0 0 1 0.585768 5.96046e-8 0.810478 -1.49012e-8 9.68575e-8 0.9999999 -3.27826e-7 5.21541e-8 -0.8104795 -2.98023e-8 0.585768 4.65661e-8 0 0 0 1 0.4940987 2.98023e-8 0.8694052 1.49012e-8 -5.96046e-8 1 2.68221e-7 -2.23517e-8 -0.8694065 0 0.4940987 0 0 0 0 1 0.3545378 -1.49012e-8 0.9350413 -2.98023e-8 -1.78814e-7 0.9999999 -1.49012e-7 -8.19564e-8 -0.9350421 0 0.3545378 -4.47035e-8 0 0 0 1 0.2883016 -5.21541e-8 0.9575397 5.96046e-8 -5.96046e-8 0.9999999 1.19209e-7 8.19564e-8 -0.9575399 4.47035e-8 0.2883016 -1.49012e-8 0 0 0 1 0.2628855 7.45058e-9 0.9648271 -5.96046e-8 -1.63913e-7 0.9999999 0 5.21541e-8 -0.9648268 0 0.2628855 4.47035e-8 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_arm_hinge0_R_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_arm_hinge0_R_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_arm_hinge0_R_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_arm_hinge0_R_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_arm_hinge0_R_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_arm_hinge0_R_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_arm_hinge0_R_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_arm_hinge0_R_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_arm_hinge0_R_pose_matrix-sampler" target="sparkusSkel_arm_hinge0_R/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_arm1_R_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_arm1_R_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_arm1_R_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_arm1_R_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_arm1_R_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_arm1_R_pose_matrix-output-array" count="320">-0.1197387 -0.7961341 -0.5931552 5.96046e-8 0.1944597 0.5670737 -0.8003832 -0.4409358 0.9735743 -0.2111816 0.08691537 -2.23517e-8 0 0 0 1 -0.1194272 -0.7801343 -0.6141073 0 0.197521 0.5875007 -0.7847475 -0.4409359 0.9729963 -0.2150193 0.08392941 2.98023e-8 0 0 0 1 -0.1184693 -0.7162011 -0.6877652 8.9407e-8 0.2091159 0.659113 -0.7223853 -0.4409358 0.9706877 -0.2294031 0.0716845 7.45058e-8 0 0 0 1 -0.1144662 -0.5591671 -0.8211148 5.96046e-8 0.2339009 0.7881407 -0.5693191 -0.4409359 0.9654983 -0.2572275 0.04057422 -8.9407e-8 0 0 0 1 -0.1063656 -0.4236513 -0.899559 1.49012e-7 0.2506365 0.8640547 -0.4365667 -0.4409359 0.9622199 -0.2718979 0.01427674 -7.45058e-9 0 0 0 1 -0.1010839 -0.4041314 -0.9090983 -5.96046e-8 0.2493031 0.874334 -0.4163978 -0.4409358 0.9631352 -0.2687322 0.01237008 2.6077e-8 0 0 0 1 -0.1101806 -0.4270886 -0.8974719 5.96046e-8 0.2962657 0.847808 -0.4398268 -0.440936 0.9487287 -0.3143504 0.03311968 7.45058e-9 0 0 0 1 -0.1467668 -0.4823453 -0.8635988 -2.98023e-8 0.4116895 0.7640586 -0.4967153 -0.4409357 0.8994279 -0.4284359 0.08643814 2.98023e-8 0 0 0 1 -0.1795585 -0.5185328 -0.8359923 1.49012e-7 0.4882976 0.6907477 -0.5333228 -0.4409356 0.8540041 -0.5039759 0.1291688 -2.98023e-8 0 0 0 1 -0.1969035 -0.534745 -0.8217528 0 0.52185 0.6524022 -0.5495854 -0.4409359 0.8300003 -0.5370471 0.1505965 2.98023e-8 0 0 0 1 -0.2019113 -0.5391563 -0.8176453 -5.96046e-8 0.530707 0.6414233 -0.5540099 -0.4409359 0.8231533 -0.545791 0.1566235 -2.98023e-8 0 0 0 1 -0.1995762 -0.5372677 -0.8194597 5.96046e-8 0.5243022 0.6479495 -0.5525118 -0.4409359 0.8278139 -0.5399128 0.1523754 1.49012e-8 0 0 0 1 -0.1901032 -0.5292513 -0.8268948 -2.98023e-8 0.497111 0.6744106 -0.5459408 -0.4409358 0.8466054 -0.5148438 0.1348892 5.96046e-8 0 0 0 1 -0.1663391 -0.5049641 -0.8469611 -2.98023e-8 0.4248858 0.7383962 -0.5236826 -0.4409359 0.8898332 -0.4469707 0.09172791 0 0 0 0 1 -0.1362455 -0.4610868 -0.8768335 8.9407e-8 0.3390117 0.8099508 -0.4785931 -0.4409359 0.9308643 -0.362463 0.0459616 7.45058e-9 0 0 0 1 -0.1059908 -0.3951743 -0.9124714 0 0.2655035 0.8730782 -0.4089538 -0.4409359 0.9582658 -0.2856098 0.01238192 4.47035e-8 0 0 0 1 -0.1060714 -0.4644264 -0.8792369 -2.98023e-8 0.2427905 0.8453661 -0.4758254 -0.4409358 0.964262 -0.263942 0.0230891 -5.96046e-8 0 0 0 1 -0.1123106 -0.6299078 -0.7685072 -1.19209e-7 0.217613 0.7390346 -0.6375524 -0.4409359 0.9695516 -0.238841 0.05407462 -1.41561e-7 0 0 0 1 -0.1166942 -0.7366614 -0.6661179 5.96046e-8 0.2029717 0.6388551 -0.7420693 -0.4409358 0.9722058 -0.2217983 0.07497077 -1.49012e-8 0 0 0 1 -0.1190086 -0.7835442 -0.6098326 -1.19209e-7 0.1962991 0.5835067 -0.7880272 -0.4409358 0.9732947 -0.2134916 0.08436676 2.98023e-8 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_arm1_R_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_arm1_R_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_arm1_R_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_arm1_R_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_arm1_R_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_arm1_R_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_arm1_R_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_arm1_R_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_arm1_R_pose_matrix-sampler" target="sparkusSkel_arm1_R/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_head_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_head_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_head_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_head_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_head_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_head_pose_matrix-output-array" count="320">0.9995115 0.03095724 0.004300832 0.03206827 -0.03125457 0.9900041 0.1375319 -1.786011 -2.32257e-7 -0.1375992 0.9904879 0.1120277 0 0 0 1 0.9996372 0.02666989 0.003754714 0.03790822 -0.02693285 0.9896213 0.1411526 -1.763953 4.87791e-5 -0.1412025 0.9899806 0.1131891 0 0 0 1 0.9998779 0.01546037 0.002282996 0.05383649 -0.01562745 0.9878677 0.1545094 -1.701131 1.33475e-4 -0.1545262 0.9879886 0.1160074 0 0 0 1 0.9999906 0.00426804 6.8316e-4 0.07066634 -0.004321454 0.9839615 0.1783283 -1.625237 8.89088e-5 -0.1783296 0.9839708 0.1184417 0 0 0 1 1 -4.96698e-8 2.33187e-7 0.0773249 -6.17064e-16 0.9780585 0.2083302 -1.571576 -2.38419e-7 -0.2083302 0.9780585 0.1192543 0 0 0 1 1 -6.0407e-8 2.30639e-7 0.0718087 -8.03848e-16 0.9673706 0.2533654 -1.546218 -2.38419e-7 -0.2533654 0.9673706 0.1334569 0 0 0 1 0.9999961 -0.002735427 -5.06178e-4 0.03445513 0.002779035 0.9740972 0.2261125 -1.611146 -1.25448e-4 -0.226113 0.974101 0.1397852 0 0 0 1 0.9999436 -0.01047366 -0.001760492 -0.004540517 0.01061626 0.9809785 0.1938257 -1.671706 -3.0306e-4 -0.1938335 0.9810343 0.1362302 0 0 0 1 0.9997863 -0.02043572 -0.003121303 -0.0176354 0.02067082 0.9861876 0.1643372 -1.726852 -2.80159e-4 -0.1643666 0.9863992 0.1259186 0 0 0 1 0.9995942 -0.02820033 -0.004017119 -0.02516257 0.02848483 0.9891077 0.1444104 -1.771324 -9.90551e-5 -0.1444662 0.9895096 0.1159183 0 0 0 1 0.9995115 -0.03095731 -0.004300361 -0.03206817 0.03125456 0.9900041 0.1375319 -1.786011 -2.44348e-7 -0.1375992 0.9904879 0.1120277 0 0 0 1 0.9996372 -0.02666995 -0.003754242 -0.04319269 0.02693285 0.9896213 0.1411526 -1.763893 -4.92556e-5 -0.1412026 0.9899806 0.1131891 0 0 0 1 0.9998779 -0.01546044 -0.002282525 -0.05864159 0.01562745 0.9878677 0.1545094 -1.701065 -1.33952e-4 -0.1545262 0.9879886 0.1160074 0 0 0 1 0.9999906 -0.004268124 -6.82691e-4 -0.07227109 0.004321453 0.9839615 0.1783284 -1.625211 -8.93855e-5 -0.1783296 0.9839708 0.1184417 0 0 0 1 1 -4.96698e-8 2.33187e-7 -0.07732486 -6.17064e-16 0.9780585 0.2083302 -1.571576 -2.38419e-7 -0.2083302 0.9780585 0.1192543 0 0 0 1 1 -6.0407e-8 2.30639e-7 -0.07180865 -8.03848e-16 0.9673706 0.2533654 -1.546218 -2.38419e-7 -0.2533654 0.9673706 0.133457 0 0 0 1 0.9999961 0.002735319 5.06642e-4 -0.02643153 -0.002779036 0.9740972 0.2261125 -1.611213 1.24971e-4 -0.226113 0.974101 0.1397852 0 0 0 1 0.9999436 0.01047357 0.00176096 0.004540592 -0.01061626 0.9809785 0.1938257 -1.671706 3.02583e-4 -0.1938335 0.9810343 0.1362302 0 0 0 1 0.9997863 0.02043564 0.003121772 0.01964158 -0.02067081 0.9861876 0.1643372 -1.726843 2.79683e-4 -0.1643666 0.9863992 0.1259186 0 0 0 1 0.9995942 0.02820025 0.00401759 0.02943595 -0.02848483 0.9891077 0.1444103 -1.771288 9.85783e-5 -0.1444662 0.9895097 0.1159182 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_head_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_head_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_head_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_head_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_head_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_head_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_head_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_head_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_head_pose_matrix-sampler" target="sparkusSkel_head/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_legpole_L_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_legpole_L_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_legpole_L_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_legpole_L_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_legpole_L_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_legpole_L_pose_matrix-output-array" count="320">1 0 2.38419e-7 -0.3843305 0 0.9999999 0 -0.3304019 -2.38419e-7 0 0.9999999 1.218441 0 0 0 1 1 0 2.38419e-7 -0.356095 0 0.9999999 0 -0.3323171 -2.38419e-7 0 0.9999999 1.215559 0 0 0 1 1 0 2.38419e-7 -0.2765645 0 0.9999999 0 -0.3387638 -2.38419e-7 0 0.9999999 1.206724 0 0 0 1 1 0 2.38419e-7 -0.1744478 0 0.9999999 0 -0.3498659 -2.38419e-7 0 0.9999999 1.19345 0 0 0 1 1 0 2.38419e-7 -0.09491728 0 0.9999999 0 -0.3640099 -2.38419e-7 0 0.9999999 1.179359 0 0 0 1 1 0 2.38419e-7 -0.06668183 0 0.9999999 0 -0.3790216 -2.38419e-7 0 0.9999999 1.167534 0 0 0 1 1 0 2.38419e-7 -0.08816336 0 0.9999999 0 -0.3986431 -2.38419e-7 0 0.9999999 1.15571 0 0 0 1 1 0 2.38419e-7 -0.1496076 0 0.9999999 0 -0.4257718 -2.38419e-7 0 0.9999999 1.141618 0 0 0 1 1 0 2.38419e-7 -0.2310181 0 0.9999999 0 -0.4535459 -2.38419e-7 0 0.9999999 1.128345 0 0 0 1 1 0 2.38419e-7 -0.2993201 0 0.9999999 0 -0.4729772 -2.38419e-7 0 0.9999999 1.11951 0 0 0 1 1 0 2.38419e-7 -0.3324695 0 0.9999999 0 -0.4795023 -2.38419e-7 0 0.9999999 1.116628 0 0 0 1 1 0 2.38419e-7 -0.3450717 0 0.9999999 0 -0.4761969 -2.38419e-7 0 0.9999999 1.118885 0 0 0 1 1 0 2.38419e-7 -0.3561271 0 0.9999999 0 -0.4662489 -2.38419e-7 0 0.9999999 1.125678 0 0 0 1 1 0 2.38419e-7 -0.3653737 0 0.9999999 0 -0.4500741 -2.38419e-7 0 0.9999999 1.136723 0 0 0 1 1 0 2.38419e-7 -0.3726238 0 0.9999999 0 -0.4289182 -2.38419e-7 0 0.9999999 1.151169 0 0 0 1 1 0 2.38419e-7 -0.3778479 0 0.9999999 0 -0.4049521 -2.38419e-7 0 0.9999999 1.167534 0 0 0 1 1 0 2.38419e-7 -0.3812276 0 0.9999999 0 -0.3809859 -2.38419e-7 0 0.9999999 1.1839 0 0 0 1 1 0 2.38419e-7 -0.38313 0 0.9999999 0 -0.3598301 -2.38419e-7 0 0.9999999 1.198346 0 0 0 1 1 0 2.38419e-7 -0.3840087 0 0.9999999 0 -0.3436553 -2.38419e-7 0 0.9999999 1.209391 0 0 0 1 1 0 2.38419e-7 -0.3842944 0 0.9999999 0 -0.3337073 -2.38419e-7 0 0.9999999 1.216184 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_legpole_L_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_legpole_L_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_legpole_L_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_legpole_L_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_legpole_L_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_legpole_L_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_legpole_L_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_legpole_L_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_legpole_L_pose_matrix-sampler" target="sparkusSkel_legpole_L/transform"/>
-      </animation>
-      <animation id="sparkusSkel_Run_legpole_R_pose_matrix" name="sparkusSkel">
-        <source id="sparkusSkel_Run_legpole_R_pose_matrix-input">
-          <float_array id="sparkusSkel_Run_legpole_R_pose_matrix-input-array" count="20">0.04166662 0.08333331 0.125 0.1666666 0.2083333 0.25 0.2916666 0.3333333 0.375 0.4166666 0.4583333 0.5 0.5416667 0.5833333 0.625 0.6666667 0.7083333 0.75 0.7916667 0.8333333</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_legpole_R_pose_matrix-input-array" count="20" stride="1">
-              <param name="TIME" type="float"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_legpole_R_pose_matrix-output">
-          <float_array id="sparkusSkel_Run_legpole_R_pose_matrix-output-array" count="320">1 0 2.38419e-7 0.3324701 0 0.9999999 0 -0.4795023 -2.38419e-7 0 0.9999999 1.116628 0 0 0 1 1 0 2.38419e-7 0.3336198 0 0.9999999 0 -0.4761969 -2.38419e-7 0 0.9999999 1.118885 0 0 0 1 1 0 2.38419e-7 0.3370799 0 0.9999999 0 -0.4662489 -2.38419e-7 0 0.9999999 1.125678 0 0 0 1 1 0 2.38419e-7 0.342706 0 0.9999999 0 -0.4500741 -2.38419e-7 0 0.9999999 1.136723 0 0 0 1 1 0 2.38419e-7 0.3500645 0 0.9999999 0 -0.4289183 -2.38419e-7 0 0.9999999 1.151169 0 0 0 1 1 0 2.38419e-7 0.3584006 0 0.9999999 0 -0.4049521 -2.38419e-7 0 0.9999999 1.167534 0 0 0 1 1 0 2.38419e-7 0.3667367 0 0.9999999 0 -0.3809859 -2.38419e-7 0 0.9999999 1.1839 0 0 0 1 1 0 2.38419e-7 0.3740952 0 0.9999999 0 -0.3598301 -2.38419e-7 0 0.9999999 1.198346 0 0 0 1 1 0 2.38419e-7 0.3797213 0 0.9999999 0 -0.3436553 -2.38419e-7 0 0.9999999 1.209391 0 0 0 1 1 0 2.38419e-7 0.3831814 0 0.9999999 0 -0.3337073 -2.38419e-7 0 0.9999999 1.216184 0 0 0 1 1 0 2.38419e-7 0.3843311 0 0.9999999 0 -0.3304019 -2.38419e-7 0 0.9999999 1.218441 0 0 0 1 1 0 2.38419e-7 0.3560957 0 0.9999999 0 -0.3323171 -2.38419e-7 0 0.9999999 1.215559 0 0 0 1 1 0 2.38419e-7 0.2765651 0 0.9999999 0 -0.3387638 -2.38419e-7 0 0.9999999 1.206724 0 0 0 1 1 0 2.38419e-7 0.1744484 0 0.9999999 0 -0.3498659 -2.38419e-7 0 0.9999999 1.19345 0 0 0 1 1 0 2.38419e-7 0.09491783 0 0.9999999 0 -0.3640099 -2.38419e-7 0 0.9999999 1.179359 0 0 0 1 1 0 2.38419e-7 0.0666824 0 0.9999999 0 -0.3790216 -2.38419e-7 0 0.9999999 1.167534 0 0 0 1 1 0 2.38419e-7 0.09030798 0 0.9999999 0 -0.3986431 -2.38419e-7 0 0.9999999 1.15571 0 0 0 1 1 0 2.38419e-7 0.156854 0 0.9999999 0 -0.4257718 -2.38419e-7 0 0.9999999 1.141618 0 0 0 1 1 0 2.38419e-7 0.2422985 0 0.9999999 0 -0.4535459 -2.38419e-7 0 0.9999999 1.128345 0 0 0 1 1 0 2.38419e-7 0.3088444 0 0.9999999 0 -0.4729772 -2.38419e-7 0 0.9999999 1.11951 0 0 0 1</float_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_legpole_R_pose_matrix-output-array" count="20" stride="16">
-              <param name="TRANSFORM" type="float4x4"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <source id="sparkusSkel_Run_legpole_R_pose_matrix-interpolation">
-          <Name_array id="sparkusSkel_Run_legpole_R_pose_matrix-interpolation-array" count="20">LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR LINEAR</Name_array>
-          <technique_common>
-            <accessor source="#sparkusSkel_Run_legpole_R_pose_matrix-interpolation-array" count="20" stride="1">
-              <param name="INTERPOLATION" type="name"/>
-            </accessor>
-          </technique_common>
-        </source>
-        <sampler id="sparkusSkel_Run_legpole_R_pose_matrix-sampler">
-          <input semantic="INPUT" source="#sparkusSkel_Run_legpole_R_pose_matrix-input"/>
-          <input semantic="OUTPUT" source="#sparkusSkel_Run_legpole_R_pose_matrix-output"/>
-          <input semantic="INTERPOLATION" source="#sparkusSkel_Run_legpole_R_pose_matrix-interpolation"/>
-        </sampler>
-        <channel source="#sparkusSkel_Run_legpole_R_pose_matrix-sampler" target="sparkusSkel_legpole_R/transform"/>
-      </animation>
-    </animation>
-  </library_animations>
   <library_visual_scenes>
     <visual_scene id="Scene" name="Scene">
+      <node id="handbone" name="handbone" type="NODE">
+        <matrix sid="transform">1 0 0 -2.987147 0 1 0 0 0 0 1 0 0 0 0 1</matrix>
+        <instance_geometry url="#Cube_000-mesh" name="handbone">
+          <bind_material>
+            <technique_common>
+              <instance_material symbol="sparkus_main-material" target="#sparkus_main-material">
+                <bind_vertex_input semantic="UVMap" input_semantic="TEXCOORD" input_set="0"/>
+              </instance_material>
+            </technique_common>
+          </bind_material>
+        </instance_geometry>
+      </node>
+      <node id="BezierCircle" name="BezierCircle" type="NODE">
+        <matrix sid="transform">1 0 0 3.39922 0 1 0 0 0 0 1 0 0 0 0 1</matrix>
+        <instance_geometry url="#Mesh-mesh" name="BezierCircle"/>
+      </node>
+      <node id="handbone_001" name="handbone.001" type="NODE">
+        <matrix sid="transform">1 0 0 -3.40593 0 1 0 0 0 0 1 0 0 0 0 1</matrix>
+        <instance_geometry url="#Cube_001-mesh" name="handbone.001">
+          <bind_material>
+            <technique_common>
+              <instance_material symbol="sparkus_main-material" target="#sparkus_main-material">
+                <bind_vertex_input semantic="UVMap" input_semantic="TEXCOORD" input_set="0"/>
+              </instance_material>
+            </technique_common>
+          </bind_material>
+        </instance_geometry>
+      </node>
+      <node id="Plane" name="Plane" type="NODE">
+        <matrix sid="transform">1 0 0 2.651542 0 1 0 0 0 0 1 0 0 0 0 1</matrix>
+        <instance_geometry url="#Plane-mesh" name="Plane"/>
+      </node>
+      <node id="Cube" name="Cube" type="NODE">
+        <matrix sid="transform">-1 3.25841e-7 -8.74228e-8 1.579113 -8.74228e-8 4.37114e-8 1 0 3.25841e-7 1 -4.37114e-8 0 0 0 0 1</matrix>
+        <instance_geometry url="#Cube-mesh" name="Cube"/>
+      </node>
+      <node id="Icosphere" name="Icosphere" type="NODE">
+        <matrix sid="transform">0.8395141 0 0 1.696593 0 -3.66963e-8 0.8395141 0 0 -0.8395141 -3.66963e-8 0 0 0 0 1</matrix>
+        <instance_geometry url="#Icosphere-mesh" name="Icosphere"/>
+      </node>
       <node id="sparkusSkel" name="sparkusSkel" type="NODE">
         <matrix sid="transform">1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</matrix>
         <node id="sparkusSkel_root" name="root" sid="root" type="JOINT">

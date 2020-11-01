@@ -33,4 +33,27 @@ void DrawDebugLines(GameState *gameState, Vertex* vertices, int count)
 		gameState->debugGeometryBuffer.lineData[newIdx] = vertices[i];
 	}
 }
+
+// Util functions
+void DrawDebugWiredBox(GameState *gameState, v3 min, v3 max)
+{
+	Vertex verts[] =
+	{
+		{ { min.x, min.y, min.z }, {}, {} }, { { max.x, min.y, min.z }, {}, {} },
+		{ { max.x, min.y, min.z }, {}, {} }, { { max.x, max.y, min.z }, {}, {} },
+		{ { max.x, max.y, min.z }, {}, {} }, { { min.x, max.y, min.z }, {}, {} },
+		{ { min.x, max.y, min.z }, {}, {} }, { { min.x, min.y, min.z }, {}, {} },
+
+		{ { min.x, min.y, min.z }, {}, {} }, { { min.x, min.y, max.z }, {}, {} },
+		{ { max.x, min.y, min.z }, {}, {} }, { { max.x, min.y, max.z }, {}, {} },
+		{ { max.x, max.y, min.z }, {}, {} }, { { max.x, max.y, max.z }, {}, {} },
+		{ { min.x, max.y, min.z }, {}, {} }, { { min.x, max.y, max.z }, {}, {} },
+
+		{ { min.x, min.y, max.z }, {}, {} }, { { max.x, min.y, max.z }, {}, {} },
+		{ { max.x, min.y, max.z }, {}, {} }, { { max.x, max.y, max.z }, {}, {} },
+		{ { max.x, max.y, max.z }, {}, {} }, { { min.x, max.y, max.z }, {}, {} },
+		{ { min.x, max.y, max.z }, {}, {} }, { { min.x, min.y, max.z }, {}, {} }
+	};
+	DrawDebugLines(gameState, verts, ArrayCount(verts));
+}
 #endif

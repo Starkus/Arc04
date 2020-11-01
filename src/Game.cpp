@@ -177,6 +177,7 @@ void ChangeState(GameState *gameState, PlayerState newState, PlayerAnim newAnim)
 NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 {
 	g_memory = memory;
+	g_log = platformCode->Log;
 	GameState *gameState = (GameState *)memory->transientMem;
 
 	if (deltaTime < 0 || deltaTime > 1)
@@ -328,7 +329,7 @@ NOMANGLE UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			Entity *entity = &gameState->entities[entityIndex];
 			if (entity != gameState->player.entity)
 			{
-				GJKResult gjkResult = GJKTest(player->entity, entity, platformCode);
+				GJKResult gjkResult = GJKTest(gameState, player->entity, entity, platformCode);
 				if (gjkResult.hit)
 				{
 					v3 depenetration = ComputeDepenetration(gjkResult, player->entity, entity,

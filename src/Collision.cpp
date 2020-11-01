@@ -320,7 +320,78 @@ bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, v3 *hit, Triangle *t
 	return false;
 }
 
-inline v3 FurthestInDirection(Entity *entity, v3 dir)
+void GetAABB(GameState *gameState, Entity *entity, v3 *min, v3 *max)
+{
+	Collider *c = &entity->collider;
+	ColliderType type = c->type;
+	switch(type)
+	{
+	case COLLIDER_CONVEX_HULL:
+	{
+		*min = { INFINITY, INFINITY, INFINITY };
+		*max = { -INFINITY, -INFINITY, -INFINITY };
+
+		// @Speed: inverse-transform direction, pick a point, and then transform only that point!
+		const v3 worldUp = { 0, 0, 1 };
+		const v3 pos = entity->pos;
+		const v3 fw = entity->fw;
+		const v3 right = V3Normalize(V3Cross(fw, worldUp));
+		const v3 up = V3Cross(right, fw);
+		mat4 modelMatrix =
+		{
+			right.x,	right.y,	right.z,	0.0f,
+			fw.x,		fw.y,		fw.z,		0.0f,
+			up.x,		up.y,		up.z,		0.0f,
+			pos.x,		pos.y,		pos.z,		1.0f
+		};
+
+		const ResourcePointCloud *pointsRes = &c->convexHull.pointCloud->points;
+		u32 pointCount = pointsRes->pointCount;
+
+		for (u32 i = 0; i < pointCount; ++i)
+		{
+			v3 p = pointsRes->pointData[i];
+			v4 v = { p.x, p.y, p.z, 1.0f };
+			v = Mat4TransformV4(modelMatrix, v);
+
+			if (v.x < min->x) min->x = v.x;
+			if (v.y < min->y) min->y = v.y;
+			if (v.z < min->z) min->z = v.z;
+			if (v.x > max->x) max->x = v.x;
+			if (v.y > max->y) max->y = v.y;
+			if (v.z > max->z) max->z = v.z;
+		}
+	} break;
+	case COLLIDER_SPHERE:
+	{
+		f32 r = c->sphere.radius;
+		*min = entity->pos + c->sphere.offset - v3{ r, r, r };
+		*max = entity->pos + c->sphere.offset + v3{ r, r, r };
+	} break;
+	case COLLIDER_CYLINDER:
+	{
+		f32 halfH = c->cylinder.height * 0.5f;
+		f32 r = c->cylinder.radius;
+		*min = entity->pos + c->cylinder.offset - v3{ r, r, halfH };
+		*max = entity->pos + c->cylinder.offset + v3{ r, r, halfH };
+	} break;
+	case COLLIDER_CAPSULE:
+	{
+		f32 halfH = c->cylinder.height * 0.5f;
+		f32 r = c->cylinder.radius;
+		*min = entity->pos + c->cylinder.offset - v3{ r, r, halfH + r };
+		*max = entity->pos + c->cylinder.offset + v3{ r, r, halfH + r };
+	} break;
+	default:
+	{
+		ASSERT(false);
+	}
+	}
+
+	DrawDebugWiredBox(gameState, *min, *max);
+}
+
+v3 FurthestInDirection(Entity *entity, v3 dir)
 {
 	void *oldStackPtr = g_memory->stackPtr;
 
@@ -456,7 +527,7 @@ inline v3 GJKSupport(Entity *vA, Entity *vB, v3 dir)
 	return va - vb;
 }
 
-GJKResult GJKTest(Entity *vA, Entity *vB, PlatformCode *platformCode)
+GJKResult GJKTest(GameState *gameState, Entity *vA, Entity *vB, PlatformCode *platformCode)
 {
 #if GJK_VISUAL_DEBUGGING
 	if (g_GJKSteps[0] == nullptr)
@@ -468,6 +539,18 @@ GJKResult GJKTest(Entity *vA, Entity *vB, PlatformCode *platformCode)
 
 	GJKResult result;
 	result.hit = true;
+
+	v3 minA, maxA;
+	GetAABB(gameState, vA, &minA, &maxA);
+	v3 minB, maxB;
+	GetAABB(gameState, vB, &minB, &maxB);
+	if ((minA.x > maxB.x || minB.x > maxA.x) ||
+		(minA.y > maxB.y || minB.y > maxA.y) ||
+		(minA.z > maxB.z || minB.z > maxA.z))
+	{
+		result.hit = false;
+		return result;
+	}
 
 	int foundPointsCount = 1;
 	v3 testDir = { 0, 1, 0 }; // Random initial test direction
