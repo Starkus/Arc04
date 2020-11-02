@@ -652,7 +652,7 @@ ErrorCode ReadColladaAnimation(XMLElement *rootEl, Animation &animation, Skeleto
 ErrorCode ReadColladaFile(tinyxml2::XMLDocument *dataDoc, const char *dataFileName,
 		XMLElement **dataRootEl, const char *fullDataDir)
 {
-	char fullname[PATH_MAX];
+	char fullname[MAX_PATH];
 	sprintf(fullname, "%s%s", fullDataDir, dataFileName);
 
 	/* @Todo
@@ -684,7 +684,7 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 		const char *fullDataDir)
 {
 	ErrorCode error;
-	char outputName[PATH_MAX];
+	char outputName[MAX_PATH];
 	GetOutputFilename(filename, outputName);
 
 	tinyxml2::XMLDocument geometryDoc;
@@ -831,7 +831,7 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 		GenerateGeometryGrid(triangles, &geometryGrid);
 
 		// Output
-		int file = PlatformOpenForWrite(outputName);
+		FileHandle file = PlatformOpenForWrite(outputName);
 
 		BakeryTriangleDataHeader header;
 		u64 offsetsBlobOffset = PlatformFileSeek(file, sizeof(header), SEEK_SET);
@@ -856,7 +856,7 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 	case METATYPE_POINTS:
 	{
 		// Output
-		int file = PlatformOpenForWrite(outputName);
+		FileHandle file = PlatformOpenForWrite(outputName);
 
 		const u32 pointCount = rawGeometry.positions.size;
 

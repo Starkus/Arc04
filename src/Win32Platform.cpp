@@ -275,19 +275,6 @@ LRESULT CALLBACK Win32WindowCallback(HWND hWnd, UINT message, WPARAM wParam, LPA
 	return 0;
 }
 
-PLATFORM_READ_ENTIRE_FILE(PlatformReadEntireFile)
-{
-	char fullname[MAX_PATH];
-	DWORD written = GetCurrentDirectory(MAX_PATH, fullname);
-	fullname[written++] = '/';
-	strcpy(fullname + written, filename);
-
-	DWORD error = Win32ReadEntireFile(filename, fileBuffer, fileSize, allocFunc);
-	ASSERT(error == ERROR_SUCCESS);
-
-	return error == ERROR_SUCCESS;
-}
-
 Resource *CreateResource(const char *filename)
 {
 	Resource result = {};
@@ -320,7 +307,8 @@ GET_RESOURCE(GetResource)
 bool ReloadResource(Resource *resource)
 {
 	u8 *fileBuffer;
-	DWORD error = Win32ReadEntireFile(resource->filename, &fileBuffer, FrameAlloc);
+	DWORD fileSize;
+	DWORD error = Win32ReadEntireFile(resource->filename, &fileBuffer, &fileSize, FrameAlloc);
 	if (error != ERROR_SUCCESS)
 		return false;
 

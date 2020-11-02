@@ -99,7 +99,7 @@ struct WeightData
 struct FileCacheEntry
 {
 	PlatformFileTime lastWriteTime;
-	char filename[PATH_MAX];
+	char filename[MAX_PATH];
 	bool changed;
 };
 DECLARE_ARRAY(FileCacheEntry);

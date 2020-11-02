@@ -179,7 +179,7 @@ ErrorCode OutputMesh(const char *filename, DynamicArray_RawVertex &finalVertices
 {
 	// Output!
 	{
-		int newFile = PlatformOpenForWrite(filename);
+		FileHandle newFile = PlatformOpenForWrite(filename);
 		u64 filePos = 0;
 		{
 			u64 vertexBlobSize = sizeof(Vertex) * finalVertices.size;
@@ -227,7 +227,7 @@ ErrorCode OutputSkinnedMesh(const char *filename,
 {
 	void *oldStackPtr = g_memory->stackPtr;
 
-	int newFile = PlatformOpenForWrite(filename);
+	FileHandle newFile = PlatformOpenForWrite(filename);
 	
 	BakerySkinnedMeshHeader header;
 	header.vertexCount = finalVertices.size;

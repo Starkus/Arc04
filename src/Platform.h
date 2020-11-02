@@ -40,7 +40,7 @@ struct PlatformFileTime
 
 struct PlatformFindData
 {
-	u8 reserved[8];
+	u8 reserved[320];
 };
 
 struct PlatformSearchHandle

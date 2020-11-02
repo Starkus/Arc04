@@ -1,9 +1,16 @@
+#if defined(WIN32) || defined(_WIN32)
+#define TARGET_WINDOWS 1
+#else
+#define TARGET_WINDOWS 0
+#endif
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdarg.h>
 
-#if !defined(WIN32)
+#if !TARGET_WINDOWS
 #include <assert.h>
+#define MAX_PATH PATH_MAX
 #endif
 
 // I hate this programming language
@@ -46,7 +53,7 @@ typedef double f64;
 #define DEBUG_ONLY(a) a
 
 #if DEBUG_BUILD
-#if defined(WIN32)
+#if TARGET_WINDOWS
 #define ASSERT(expr) do { if (!(expr)) __debugbreak(); } while (false)
 #else
 #define ASSERT(expr) assert(expr)

@@ -1,9 +1,24 @@
 #include <stdio.h>
 
+#include "General.h"
+
+// Windows
+#if TARGET_WINDOWS
+#include <windows.h>
+#include <strsafe.h>
+#else
+#include <string.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <time.h>
+#endif
+
 #include "tinyxml/tinyxml2.cpp"
 using namespace tinyxml2;
 
-#include "General.h"
 #include "MemoryAlloc.h"
 #include "Maths.h"
 #include "BakeryInterop.h"
@@ -16,20 +31,11 @@ using namespace tinyxml2;
 Memory *g_memory;
 
 // Windows
-#if defined(WIN32)
+#if TARGET_WINDOWS
 HANDLE g_hStdout;
-#include <windows.h>
-#include <strsafe.h>
 #include "Win32Common.cpp"
 // Linux
 #else
-#include <string.h>
-#include <unistd.h>
-#include <dirent.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <time.h>
 #include "LinuxCommon.cpp"
 #endif
 
@@ -37,7 +43,7 @@ HANDLE g_hStdout;
 
 void GetDataPath(char *dataPath)
 {
-#if defined(WIN32)
+#if TARGET_WINDOWS
 	GetModuleFileNameA(0, dataPath, MAX_PATH);
 
 	// Get parent directory
@@ -318,6 +324,10 @@ ErrorCode FindMetaFilesRecursive(const char *folder, Array_FileCacheEntry &cache
 	PlatformFindData findData;
 	PlatformSearchHandle searchHandle;
 	bool success = PlatformFindFirstFile(&searchHandle, folder, &findData);
+	if (!success)
+		// Empty directory I guess
+		return error;
+
 	do
 	{
 		const char *curFilename = PlatformGetCurrentFilename(&findData);
@@ -374,7 +384,7 @@ int main(int argc, char **argv)
 {
 	(void) argc, argv;
 
-#if defined(WIN32)
+#if TARGET_WINDOWS
 	AttachConsole(ATTACH_PARENT_PROCESS);
 	g_hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
 #endif

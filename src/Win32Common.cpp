@@ -21,12 +21,9 @@ static_assert(sizeof(Win32SearchHandle) <= sizeof(PlatformSearchHandle),
 
 typedef HANDLE FileHandle;
 
-enum
-{
-	SEEK_SET = FILE_BEGIN,
-	SEEK_CUR = FILE_CURRENT,
-	SEEK_END = FILE_END
-};
+//#define SEEK_SET = FILE_BEGIN
+//#define SEEK_CUR = FILE_CURRENT
+//#define SEEK_END = FILE_END
 
 void Log(const char *format, ...)
 {
@@ -74,7 +71,7 @@ inline FILETIME Win32GetLastWriteTime(const char *filename)
 	return lastWriteTime;
 }
 
-DWORD Win32ReadEntireFile(const char *filename, u8 **fileBuffer, void *(*allocFunc)(u64))
+DWORD Win32ReadEntireFile(const char *filename, u8 **fileBuffer, DWORD *fileSize, void *(*allocFunc)(u64))
 {
 	HANDLE file = CreateFileA(
 			filename,
@@ -94,21 +91,21 @@ DWORD Win32ReadEntireFile(const char *filename, u8 **fileBuffer, void *(*allocFu
 	}
 	else
 	{
-		DWORD fileSize = GetFileSize(file, nullptr);
-		ASSERT(fileSize);
+		*fileSize = GetFileSize(file, nullptr);
+		ASSERT(*fileSize);
 		error = GetLastError();
 
-		*fileBuffer = (u8 *)allocFunc(fileSize);
+		*fileBuffer = (u8 *)allocFunc(*fileSize);
 		DWORD bytesRead;
 		bool success = ReadFile(
 				file,
 				*fileBuffer,
-				fileSize,
+				*fileSize,
 				&bytesRead,
 				nullptr
 				);
 		ASSERT(success);
-		ASSERT(bytesRead == fileSize);
+		ASSERT(bytesRead == *fileSize);
 
 		CloseHandle(file);
 	}
@@ -125,14 +122,30 @@ bool PlatformGetLastWriteTime(const char *filename, PlatformFileTime *writeTime)
 
 int PlatformCompareFileTime(PlatformFileTime *a, PlatformFileTime *b)
 {
-	Win32FileTime *wa = (LinuxFileTime *)a;
-	Win32FileTime *wb = (LinuxFileTime *)b;
-	return CompareFileTime(wa->lastWriteTime, wb->lastWriteTime);
+	Win32FileTime *wa = (Win32FileTime *)a;
+	Win32FileTime *wb = (Win32FileTime *)b;
+	return CompareFileTime(&wa->lastWriteTime, &wb->lastWriteTime);
 }
 
 bool PlatformFileExists(const char *filename)
 {
 	return Win32FileExists(filename);
+}
+
+bool PlatformReadEntireFile(const char *filename, u8 **fileBuffer, u64 *fileSize,
+		void *(*allocFunc)(u64))
+{
+	char fullname[MAX_PATH];
+	DWORD written = GetCurrentDirectory(MAX_PATH, fullname);
+	fullname[written++] = '/';
+	strcpy(fullname + written, filename);
+
+	DWORD sizeDWord;
+	DWORD error = Win32ReadEntireFile(filename, fileBuffer, &sizeDWord, allocFunc);
+	ASSERT(error == ERROR_SUCCESS);
+	*fileSize = (u64)sizeDWord;
+
+	return error == ERROR_SUCCESS;
 }
 
 FileHandle PlatformOpenForWrite(const char *filename)
@@ -151,7 +164,12 @@ FileHandle PlatformOpenForWrite(const char *filename)
 	return file;
 }
 
-u64 PlatformWriteToFile(FileHandle file, void *buffer, u64 size)
+void PlatformCloseFile(FileHandle file)
+{
+	CloseHandle(file);
+}
+
+u64 PlatformWriteToFile(FileHandle file, const void *buffer, u64 size)
 {
 	DWORD writtenBytes;
 	WriteFile(
@@ -177,14 +195,39 @@ u64 PlatformFileSeek(FileHandle file, i64 shift, int mode)
 	return lIntRes.QuadPart;
 }
 
-PlatformSearchHandle PlatformFindFirstFile(const char *filter, PlatformFindData *findData)
+bool PlatformFindFirstFile(PlatformSearchHandle *searchHandle, const char *folder,
+		PlatformFindData *findData)
 {
 	char filter[MAX_PATH];
 	sprintf(filter, "%s*", folder);
 
-	PlatformSearchHandle result;
-	Win32SearchHandle *win32Handle = (Win32SearchHandle *)result;
+	Win32SearchHandle *win32Handle = (Win32SearchHandle *)searchHandle;
 	Win32FindData *win32FindData = (Win32FindData *)findData;
-	*win32Handle = FindFirstFileA(filter, &win32FindData->findData);
-	return result;
+	win32Handle->handle = FindFirstFileA(filter, &win32FindData->findData);
+	return true;
+}
+
+bool PlatformFindNextFile(PlatformSearchHandle searchHandle, PlatformFindData *findData)
+{
+	Win32SearchHandle *win32Handle = (Win32SearchHandle *)&searchHandle;
+	Win32FindData *win32FindData = (Win32FindData *)findData;
+	bool success = FindNextFileA(win32Handle->handle, &win32FindData->findData);
+	return success;
+}
+
+void PlatformFindClose(PlatformSearchHandle searchHandle)
+{
+	Win32SearchHandle *win32Handle = (Win32SearchHandle *)&searchHandle;
+	FindClose(win32Handle->handle);
+}
+
+const char *PlatformGetCurrentFilename(PlatformFindData *findData)
+{
+	Win32FindData *win32FindData = (Win32FindData *)findData;
+	return win32FindData->findData.cFileName;
+}
+
+bool PlatformIsDirectory(const char *filename)
+{
+	return GetFileAttributesA(filename) & FILE_ATTRIBUTE_DIRECTORY;
 }

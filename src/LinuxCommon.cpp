@@ -20,7 +20,6 @@ static_assert(sizeof(LinuxFindData) <= sizeof(PlatformFindData),
 		"LinuxFindData doesn't fit in opaque handle!");
 
 typedef int FileHandle;
-#define MAX_PATH PATH_MAX
 
 void Log(const char *format, ...)
 {

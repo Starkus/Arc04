@@ -25,7 +25,7 @@ DECLARE_ARRAY(u32);
 #include "Collision.cpp"
 #include "BakeryInterop.cpp"
 
-#if defined(WIN32)
+#if TARGET_WINDOWS
 #define GAMEDLL NOMANGLE __declspec(dllexport)
 #else
 #define GAMEDLL NOMANGLE __attribute__((visibility("default")))
