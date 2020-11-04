@@ -12,5 +12,5 @@ tags
 *.swp
 *.blend1
 
-data/*.bin
+data/*.b
 
