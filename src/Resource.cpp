@@ -14,9 +14,10 @@ RESOURCE_LOAD_MESH(ResourceLoadMesh)
 	u32 indexCount;
 	ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
 
-	result->mesh.deviceMesh = CreateDeviceIndexedMesh();
-	SendIndexedMesh(&result->mesh.deviceMesh, vertexData, vertexCount, indexData,
-			indexCount, false);
+	int attribs = RENDERATTRIB_POSITION | RENDERATTRIB_UV | RENDERATTRIB_NORMAL;
+	result->mesh.deviceMesh = CreateDeviceIndexedMesh(attribs);
+	SendIndexedMesh(&result->mesh.deviceMesh, vertexData, vertexCount, sizeof(Vertex),
+			indexData, indexCount, false);
 
 	return result;
 }
@@ -39,10 +40,12 @@ RESOURCE_LOAD_SKINNED_MESH(ResourceLoadSkinnedMesh)
 	u32 indexCount;
 	ReadSkinnedMesh(fileBuffer, skinnedMesh, &vertexData, &indexData, &vertexCount, &indexCount);
 
+	int attribs = RENDERATTRIB_POSITION | RENDERATTRIB_UV | RENDERATTRIB_NORMAL |
+		RENDERATTRIB_INDICES | RENDERATTRIB_WEIGHTS;
 	// @Broken: This allocs things on transient memory and never frees them
-	skinnedMesh->deviceMesh = CreateDeviceIndexedSkinnedMesh();
-	SendIndexedSkinnedMesh(&skinnedMesh->deviceMesh, vertexData, vertexCount, indexData,
-			indexCount, false);
+	skinnedMesh->deviceMesh = CreateDeviceIndexedMesh(attribs);
+	SendIndexedMesh(&skinnedMesh->deviceMesh, vertexData, vertexCount, sizeof(SkinnedVertex),
+			indexData, indexCount, false);
 
 	return result;
 }

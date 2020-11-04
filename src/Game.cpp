@@ -57,11 +57,41 @@ GAMEDLL START_GAME(StartGame)
 #if DEBUG_BUILD
 		// Debug geometry buffer
 		{
-			gameState->debugGeometryBuffer.triangleData = (Vertex *)TransientAlloc(2048 * sizeof(Vertex));
-			gameState->debugGeometryBuffer.lineData = (Vertex *)TransientAlloc(2048 * sizeof(Vertex));
+			int attribs = RENDERATTRIB_POSITION | RENDERATTRIB_COLOR;
+			gameState->debugGeometryBuffer.triangleData = (DebugVertex *)TransientAlloc(2048 * sizeof(DebugVertex));
+			gameState->debugGeometryBuffer.lineData = (DebugVertex *)TransientAlloc(2048 * sizeof(DebugVertex));
+			gameState->debugGeometryBuffer.debugCubeCount = 0;
 			gameState->debugGeometryBuffer.triangleVertexCount = 0;
 			gameState->debugGeometryBuffer.lineVertexCount = 0;
-			gameState->debugGeometryBuffer.deviceMesh = platformCode->CreateDeviceMesh();
+			gameState->debugGeometryBuffer.deviceMesh = platformCode->CreateDeviceMesh(attribs);
+			gameState->debugGeometryBuffer.cubePositionsBuffer = platformCode->CreateDeviceMesh(attribs);
+		}
+
+		// Send the cube mesh that gets instanced
+		{
+			u8 *fileBuffer;
+			u64 fileSize;
+			bool success = platformCode->PlatformReadEntireFile("data/cube.b", &fileBuffer,
+					&fileSize, FrameAlloc);
+			ASSERT(success);
+
+			Vertex *vertexData;
+			u16 *indexData;
+			u32 vertexCount;
+			u32 indexCount;
+			ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
+
+			// Keep only positions
+			v3 *positionBuffer = (v3 *)FrameAlloc(sizeof(v3) * vertexCount);
+			for (u32 i = 0; i < vertexCount; ++i)
+			{
+				positionBuffer[i] = vertexData[i].pos;
+			}
+
+			int attribs = RENDERATTRIB_POSITION;
+			gameState->debugGeometryBuffer.cubeMesh = platformCode->CreateDeviceIndexedMesh(attribs);
+			platformCode->SendIndexedMesh(&gameState->debugGeometryBuffer.cubeMesh, positionBuffer,
+					vertexCount, sizeof(v3), indexData, indexCount, false);
 		}
 #endif
 
@@ -75,6 +105,9 @@ GAMEDLL START_GAME(StartGame)
 #if DEBUG_BUILD
 		const Resource *shaderDebugRes = platformCode->ResourceLoadShader("data/shaders/shader_debug.b");
 		gameState->debugDrawProgram = shaderDebugRes->shader.programHandle;
+
+		const Resource *shaderDebugCubesRes = platformCode->ResourceLoadShader("data/shaders/shader_debug_cubes.b");
+		gameState->debugCubesProgram = shaderDebugCubesRes->shader.programHandle;
 #endif
 	}
 
@@ -173,7 +206,7 @@ GAMEDLL START_GAME(StartGame)
 
 void ChangeState(GameState *gameState, PlayerState newState, PlayerAnim newAnim)
 {
-	LOG("Changed state: 0x%X -> 0x%X\n", gameState->player.state, newState);
+	//LOG("Changed state: 0x%X -> 0x%X\n", gameState->player.state, newState);
 	gameState->animationIdx = newAnim;
 	gameState->animationTime = 0;
 	gameState->player.state = newState;
@@ -337,7 +370,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				GJKResult gjkResult = GJKTest(gameState, player->entity, entity, platformCode);
 				if (gjkResult.hit)
 				{
-					v3 depenetration = ComputeDepenetration(gjkResult, player->entity, entity,
+					v3 depenetration = ComputeDepenetration(gameState, gjkResult, player->entity, entity,
 							platformCode);
 					// @Hack: ignoring depenetration when it's too big
 					if (V3Length(depenetration) < 2.0f)
@@ -694,56 +727,50 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		}
 
 #if DEBUG_BUILD
-		platformCode->UseProgram(gameState->debugDrawProgram);
-		viewUniform = platformCode->GetUniform(gameState->debugDrawProgram, "view");
-		modelUniform = platformCode->GetUniform(gameState->debugDrawProgram, "model");
-		projUniform = platformCode->GetUniform(gameState->debugDrawProgram, "projection");
-		platformCode->UniformMat4(projUniform, 1, proj.m);
-
-		platformCode->UniformMat4(viewUniform, 1, view.m);
-		// Debug draws
-		{
-			for (u32 i = 0; i < gameState->debugGeometryBuffer.debugCubeCount; ++i)
-			{
-				DebugCube *cube = &gameState->debugGeometryBuffer.debugCubes[i];
-
-				v3 pos = cube->pos;
-				v3 fw = cube->fw * cube->scale;
-				v3 right = V3Normalize(V3Cross(cube->fw, cube->up));
-				v3 up = V3Cross(right, cube->fw) * cube->scale;
-				right *= cube->scale;
-				mat4 model =
-				{
-					right.x,	right.y,	right.z,	0.0f,
-					fw.x,		fw.y,		fw.z,		0.0f,
-					up.x,		up.y,		up.z,		0.0f,
-					pos.x,		pos.y,		pos.z,		1.0f
-				};
-				platformCode->UniformMat4(modelUniform, 1, model.m);
-				platformCode->RenderIndexedMesh(gameState->cubeMesh);
-			}
-		}
-
 		// Debug meshes
 		{
+			DebugGeometryBuffer *dgb = &gameState->debugGeometryBuffer;
 			platformCode->SetFillMode(RENDER_LINE);
 
-			platformCode->UniformMat4(modelUniform, 1, MAT4_IDENTITY.m);
+			platformCode->UseProgram(gameState->debugDrawProgram);
+			viewUniform = platformCode->GetUniform(gameState->debugDrawProgram, "view");
+			projUniform = platformCode->GetUniform(gameState->debugDrawProgram, "projection");
+			platformCode->UniformMat4(projUniform, 1, proj.m);
+			platformCode->UniformMat4(viewUniform, 1, view.m);
 
-			platformCode->SendMesh(&gameState->debugGeometryBuffer.deviceMesh,
-					gameState->debugGeometryBuffer.triangleData,
-					gameState->debugGeometryBuffer.triangleVertexCount, true);
+			platformCode->SendMesh(&dgb->deviceMesh,
+					dgb->triangleData,
+					dgb->triangleVertexCount, sizeof(DebugVertex), true);
 
-			platformCode->RenderMesh(gameState->debugGeometryBuffer.deviceMesh);
+			platformCode->RenderMesh(dgb->deviceMesh);
 
-			platformCode->SendMesh(&gameState->debugGeometryBuffer.deviceMesh,
-					gameState->debugGeometryBuffer.lineData,
-					gameState->debugGeometryBuffer.lineVertexCount, true);
-			platformCode->RenderLines(gameState->debugGeometryBuffer.deviceMesh);
+			platformCode->SendMesh(&dgb->deviceMesh,
+					dgb->lineData,
+					dgb->lineVertexCount, sizeof(DebugVertex), true);
+			platformCode->RenderLines(dgb->deviceMesh);
 
-			gameState->debugGeometryBuffer.debugCubeCount = 0;
-			gameState->debugGeometryBuffer.triangleVertexCount = 0;
-			gameState->debugGeometryBuffer.lineVertexCount = 0;
+			if (dgb->debugCubeCount)
+			{
+				platformCode->UseProgram(gameState->debugCubesProgram);
+				viewUniform = platformCode->GetUniform(gameState->debugDrawProgram, "view");
+				projUniform = platformCode->GetUniform(gameState->debugDrawProgram, "projection");
+				platformCode->UniformMat4(projUniform, 1, proj.m);
+				platformCode->UniformMat4(viewUniform, 1, view.m);
+
+				platformCode->SendMesh(&dgb->cubePositionsBuffer,
+						dgb->debugCubes,
+						dgb->debugCubeCount, sizeof(DebugCube), true);
+
+				u32 meshAttribs = RENDERATTRIB_POSITION;
+				u32 instAttribs = RENDERATTRIB_POSITION | RENDERATTRIB_COLOR |
+					RENDERATTRIB_1CUSTOMV3 | RENDERATTRIB_2CUSTOMV3 | RENDERATTRIB_1CUSTOMF32;
+				platformCode->RenderIndexedMeshInstanced(dgb->cubeMesh, dgb->cubePositionsBuffer,
+						meshAttribs, instAttribs);
+			}
+
+			dgb->debugCubeCount = 0;
+			dgb->triangleVertexCount = 0;
+			dgb->lineVertexCount = 0;
 
 			platformCode->SetFillMode(RENDER_FILL);
 		}

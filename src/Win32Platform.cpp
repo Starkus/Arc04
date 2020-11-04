@@ -322,8 +322,8 @@ bool ReloadResource(Resource *resource)
 		u32 indexCount;
 		ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
 
-		SendIndexedMesh(&resource->mesh.deviceMesh, vertexData, vertexCount, indexData,
-				indexCount, false);
+		SendIndexedMesh(&resource->mesh.deviceMesh, vertexData, vertexCount, sizeof(Vertex),
+				indexData, indexCount, false);
 
 		return true;
 	} break;
@@ -338,8 +338,8 @@ bool ReloadResource(Resource *resource)
 		ReadSkinnedMesh(fileBuffer, skinnedMesh, &vertexData, &indexData, &vertexCount, &indexCount);
 
 		// @Broken: This allocs things on transient memory and never frees them
-		SendIndexedSkinnedMesh(&resource->skinnedMesh.deviceMesh, vertexData, vertexCount, indexData,
-				indexCount, false);
+		SendIndexedMesh(&resource->skinnedMesh.deviceMesh, vertexData, vertexCount,
+				sizeof(SkinnedVertex), indexData, indexCount, false);
 
 		return true;
 	} break;
@@ -543,13 +543,13 @@ void Win32Start(HINSTANCE hInstance)
 	platformCode.UniformMat4 = UniformMat4;
 	platformCode.RenderIndexedMesh = RenderIndexedMesh;
 	platformCode.RenderMesh = RenderMesh;
+	platformCode.RenderMeshInstanced = RenderMeshInstanced;
+	platformCode.RenderIndexedMeshInstanced = RenderIndexedMeshInstanced;
 	platformCode.RenderLines = RenderLines;
 	platformCode.CreateDeviceMesh = CreateDeviceMesh;
 	platformCode.CreateDeviceIndexedMesh = CreateDeviceIndexedMesh;
-	platformCode.CreateDeviceIndexedSkinnedMesh = CreateDeviceIndexedSkinnedMesh;
 	platformCode.SendMesh = SendMesh;
 	platformCode.SendIndexedMesh = SendIndexedMesh;
-	platformCode.SendIndexedSkinnedMesh = SendIndexedSkinnedMesh;
 	platformCode.CreateShader = CreateShader;
 	platformCode.LoadShader = LoadShader;
 	platformCode.AttachShader = AttachShader;

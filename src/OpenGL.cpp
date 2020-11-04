@@ -78,8 +78,11 @@ void LoadOpenGLProcs()
 	GL_GetProc(glBindVertexArray);
 	GL_GetProc(glVertexAttribPointer);
 	GL_GetProc(glVertexAttribIPointer);
+	GL_GetProc(glVertexAttribDivisor);
 	GL_GetProc(glEnableVertexAttribArray);
 	GL_GetProc(glDrawArrays);
+	GL_GetProc(glDrawArraysInstanced);
 	GL_GetProc(glDrawElements);
+	GL_GetProc(glDrawElementsInstanced);
 #undef GL_GetProc
 }

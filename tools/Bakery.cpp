@@ -51,6 +51,7 @@ void GetDataPath(char *dataPath)
 	char *secondLastSlash = dataPath;
 	for (char *scan = dataPath; *scan != 0; ++scan)
 	{
+		if (*scan == '\\') *scan = '/';
 		if (*scan == '/')
 		{
 			secondLastSlash = lastSlash;
@@ -134,7 +135,7 @@ void GetOutputFilename(const char *metaFilename, char *outputFilename)
 			break;
 		}
 	}
-	strcpy(lastDot, ".bin\0");
+	strcpy(lastDot, ".b\0");
 	Log("Output name: %s\n", outputFilename);
 }
 
@@ -305,7 +306,7 @@ ErrorCode ProcessMetaFile(const char *filename, const char *fullDataDir)
 		PlatformWriteToFile(file, &header, sizeof(header));
 
 		PlatformCloseFile(file);
-	};
+	} break;
 	default:
 	{
 		return ERROR_META_WRONG_TYPE;

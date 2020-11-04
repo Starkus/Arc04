@@ -95,7 +95,151 @@ void RenderLines(DeviceMesh mesh)
 	glDrawArrays(GL_LINES, 0, glMesh->vertexCount);
 }
 
-DeviceMesh CreateDeviceMesh()
+int GLEnableAttribs(u32 attribs, int first = 0)
+{
+	int stride = 0;
+	if (attribs & RENDERATTRIB_POSITION)	stride += sizeof(v3);
+	if (attribs & RENDERATTRIB_UV)			stride += sizeof(v2);
+	if (attribs & RENDERATTRIB_NORMAL)		stride += sizeof(v3);
+	if (attribs & RENDERATTRIB_INDICES)		stride += sizeof(u16) * 4;
+	if (attribs & RENDERATTRIB_WEIGHTS)		stride += sizeof(f32) * 4;
+	if (attribs & RENDERATTRIB_COLOR)		stride += sizeof(v3);
+
+	for (int i = 0; i < 4; ++i)
+		if (attribs & (RENDERATTRIB_1CUSTOMV3 << i)) stride += sizeof(v3);
+
+	for (int i = 0; i < 4; ++i)
+		if (attribs & (RENDERATTRIB_1CUSTOMF32 << i)) stride += sizeof(f32);
+
+	int attribIdx = first;
+	u64 offset = 0;
+	// Position
+	if (attribs & RENDERATTRIB_POSITION)
+	{
+		glVertexAttribPointer(attribIdx, 3, GL_FLOAT, GL_FALSE, stride, (GLvoid *)offset);
+		glEnableVertexAttribArray(attribIdx);
+		++attribIdx;
+		offset += sizeof(v3);
+	}
+	// UV
+	if (attribs & RENDERATTRIB_UV)
+	{
+		glVertexAttribPointer(attribIdx, 2, GL_FLOAT, GL_FALSE, stride, (GLvoid *)offset);
+		glEnableVertexAttribArray(attribIdx);
+		++attribIdx;
+		offset += sizeof(v2);
+	}
+	// Normal
+	if (attribs & RENDERATTRIB_NORMAL)
+	{
+		glVertexAttribPointer(attribIdx, 3, GL_FLOAT, GL_FALSE, stride, (GLvoid *)offset);
+		glEnableVertexAttribArray(attribIdx);
+		++attribIdx;
+		offset += sizeof(v3);
+	}
+	// Joint indices
+	if (attribs & RENDERATTRIB_INDICES)
+	{
+		glVertexAttribIPointer(attribIdx, 4, GL_UNSIGNED_SHORT, stride, (GLvoid *)offset);
+		glEnableVertexAttribArray(attribIdx);
+		++attribIdx;
+		offset += sizeof(u16) * 4;
+	}
+	// Joint weights
+	if (attribs & RENDERATTRIB_WEIGHTS)
+	{
+		glVertexAttribPointer(attribIdx, 4, GL_FLOAT, GL_FALSE, stride, (GLvoid *)offset);
+		glEnableVertexAttribArray(attribIdx);
+		++attribIdx;
+		offset += sizeof(f32) * 4;
+	}
+	// Color
+	if (attribs & RENDERATTRIB_COLOR)
+	{
+		glVertexAttribPointer(attribIdx, 3, GL_FLOAT, GL_FALSE, stride, (GLvoid *)offset);
+		glEnableVertexAttribArray(attribIdx);
+		++attribIdx;
+		offset += sizeof(v3);
+	}
+
+	// Custom V3s
+	for (int i = 0; i < 4; ++i)
+	{
+		if (attribs & (RENDERATTRIB_1CUSTOMV3 << i))
+		{
+			glVertexAttribPointer(attribIdx, 3, GL_FLOAT, GL_FALSE, stride, (GLvoid *)offset);
+			glEnableVertexAttribArray(attribIdx);
+			++attribIdx;
+			offset += sizeof(v3);
+		}
+	}
+
+	// Custom F32s
+	for (int i = 0; i < 4; ++i)
+	{
+		if (attribs & (RENDERATTRIB_1CUSTOMF32 << i))
+		{
+			glVertexAttribPointer(attribIdx, 1, GL_FLOAT, GL_FALSE, stride, (GLvoid *)offset);
+			glEnableVertexAttribArray(attribIdx);
+			++attribIdx;
+			offset += sizeof(f32);
+		}
+	}
+	return attribIdx;
+}
+
+void RenderMeshInstanced(DeviceMesh mesh, DeviceMesh positions, u32 meshAttribs,
+		u32 instAttribs)
+{
+	GLDeviceMesh *glMesh = (GLDeviceMesh *)&mesh;
+	GLDeviceMesh *glPositions = (GLDeviceMesh *)&positions;
+
+	glBindVertexArray(glPositions->vao);
+
+	glBindBuffer(GL_ARRAY_BUFFER, glMesh->vertexBuffer);
+	int firstInstAttrib = GLEnableAttribs(meshAttribs);
+
+	glBindBuffer(GL_ARRAY_BUFFER, glPositions->vertexBuffer);
+	int attribSize = GLEnableAttribs(instAttribs, firstInstAttrib);
+
+	for (int attribIdx = 0; attribIdx < attribSize; ++attribIdx)
+		glEnableVertexAttribArray(attribIdx);
+
+	for (int attribIdx = 0; attribIdx < firstInstAttrib; ++attribIdx)
+		glVertexAttribDivisor(attribIdx, 0);
+	for (int attribIdx = firstInstAttrib; attribIdx < attribSize; ++attribIdx)
+		glVertexAttribDivisor(attribIdx, 1);
+
+	glDrawArraysInstanced(GL_TRIANGLES, 0, glMesh->vertexCount, glPositions->vertexCount);
+}
+
+void RenderIndexedMeshInstanced(DeviceMesh mesh, DeviceMesh positions, u32 meshAttribs,
+		u32 instAttribs)
+{
+	GLDeviceMesh *glMesh = (GLDeviceMesh *)&mesh;
+	GLDeviceMesh *glPositions = (GLDeviceMesh *)&positions;
+
+	glBindVertexArray(glPositions->vao);
+
+	glBindBuffer(GL_ARRAY_BUFFER, glMesh->vertexBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, glMesh->indexBuffer);
+	int firstInstAttrib = GLEnableAttribs(meshAttribs);
+
+	glBindBuffer(GL_ARRAY_BUFFER, glPositions->vertexBuffer);
+	int attribSize = GLEnableAttribs(instAttribs, firstInstAttrib);
+
+	for (int attribIdx = 0; attribIdx < attribSize; ++attribIdx)
+		glEnableVertexAttribArray(attribIdx);
+
+	for (int attribIdx = 0; attribIdx < firstInstAttrib; ++attribIdx)
+		glVertexAttribDivisor(attribIdx, 0);
+	for (int attribIdx = firstInstAttrib; attribIdx < attribSize; ++attribIdx)
+		glVertexAttribDivisor(attribIdx, 1);
+
+	glDrawElementsInstanced(GL_TRIANGLES, glMesh->indexCount, GL_UNSIGNED_SHORT, NULL, glPositions->vertexCount);
+}
+
+DeviceMesh CreateDeviceMesh(int attribs)
 {
 	DeviceMesh result;
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)&result;
@@ -105,17 +249,12 @@ DeviceMesh CreateDeviceMesh()
 	glGenBuffers(1, glMesh->buffers);
 	glBindBuffer(GL_ARRAY_BUFFER, glMesh->vertexBuffer);
 
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, uv));
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, nor));
-	glEnableVertexAttribArray(2);
+	GLEnableAttribs(attribs);
 
 	return result;
 }
 
-DeviceMesh CreateDeviceIndexedMesh()
+DeviceMesh CreateDeviceIndexedMesh(int attribs)
 {
 	DeviceMesh result;
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)&result;
@@ -126,52 +265,12 @@ DeviceMesh CreateDeviceIndexedMesh()
 	glBindBuffer(GL_ARRAY_BUFFER, glMesh->vertexBuffer);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, glMesh->indexBuffer);
 
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, uv));
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid *)offsetof(Vertex, nor));
-	glEnableVertexAttribArray(2);
+	GLEnableAttribs(attribs);
 
 	return result;
 }
 
-DeviceMesh CreateDeviceIndexedSkinnedMesh()
-{
-	DeviceMesh result;
-	GLDeviceMesh *glMesh = (GLDeviceMesh *)&result;
-
-	glGenVertexArrays(1, &glMesh->vao);
-	glBindVertexArray(glMesh->vao);
-	glGenBuffers(2, glMesh->buffers);
-	glBindBuffer(GL_ARRAY_BUFFER, glMesh->vertexBuffer);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, glMesh->indexBuffer);
-
-	// Position
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(SkinnedVertex),
-			(GLvoid *)offsetof(SkinnedVertex, pos));
-	glEnableVertexAttribArray(0);
-	// UV
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(SkinnedVertex),
-			(GLvoid *)offsetof(SkinnedVertex, uv));
-	glEnableVertexAttribArray(1);
-	// Normal
-	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(SkinnedVertex),
-			(GLvoid *)offsetof(SkinnedVertex, nor));
-	glEnableVertexAttribArray(2);
-	// Joint indices
-	glVertexAttribIPointer(3, 4, GL_UNSIGNED_SHORT, sizeof(SkinnedVertex),
-			(GLvoid *)offsetof(SkinnedVertex, indices));
-	glEnableVertexAttribArray(3);
-	// Joint weights
-	glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(SkinnedVertex),
-			(GLvoid *)offsetof(SkinnedVertex, weights));
-	glEnableVertexAttribArray(4);
-
-	return result;
-}
-
-void SendMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, bool dynamic)
+void SendMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, u32 stride, bool dynamic)
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)mesh;
 
@@ -179,12 +278,12 @@ void SendMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, bool dynamic)
 
 	glMesh->vertexCount = vertexCount;
 	glBindBuffer(GL_ARRAY_BUFFER, glMesh->vertexBuffer);
-	glBufferData(GL_ARRAY_BUFFER, vertexCount * sizeof(Vertex), vertexData,
+	glBufferData(GL_ARRAY_BUFFER, vertexCount * stride, vertexData,
 			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
 }
 
-void SendIndexedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, void *indexData,
-		u32 indexCount, bool dynamic)
+void SendIndexedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, u32 stride,
+		void *indexData, u32 indexCount, bool dynamic)
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)mesh;
 
@@ -193,24 +292,7 @@ void SendIndexedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, void *
 	glBindVertexArray(glMesh->vao);
 
 	glBindBuffer(GL_ARRAY_BUFFER, glMesh->vertexBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * vertexCount, vertexData,
-			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, glMesh->indexBuffer);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(u16) * indexCount, indexData,
-			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
-}
-
-void SendIndexedSkinnedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, void *indexData,
-		u32 indexCount, bool dynamic)
-{
-	GLDeviceMesh *glMesh = (GLDeviceMesh *)mesh;
-
-	glMesh->vertexCount = vertexCount;
-	glMesh->indexCount = indexCount;
-	glBindVertexArray(glMesh->vao);
-
-	glBindBuffer(GL_ARRAY_BUFFER, glMesh->vertexBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(SkinnedVertex) * vertexCount, vertexData,
+	glBufferData(GL_ARRAY_BUFFER, stride * vertexCount, vertexData,
 			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, glMesh->indexBuffer);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(u16) * indexCount, indexData,

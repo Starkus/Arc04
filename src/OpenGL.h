@@ -85,10 +85,13 @@ typedef void (GLAPIENTRY *glDeleteVertexArraysProc)(GLsizei n, GLuint *arrays);
 typedef void (GLAPIENTRY *glBindVertexArrayProc)(GLuint array);
 typedef void (GLAPIENTRY *glVertexAttribPointerProc)(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const GLvoid *pointer);
 typedef void (GLAPIENTRY *glVertexAttribIPointerProc)(GLuint index, GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
+typedef void (GLAPIENTRY *glVertexAttribDivisorProc)(GLuint index, GLuint divisor);
 typedef void (GLAPIENTRY *glEnableVertexAttribArrayProc)(GLuint index);
 
 typedef void (GLAPIENTRY *glDrawArraysProc)(GLenum mode, GLint first, GLsizei count);
+typedef void (GLAPIENTRY *glDrawArraysInstancedProc)(GLenum mode, GLint first, GLsizei count, GLsizei primcount);
 typedef void (GLAPIENTRY *glDrawElementsProc)(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices);
+typedef void (GLAPIENTRY *glDrawElementsInstancedProc)(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices, GLsizei primcount);
 
 typedef void (GLAPIENTRY *glDebugOutputProc)(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam);
 typedef void (GLAPIENTRY *glDebugMessageCallbackProc)(glDebugOutputProc callback, void *userParam);
@@ -158,9 +161,12 @@ GL_DeclareProc(glDeleteVertexArrays);
 GL_DeclareProc(glBindVertexArray);
 GL_DeclareProc(glVertexAttribPointer);
 GL_DeclareProc(glVertexAttribIPointer);
+GL_DeclareProc(glVertexAttribDivisor);
 GL_DeclareProc(glEnableVertexAttribArray);
 GL_DeclareProc(glDrawArrays);
+GL_DeclareProc(glDrawArraysInstanced);
 GL_DeclareProc(glDrawElements);
+GL_DeclareProc(glDrawElementsInstanced);
 #undef GL_DeclareProc
 
 #define glGetError glGetErrorPointer
@@ -226,6 +232,9 @@ GL_DeclareProc(glDrawElements);
 #define glBindVertexArray glBindVertexArrayPointer
 #define glVertexAttribPointer glVertexAttribPointerPointer
 #define glVertexAttribIPointer glVertexAttribIPointerPointer
+#define glVertexAttribDivisor glVertexAttribDivisorPointer
 #define glEnableVertexAttribArray glEnableVertexAttribArrayPointer
 #define glDrawArrays glDrawArraysPointer
+#define glDrawArraysInstanced glDrawArraysInstancedPointer
 #define glDrawElements glDrawElementsPointer
+#define glDrawElementsInstanced glDrawElementsInstancedPointer

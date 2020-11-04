@@ -391,7 +391,7 @@ void GetAABB(GameState *gameState, Entity *entity, v3 *min, v3 *max)
 	DrawDebugWiredBox(gameState, *min, *max);
 }
 
-v3 FurthestInDirection(Entity *entity, v3 dir)
+v3 FurthestInDirection(GameState *gameState, Entity *entity, v3 dir)
 {
 	void *oldStackPtr = g_memory->stackPtr;
 
@@ -484,7 +484,7 @@ v3 FurthestInDirection(Entity *entity, v3 dir)
 	{
 		result = entity->pos + c->cylinder.offset;
 
-		f32 halfH = c->cylinder.height * 0.5f;
+		f32 halfH = c->capsule.height * 0.5f;
 		f32 lat = Sqrt(dir.x * dir.x + dir.y * dir.y);
 		if (lat == 0)
 		{
@@ -495,7 +495,7 @@ v3 FurthestInDirection(Entity *entity, v3 dir)
 		{
 			// Project dir into cylinder wall
 			v3 d = dir / lat;
-			d = d * c->cylinder.radius;
+			d = d * c->capsule.radius;
 
 			// If it goes out the top, return furthest point from top sphere
 			if (d.z > halfH)
@@ -514,16 +514,16 @@ v3 FurthestInDirection(Entity *entity, v3 dir)
 	}
 	}
 
-	//DRAW_AA_DEBUG_CUBE(result, 0.04f);
+	DrawDebugCubeAA(gameState, result, 0.04f, {0,1,1});
 
 	StackFree(oldStackPtr);
 	return result;
 }
 
-inline v3 GJKSupport(Entity *vA, Entity *vB, v3 dir)
+inline v3 GJKSupport(GameState *gameState, Entity *vA, Entity *vB, v3 dir)
 {
-	v3 va = FurthestInDirection(vA, dir);
-	v3 vb = FurthestInDirection(vB, -dir);
+	v3 va = FurthestInDirection(gameState, vA, dir);
+	v3 vb = FurthestInDirection(gameState, vB, -dir);
 	return va - vb;
 }
 
@@ -555,7 +555,7 @@ GJKResult GJKTest(GameState *gameState, Entity *vA, Entity *vB, PlatformCode *pl
 	int foundPointsCount = 1;
 	v3 testDir = { 0, 1, 0 }; // Random initial test direction
 
-	result.points[0] = GJKSupport(vB, vA, testDir);
+	result.points[0] = GJKSupport(gameState, vB, vA, testDir);
 	testDir = -result.points[0];
 
 	for (int iterations = 0; result.hit && foundPointsCount < 4; ++iterations)
@@ -578,7 +578,7 @@ GJKResult GJKTest(GameState *gameState, Entity *vA, Entity *vB, PlatformCode *pl
 			break;
 		}
 
-		v3 a = GJKSupport(vB, vA, testDir);
+		v3 a = GJKSupport(gameState, vB, vA, testDir);
 		if (V3Dot(testDir, a) < 0)
 		{
 			result.hit = false;
@@ -858,7 +858,7 @@ GJKResult GJKTest(GameState *gameState, Entity *vA, Entity *vB, PlatformCode *pl
 	return result;
 }
 
-v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB, PlatformCode *platformCode)
+v3 ComputeDepenetration(GameState *gameState, GJKResult gjkResult, Entity *vA, Entity *vB, PlatformCode *platformCode)
 {
 #if EPA_VISUAL_DEBUGGING
 	if (g_polytopeSteps[0] == nullptr)
@@ -958,7 +958,7 @@ v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB, PlatformCod
 
 		// Expand polytope!
 		v3 testDir = V3Cross(closestFeature.c - closestFeature.a, closestFeature.b - closestFeature.a);
-		v3 newPoint = GJKSupport(vB, vA, testDir);
+		v3 newPoint = GJKSupport(gameState, vB, vA, testDir);
 		EPALOG("Found new point { %.02f, %.02f. %.02f } while looking in direction { %.02f, %.02f. %.02f }\n",
 				newPoint.x, newPoint.y, newPoint.z, testDir.x, testDir.y, testDir.z);
 #if EPA_VISUAL_DEBUGGING

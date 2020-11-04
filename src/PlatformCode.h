@@ -26,28 +26,30 @@ typedef RENDER_RENDER_INDEXED_MESH(RenderIndexedMesh_t);
 #define RENDER_RENDER_MESH(name) void name(DeviceMesh mesh)
 typedef RENDER_RENDER_MESH(RenderMesh_t);
 
+#define RENDER_RENDER_MESH_INSTANCED(name) void name(DeviceMesh mesh, DeviceMesh positions, \
+		u32 meshAttribs, u32 instAttribs)
+typedef RENDER_RENDER_MESH_INSTANCED(RenderMeshInstanced_t);
+
+#define RENDER_RENDER_INDEXED_MESH_INSTANCED(name) void name(DeviceMesh mesh, DeviceMesh positions, \
+		u32 meshAttribs, u32 instAttribs)
+typedef RENDER_RENDER_INDEXED_MESH_INSTANCED(RenderIndexedMeshInstanced_t);
+
 #define RENDER_RENDER_LINES(name) void name(DeviceMesh mesh)
 typedef RENDER_RENDER_LINES(RenderLines_t);
 
-#define RENDER_CREATE_DEVICE_MESH(name) DeviceMesh name()
+#define RENDER_CREATE_DEVICE_MESH(name) DeviceMesh name(int attribs)
 typedef RENDER_CREATE_DEVICE_MESH(CreateDeviceMesh_t);
 
-#define RENDER_CREATE_DEVICE_INDEXED_MESH(name) DeviceMesh name()
+#define RENDER_CREATE_DEVICE_INDEXED_MESH(name) DeviceMesh name(int attribs)
 typedef RENDER_CREATE_DEVICE_INDEXED_MESH(CreateDeviceIndexedMesh_t);
 
-#define CREATE_DEVICE_INDEXED_SKINNED_MESH(name) DeviceMesh name()
-typedef CREATE_DEVICE_INDEXED_SKINNED_MESH(CreateDeviceIndexedSkinnedMesh_t);
-
-#define RENDER_SEND_MESH(name) void name(DeviceMesh *mesh, void *vertexData, u32 vertexCount, bool dynamic)
+#define RENDER_SEND_MESH(name) void name(DeviceMesh *mesh, void *vertexData, u32 vertexCount, \
+		u32 stride, bool dynamic)
 typedef RENDER_SEND_MESH(SendMesh_t);
 
 #define RENDER_SEND_INDEXED_MESH(name) void name(DeviceMesh *mesh, void *vertexData, u32 vertexCount, \
-		void *indexData, u32 indexCount, bool dynamic)
+		u32 stride, void *indexData, u32 indexCount, bool dynamic)
 typedef RENDER_SEND_INDEXED_MESH(SendIndexedMesh_t);
-
-#define RENDER_SEND_INDEXED_SKINNED_MESH(name) void name(DeviceMesh *mesh, void *vertexData, \
-		u32 vertexCount, void *indexData, u32 indexCount, bool dynamic)
-typedef RENDER_SEND_INDEXED_SKINNED_MESH(SendIndexedSkinnedMesh_t);
 
 #define RENDER_CREATE_SHADER(name) DeviceShader name(ShaderType shaderType)
 typedef RENDER_CREATE_SHADER(CreateShader_t);
@@ -97,13 +99,13 @@ struct PlatformCode
 	UniformMat4_t *UniformMat4;
 	RenderIndexedMesh_t *RenderIndexedMesh;
 	RenderMesh_t *RenderMesh;
+	RenderMeshInstanced_t *RenderMeshInstanced;
+	RenderIndexedMeshInstanced_t *RenderIndexedMeshInstanced;
 	RenderLines_t *RenderLines;
 	CreateDeviceMesh_t *CreateDeviceMesh;
 	CreateDeviceIndexedMesh_t *CreateDeviceIndexedMesh;
-	CreateDeviceIndexedSkinnedMesh_t *CreateDeviceIndexedSkinnedMesh;
 	SendMesh_t *SendMesh;
 	SendIndexedMesh_t *SendIndexedMesh;
-	SendIndexedSkinnedMesh_t *SendIndexedSkinnedMesh;
 	CreateShader_t *CreateShader;
 	LoadShader_t *LoadShader;
 	AttachShader_t *AttachShader;

@@ -81,18 +81,27 @@ struct Player
 struct DebugCube
 {
 	v3 pos;
+	v3 color;
 	v3 fw;
 	v3 up;
 	f32 scale;
 };
 
+struct DebugVertex
+{
+	v3 pos;
+	v3 color;
+};
+
 struct DebugGeometryBuffer
 {
 	DeviceMesh deviceMesh;
+	DeviceMesh cubeMesh;
+	DeviceMesh cubePositionsBuffer;
 
-	Vertex *triangleData;
+	DebugVertex *triangleData;
 	u32 triangleVertexCount;
-	Vertex *lineData;
+	DebugVertex *lineData;
 	u32 lineVertexCount;
 
 	DebugCube debugCubes[2048];
@@ -120,7 +129,7 @@ struct GameState
 
 	// Debug
 #if DEBUG_BUILD
-	DeviceProgram debugDrawProgram;
+	DeviceProgram debugDrawProgram, debugCubesProgram;
 	DebugGeometryBuffer debugGeometryBuffer;
 	int currentPolytopeStep;
 #endif
