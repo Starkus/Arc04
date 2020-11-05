@@ -21,10 +21,6 @@ static_assert(sizeof(Win32SearchHandle) <= sizeof(PlatformSearchHandle),
 
 typedef HANDLE FileHandle;
 
-//#define SEEK_SET = FILE_BEGIN
-//#define SEEK_CUR = FILE_CURRENT
-//#define SEEK_END = FILE_END
-
 void Log(const char *format, ...)
 {
 	char buffer[2048];

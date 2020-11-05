@@ -17,6 +17,7 @@
 #include "Resource.h"
 #include "Platform.h"
 #include "PlatformCode.h"
+#include "Game.h"
 
 DECLARE_ARRAY(Resource);
 DECLARE_ARRAY(FILETIME);
@@ -36,7 +37,6 @@ ResourceBank *g_resourceBank;
 #include "OpenGLRender.cpp"
 #include "MemoryAlloc.cpp"
 
-#include "Game.h"
 #include "BakeryInterop.cpp"
 
 #if DEBUG_BUILD
@@ -55,6 +55,15 @@ void LoadWGLProcs()
 	wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC)GL_GetProcAddress("wglCreateContextAttribsARB");
 }
 /////////
+
+struct Win32Context
+{
+	HINSTANCE hInstance;
+	WNDCLASSEX windowClass;
+	HDC deviceContext;
+	HGLRC glContext;
+	HWND windowHandle;
+};
 
 // XInput functions
 // XInputGetState
@@ -388,7 +397,7 @@ bool ReloadResource(Resource *resource)
 	return false;
 }
 
-void Win32Start(HINSTANCE hInstance)
+void InitOpenGLContext(Win32Context *context)
 {
 	AttachConsole(ATTACH_PARENT_PROCESS);
 	g_hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -398,15 +407,16 @@ void Win32Start(HINSTANCE hInstance)
 	windowClass.cbSize = sizeof(windowClass);
 	windowClass.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
 	windowClass.lpfnWndProc = Win32WindowCallback;
-	windowClass.hInstance = hInstance;
+	windowClass.hInstance = context->hInstance;
 	windowClass.lpszClassName = "window";
+	context->windowClass = windowClass;
 
-	bool success = RegisterClassEx(&windowClass);
+	bool success = RegisterClassEx(&context->windowClass);
 	ASSERT(success);
 
 	// Fake window
 	HWND fakeWindow = CreateWindow("window", "Fake window", WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
-			0, 0, 1, 1, nullptr, nullptr, hInstance, nullptr);
+			0, 0, 1, 1, nullptr, nullptr, context->hInstance, nullptr);
 
 	// Fake context
 	HDC fakeContext = GetDC(fakeWindow);
@@ -435,11 +445,11 @@ void Win32Start(HINSTANCE hInstance)
 	LoadOpenGLProcs();
 	LoadWGLProcs();
 
-	HWND windowHandle = CreateWindowA("window", "3DVania",
-			WS_OVERLAPPEDWINDOW | WS_VISIBLE, 16, 16, 1440, 810, 0, 0, hInstance, 0);
+	context->windowHandle = CreateWindowA("window", "3DVania",
+			WS_OVERLAPPEDWINDOW | WS_VISIBLE, 16, 16, 1440, 810, 0, 0, context->hInstance, 0);
 
 
-	HDC deviceContext = GetDC(windowHandle);
+	context->deviceContext = GetDC(context->windowHandle);
 	const int pixelAttribs[] =
 	{
 		WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
@@ -458,12 +468,12 @@ void Win32Start(HINSTANCE hInstance)
 
 	int pixelFormatId;
 	u32 numFormats;
-	success = wglChoosePixelFormatARB(deviceContext, pixelAttribs, nullptr, 1, &pixelFormatId,
-			&numFormats);
+	success = wglChoosePixelFormatARB(context->deviceContext, pixelAttribs, nullptr, 1,
+			&pixelFormatId, &numFormats);
 	ASSERT(success);
 
-	DescribePixelFormat(deviceContext, pixelFormatId, sizeof(pfd), &pfd);
-	SetPixelFormat(deviceContext, pixelFormatId, &pfd);
+	DescribePixelFormat(context->deviceContext, pixelFormatId, sizeof(pfd), &pfd);
+	SetPixelFormat(context->deviceContext, pixelFormatId, &pfd);
 
 	int contextAttribs[] =
 	{
@@ -473,16 +483,25 @@ void Win32Start(HINSTANCE hInstance)
 		0
 	};
 
-	HGLRC glContext = wglCreateContextAttribsARB(deviceContext, 0, contextAttribs);
-	ASSERT(glContext);
+	context->glContext = wglCreateContextAttribsARB(context->deviceContext, 0, contextAttribs);
+	ASSERT(context->glContext);
 
 	wglMakeCurrent(nullptr, nullptr);
 	wglDeleteContext(fakeGlContext);
 	ReleaseDC(fakeWindow, fakeContext);
 	DestroyWindow(fakeWindow);
 
-	success = wglMakeCurrent(deviceContext, glContext);
+	success = wglMakeCurrent(context->deviceContext, context->glContext);
 	ASSERT(success);
+	context->glContext;
+}
+
+void Win32Start(HINSTANCE hInstance)
+{
+	Win32Context context;
+	context.hInstance = hInstance;
+
+	InitOpenGLContext(&context);
 
 	// Get paths
 	char executableFilename[MAX_PATH];
@@ -532,11 +551,9 @@ void Win32Start(HINSTANCE hInstance)
 	memory.transientPtr = memory.transientMem;
 	g_memory = &memory;
 
-	TransientAlloc(sizeof(GameState));
-
 	ResourceBank resourceBank;
-	ArrayInit_Resource(&resourceBank.resources, 256, TransientAlloc);
-	ArrayInit_FILETIME(&resourceBank.lastWriteTimes, 256, TransientAlloc);
+	ArrayInit_Resource(&resourceBank.resources, 256, malloc);
+	ArrayInit_FILETIME(&resourceBank.lastWriteTimes, 256, malloc);
 	g_resourceBank = &resourceBank;
 
 	// Pass functions
@@ -605,32 +622,30 @@ void Win32Start(HINSTANCE hInstance)
 		}
 
 		// Check events
-		Controller oldController = controller;
-		for (int buttonIdx = 0; buttonIdx < ArrayCount(controller.b); ++buttonIdx)
-			controller.b[buttonIdx].changed = false;
+		{
+			Controller oldController = controller;
+			for (int buttonIdx = 0; buttonIdx < ArrayCount(controller.b); ++buttonIdx)
+				controller.b[buttonIdx].changed = false;
 
-		bool stop = ProcessKeyboard(&controller);
-		if (stop) running = false;
+			bool stop = ProcessKeyboard(&controller);
+			if (stop) running = false;
 
-		ProcessXInput(&oldController, &controller);
+			ProcessXInput(&oldController, &controller);
+		}
 
 		gameCode.UpdateAndRenderGame(&controller, &memory, &platformCode, deltaTime);
 
-		SwapBuffers(deviceContext);
+		SwapBuffers(context.deviceContext);
 
 		FrameWipe();
 
 		lastPerfCounter = newPerfCounter;
 	}
 
-	VirtualFree(memory.frameMem, 0, MEM_RELEASE);
-	VirtualFree(memory.stackMem, 0, MEM_RELEASE);
-	VirtualFree(memory.transientMem, 0, MEM_RELEASE);
-
 	wglMakeCurrent(NULL,NULL);
-	wglDeleteContext(glContext);
-	ReleaseDC(windowHandle, deviceContext);
-	DestroyWindow(windowHandle);
+	wglDeleteContext(context.glContext);
+	ReleaseDC(context.windowHandle, context.deviceContext);
+	DestroyWindow(context.windowHandle);
 }
 
 int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR cmdLine, int showCmd)

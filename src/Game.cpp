@@ -6,7 +6,6 @@
 #include "MemoryAlloc.h"
 #include "Render.h"
 #include "Geometry.h"
-#include "Primitives.h"
 #include "Platform.h"
 #include "Resource.h"
 #include "PlatformCode.h"
@@ -38,7 +37,8 @@ GAMEDLL START_GAME(StartGame)
 
 	LOG("Starting game!\n");
 
-	GameState *gameState = (GameState *)memory->transientMem;
+	ASSERT(memory->transientMem == memory->transientPtr);
+	GameState *gameState = (GameState *)TransientAlloc(sizeof(GameState));
 
 	// Initialize
 	{
