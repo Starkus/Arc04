@@ -153,10 +153,8 @@ int main(int argc, char **argv)
 	platformCode.RenderLines = RenderLines;
 	platformCode.CreateDeviceMesh = CreateDeviceMesh;
 	platformCode.CreateDeviceIndexedMesh = CreateDeviceIndexedMesh;
-	platformCode.CreateDeviceIndexedSkinnedMesh = CreateDeviceIndexedSkinnedMesh;
 	platformCode.SendMesh = SendMesh;
 	platformCode.SendIndexedMesh = SendIndexedMesh;
-	platformCode.SendIndexedSkinnedMesh = SendIndexedSkinnedMesh;
 	platformCode.CreateShader = CreateShader;
 	platformCode.LoadShader = LoadShader;
 	platformCode.AttachShader = AttachShader;
