@@ -4,6 +4,8 @@ build
 *.pdb
 *.obj
 
+*.b
+
 tags
 .vimrc
 *.rdbg
@@ -12,5 +14,5 @@ tags
 *.swp
 *.blend1
 
-data/*.b
 
+.vscode/

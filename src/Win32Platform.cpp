@@ -269,11 +269,18 @@ LRESULT CALLBACK Win32WindowCallback(HWND hWnd, UINT message, WPARAM wParam, LPA
 	{
 		PostQuitMessage(0);
 	} break;
+	case WM_SIZE:
+	{
+		glViewport(0, 0,LOWORD(lParam), HIWORD(lParam));
+	}break;
 	default:
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	}
 	return 0;
 }
+
+
+
 
 Resource *CreateResource(const char *filename)
 {
