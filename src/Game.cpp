@@ -1,6 +1,11 @@
 #include <stddef.h>
 #include <memory.h>
 
+#include <imgui/imgui.cpp>
+#include <imgui/imgui_draw.cpp>
+#include <imgui/imgui_widgets.cpp>
+#include <imgui/imgui_demo.cpp>
+
 #include "General.h"
 #include "Maths.h"
 #include "MemoryAlloc.h"
@@ -14,6 +19,7 @@
 
 Memory *g_memory;
 Log_t *g_log;
+DebugContext *g_debugContext;
 
 #define LOG(...) g_log(__VA_ARGS__)
 
@@ -32,13 +38,16 @@ DECLARE_ARRAY(u32);
 
 GAMEDLL START_GAME(StartGame)
 {
+	ImGui::SetAllocatorFunctions(platformCode->PlatformMalloc, platformCode->PlatformFree, nullptr);
+
 	g_memory = memory;
 	g_log = platformCode->Log;
 
-	LOG("Starting game!\n");
-
 	ASSERT(memory->transientMem == memory->transientPtr);
 	GameState *gameState = (GameState *)TransientAlloc(sizeof(GameState));
+	g_debugContext = (DebugContext *)TransientAlloc(sizeof(DebugContext));
+
+	gameState->timeMultiplier = 1.0f;
 
 	// Initialize
 	{
@@ -58,13 +67,14 @@ GAMEDLL START_GAME(StartGame)
 		// Debug geometry buffer
 		{
 			int attribs = RENDERATTRIB_POSITION | RENDERATTRIB_COLOR;
-			gameState->debugGeometryBuffer.triangleData = (DebugVertex *)TransientAlloc(2048 * sizeof(DebugVertex));
-			gameState->debugGeometryBuffer.lineData = (DebugVertex *)TransientAlloc(2048 * sizeof(DebugVertex));
-			gameState->debugGeometryBuffer.debugCubeCount = 0;
-			gameState->debugGeometryBuffer.triangleVertexCount = 0;
-			gameState->debugGeometryBuffer.lineVertexCount = 0;
-			gameState->debugGeometryBuffer.deviceMesh = platformCode->CreateDeviceMesh(attribs);
-			gameState->debugGeometryBuffer.cubePositionsBuffer = platformCode->CreateDeviceMesh(attribs);
+			DebugGeometryBuffer *dgb = &g_debugContext->debugGeometryBuffer;
+			dgb->triangleData = (DebugVertex *)TransientAlloc(2048 * sizeof(DebugVertex));
+			dgb->lineData = (DebugVertex *)TransientAlloc(2048 * sizeof(DebugVertex));
+			dgb->debugCubeCount = 0;
+			dgb->triangleVertexCount = 0;
+			dgb->lineVertexCount = 0;
+			dgb->deviceMesh = platformCode->CreateDeviceMesh(attribs);
+			dgb->cubePositionsBuffer = platformCode->CreateDeviceMesh(attribs);
 		}
 
 		// Send the cube mesh that gets instanced
@@ -89,8 +99,8 @@ GAMEDLL START_GAME(StartGame)
 			}
 
 			int attribs = RENDERATTRIB_POSITION;
-			gameState->debugGeometryBuffer.cubeMesh = platformCode->CreateDeviceIndexedMesh(attribs);
-			platformCode->SendIndexedMesh(&gameState->debugGeometryBuffer.cubeMesh, positionBuffer,
+			g_debugContext->debugGeometryBuffer.cubeMesh = platformCode->CreateDeviceIndexedMesh(attribs);
+			platformCode->SendIndexedMesh(&g_debugContext->debugGeometryBuffer.cubeMesh, positionBuffer,
 					vertexCount, sizeof(v3), indexData, indexCount, false);
 		}
 #endif
@@ -104,10 +114,10 @@ GAMEDLL START_GAME(StartGame)
 
 #if DEBUG_BUILD
 		const Resource *shaderDebugRes = platformCode->ResourceLoadShader("data/shaders/shader_debug.b");
-		gameState->debugDrawProgram = shaderDebugRes->shader.programHandle;
+		g_debugContext->debugDrawProgram = shaderDebugRes->shader.programHandle;
 
 		const Resource *shaderDebugCubesRes = platformCode->ResourceLoadShader("data/shaders/shader_debug_cubes.b");
-		gameState->debugCubesProgram = shaderDebugCubesRes->shader.programHandle;
+		g_debugContext->debugCubesProgram = shaderDebugCubesRes->shader.programHandle;
 #endif
 	}
 
@@ -206,10 +216,46 @@ GAMEDLL START_GAME(StartGame)
 
 void ChangeState(GameState *gameState, PlayerState newState, PlayerAnim newAnim)
 {
-	//LOG("Changed state: 0x%X -> 0x%X\n", gameState->player.state, newState);
+	LOG("Changed state: 0x%X -> 0x%X\n", gameState->player.state, newState);
 	gameState->animationIdx = newAnim;
 	gameState->animationTime = 0;
 	gameState->player.state = newState;
+}
+
+void ImguiShowDebugWindow(GameState *gameState)
+{
+	if (!ImGui::Begin("Debug things", nullptr, 0))
+		return;
+
+	ImGui::SliderFloat("Time speed", &gameState->timeMultiplier, 0.001f, 10.0f, "factor = %.3f", ImGuiSliderFlags_Logarithmic);
+
+	if (ImGui::CollapsingHeader("Collision debug"))
+	{
+		ImGui::Checkbox("Draw AABBs", &g_debugContext->drawAABBs);
+		ImGui::Checkbox("Draw GJK support function results", &g_debugContext->drawSupports);
+
+		ImGui::Separator();
+
+		ImGui::Text("GJK:");
+		ImGui::Checkbox("Draw polytope", &g_debugContext->drawGJKPolytope);
+		ImGui::SameLine();
+		ImGui::Checkbox("Freeze", &g_debugContext->freezeGJKGeom);
+		ImGui::InputInt("Step", &g_debugContext->gjkDrawStep);
+		if (g_debugContext->gjkDrawStep >= g_debugContext->gjkStepCount)
+			g_debugContext->gjkDrawStep = g_debugContext->gjkStepCount;
+
+		ImGui::Separator();
+
+		ImGui::Text("EPA:");
+		ImGui::Checkbox("Draw polytope##", &g_debugContext->drawEPAPolytope);
+		ImGui::SameLine();
+		ImGui::Checkbox("Freeze##", &g_debugContext->freezePolytopeGeom);
+		ImGui::InputInt("Step##", &g_debugContext->polytopeDrawStep);
+		if (g_debugContext->polytopeDrawStep >= g_debugContext->epaStepCount)
+			g_debugContext->polytopeDrawStep = g_debugContext->epaStepCount;
+	}
+
+	ImGui::End();
 }
 
 GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
@@ -217,6 +263,16 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 	g_memory = memory;
 	g_log = platformCode->Log;
 	GameState *gameState = (GameState *)memory->transientMem;
+	g_debugContext = (DebugContext *)((u8 *)memory->transientMem + sizeof(GameState));
+
+	deltaTime *= gameState->timeMultiplier;
+
+	ImGui::SetCurrentContext(imguiContext);
+	ImGui::SetAllocatorFunctions(platformCode->PlatformMalloc, platformCode->PlatformFree, nullptr);
+
+	ImGui::ShowDemoWindow();
+
+	ImguiShowDebugWindow(gameState);
 
 	if (deltaTime < 0 || deltaTime > 1)
 	{
@@ -226,40 +282,6 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 	// Update
 	{
-#if GJK_VISUAL_DEBUGGING || EPA_VISUAL_DEBUGGING
-		if (controller->debugUp.endedDown && controller->debugUp.changed)
-		{
-			g_currentPolytopeStep++;
-			if (g_currentPolytopeStep >= 16)
-				g_currentPolytopeStep = 16;
-		}
-		if (controller->debugDown.endedDown && controller->debugDown.changed)
-		{
-			g_currentPolytopeStep--;
-			if (g_currentPolytopeStep < 0)
-				g_currentPolytopeStep = 0;
-		}
-		DrawDebugCubeAA(v3{}, 0.05f); // Draw origin
-#endif
-
-#if DEBUG_BUILD
-		const ResourceSkinnedMesh *skinnedMesh = &platformCode->GetResource("data/Sparkus.b")->skinnedMesh;
-		if (controller->debugUp.endedDown && controller->debugUp.changed)
-		{
-			gameState->animationTime = 0;
-			++gameState->animationIdx;
-			if (gameState->animationIdx >= (i32)skinnedMesh->animationCount)
-				gameState->animationIdx = 0;
-		}
-		if (controller->debugDown.endedDown && controller->debugDown.changed)
-		{
-			gameState->animationTime = 0;
-			--gameState->animationIdx;
-			if (gameState->animationIdx < 0)
-				gameState->animationIdx = skinnedMesh->animationCount - 1;
-		}
-#endif
-
 		// Move camera
 		{
 			const f32 camRotSpeed = 2.0f;
@@ -354,9 +376,16 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			}
 			else
 			{
-				player->vel.z = -2.0f;
+				player->vel.z = 0;
 			}
-			player->entity->pos.z += player->vel.z * deltaTime;
+
+			player->entity->pos += player->vel * deltaTime;
+
+			// This is for consistent floor detection with colliders
+			if ((player->state & PLAYERSTATEFLAG_AIRBORNE) == 0)
+			{
+				player->entity->pos.z -= 0.02f;
+			}
 		}
 
 		// Collision
@@ -367,10 +396,10 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			Entity *entity = &gameState->entities[entityIndex];
 			if (entity != gameState->player.entity)
 			{
-				GJKResult gjkResult = GJKTest(gameState, player->entity, entity, platformCode);
+				GJKResult gjkResult = GJKTest(player->entity, entity, platformCode);
 				if (gjkResult.hit)
 				{
-					v3 depenetration = ComputeDepenetration(gameState, gjkResult, player->entity, entity,
+					v3 depenetration = ComputeDepenetration(gjkResult, player->entity, entity,
 							platformCode);
 					// @Hack: ignoring depenetration when it's too big
 					if (V3Length(depenetration) < 2.0f)
@@ -450,22 +479,30 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 		gameState->camPos = player->entity->pos;
 
-#if GJK_VISUAL_DEBUGGING
-		g_debugGeometryBuffer.vertexCount = 0;
-		Vertex *gjkVertices;
-		u32 gjkFaceCount;
-		GetGJKStepGeometry(g_currentPolytopeStep, &gjkVertices, &gjkFaceCount);
-		DrawDebugTriangles(gjkVertices, gjkFaceCount);
+#if DEBUG_BUILD
+		if (g_debugContext->drawGJKPolytope)
+		{
+			DebugVertex *gjkVertices;
+			u32 gjkFaceCount;
+			GetGJKStepGeometry(g_debugContext->gjkDrawStep, &gjkVertices, &gjkFaceCount);
+			DrawDebugTriangles(gjkVertices, gjkFaceCount);
 
-		DrawDebugCubeAA(g_GJKNewPoint[g_currentPolytopeStep], 0.03f);
-#endif
-#if EPA_VISUAL_DEBUGGING
-		Vertex *epaVertices;
-		u32 epaFaceCount;
-		GetEPAStepGeometry(g_currentPolytopeStep, &epaVertices, &epaFaceCount);
-		DrawDebugTriangles(epaVertices, epaFaceCount * 3);
+			DrawDebugCubeAA(g_debugContext->GJKNewPoint[g_debugContext->gjkDrawStep], 0.03f);
 
-		DrawDebugCubeAA(g_epaNewPoint[g_currentPolytopeStep], 0.03f);
+			DrawDebugCubeAA({}, 0.04f, {1,0,1});
+		}
+
+		if (g_debugContext->drawEPAPolytope)
+		{
+			DebugVertex *epaVertices;
+			u32 epaFaceCount;
+			GetEPAStepGeometry(g_debugContext->polytopeDrawStep, &epaVertices, &epaFaceCount);
+			DrawDebugTriangles(epaVertices, epaFaceCount * 3);
+
+			DrawDebugCubeAA(g_debugContext->epaNewPoint[g_debugContext->polytopeDrawStep], 0.03f);
+
+			DrawDebugCubeAA({}, 0.04f, {1,0,1});
+		}
 #endif
 	}
 
@@ -729,12 +766,12 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 #if DEBUG_BUILD
 		// Debug meshes
 		{
-			DebugGeometryBuffer *dgb = &gameState->debugGeometryBuffer;
-			platformCode->SetFillMode(RENDER_LINE);
+			DebugGeometryBuffer *dgb = &g_debugContext->debugGeometryBuffer;
+			//platformCode->SetFillMode(RENDER_LINE);
 
-			platformCode->UseProgram(gameState->debugDrawProgram);
-			viewUniform = platformCode->GetUniform(gameState->debugDrawProgram, "view");
-			projUniform = platformCode->GetUniform(gameState->debugDrawProgram, "projection");
+			platformCode->UseProgram(g_debugContext->debugDrawProgram);
+			viewUniform = platformCode->GetUniform(g_debugContext->debugDrawProgram, "view");
+			projUniform = platformCode->GetUniform(g_debugContext->debugDrawProgram, "projection");
 			platformCode->UniformMat4(projUniform, 1, proj.m);
 			platformCode->UniformMat4(viewUniform, 1, view.m);
 
@@ -751,9 +788,9 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 			if (dgb->debugCubeCount)
 			{
-				platformCode->UseProgram(gameState->debugCubesProgram);
-				viewUniform = platformCode->GetUniform(gameState->debugDrawProgram, "view");
-				projUniform = platformCode->GetUniform(gameState->debugDrawProgram, "projection");
+				platformCode->UseProgram(g_debugContext->debugCubesProgram);
+				viewUniform = platformCode->GetUniform(g_debugContext->debugDrawProgram, "view");
+				projUniform = platformCode->GetUniform(g_debugContext->debugDrawProgram, "projection");
 				platformCode->UniformMat4(projUniform, 1, proj.m);
 				platformCode->UniformMat4(viewUniform, 1, view.m);
 

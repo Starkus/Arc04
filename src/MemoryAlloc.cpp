@@ -64,4 +64,3 @@ void *TransientAlloc(u64 size)
 
 	return result;
 }
-

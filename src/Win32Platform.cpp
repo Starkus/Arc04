@@ -7,8 +7,17 @@
 #include <GLES3/glcorearb.h>
 #include <Xinput.h>
 
-#include "General.h"
 #include "OpenGL.h"
+
+#define USING_IMGUI
+#define IMGUI_IMPL_OPENGL_LOADER_CUSTOM
+#include <imgui/imgui_impl_win32.cpp>
+#include <imgui/imgui_impl_opengl3.cpp>
+#include <imgui/imgui.cpp>
+#include <imgui/imgui_draw.cpp>
+#include <imgui/imgui_widgets.cpp>
+
+#include "General.h"
 #include "MemoryAlloc.h"
 #include "Containers.h"
 #include "Maths.h"
@@ -28,9 +37,12 @@ struct ResourceBank
 	Array_FILETIME lastWriteTimes;
 };
 
+#define LOG(...) Log(__VA_ARGS__)
+
 HANDLE g_hStdout;
 Memory *g_memory;
 ResourceBank *g_resourceBank;
+ImGuiTextBuffer *g_imguiLogBuffer;
 
 #include "Win32Common.cpp"
 #include "OpenGL.cpp"
@@ -64,6 +76,20 @@ struct Win32Context
 	HGLRC glContext;
 	HWND windowHandle;
 };
+
+// These are for the game DLL to allocate things on platform heap.
+// Currently only used for ImGui
+PLATFORM_MALLOC(PlatformMalloc)
+{
+	(void)nothing;
+	return malloc(size);
+}
+
+PLATFORM_FREE(PlatformFree)
+{
+	(void)nothing;
+	free(ptr);
+}
 
 // XInput functions
 // XInputGetState
@@ -272,6 +298,9 @@ void Win32UnloadGameCode(Win32GameCode *gameCode)
 
 LRESULT CALLBACK Win32WindowCallback(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+	if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam))
+		return true;
+
 	switch(message)
 	{
 	case WM_CLOSE:
@@ -503,6 +532,22 @@ void Win32Start(HINSTANCE hInstance)
 
 	InitOpenGLContext(&context);
 
+	// Setup imgui
+	ImGuiTextBuffer logBuffer;
+	{
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+
+		ImGui_ImplWin32_Init(context.windowHandle);
+
+		const char* glslVersion = "#version 130";
+		ImGui_ImplOpenGL3_Init(glslVersion);
+
+		ImGui::SetAllocatorFunctions(PlatformMalloc, PlatformFree, nullptr);
+
+		g_imguiLogBuffer = &logBuffer;
+	}
+
 	// Get paths
 	char executableFilename[MAX_PATH];
 	char binPath[MAX_PATH];
@@ -560,6 +605,8 @@ void Win32Start(HINSTANCE hInstance)
 	PlatformCode platformCode;
 	platformCode.Log = Log;
 	platformCode.PlatformReadEntireFile = PlatformReadEntireFile;
+	platformCode.PlatformMalloc = PlatformMalloc;
+	platformCode.PlatformFree = PlatformFree;
 	platformCode.SetUpDevice = SetUpDevice;
 	platformCode.ClearBuffers = ClearBuffers;
 	platformCode.GetUniform = GetUniform;
@@ -634,7 +681,21 @@ void Win32Start(HINSTANCE hInstance)
 			ProcessXInput(&oldController, &controller);
 		}
 
-		gameCode.UpdateAndRenderGame(&controller, &memory, &platformCode, deltaTime);
+		// Start the Dear ImGui frame
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplWin32_NewFrame();
+		ImGui::NewFrame();
+
+		gameCode.UpdateAndRenderGame(&controller, &memory, &platformCode, deltaTime, GImGui);
+
+		// In game log
+		ImGui::Begin("Console", nullptr, 0);
+		ImGui::TextUnformatted(g_imguiLogBuffer->begin(), g_imguiLogBuffer->end());
+		ImGui::End();
+
+		// Rendering
+		ImGui::Render();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
 		SwapBuffers(context.deviceContext);
 

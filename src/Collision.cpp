@@ -29,29 +29,17 @@ struct EPAEdge
 	v3 b;
 };
 
-#if GJK_VISUAL_DEBUGGING
-bool g_writeGJKGeom = true;
-Vertex *g_GJKSteps[64];
-int g_GJKStepCounts[64];
-v3 g_GJKNewPoint[64];
-#endif
-
-#if EPA_VISUAL_DEBUGGING
-bool g_writePolytopeGeom = true;
-Vertex *g_polytopeSteps[16];
-int g_polytopeStepCounts[16];
-v3 g_epaNewPoint[16];
-
-void GenPolytopeMesh(EPAFace *polytopeData, int faceCount, Vertex *buffer)
+#if DEBUG_BUILD
+void GenPolytopeMesh(EPAFace *polytopeData, int faceCount, DebugVertex *buffer)
 {
 	for (int faceIdx = 0; faceIdx < faceCount; ++faceIdx)
 	{
 		EPAFace *face = &polytopeData[faceIdx];
 		v3 normal = V3Normalize(V3Cross(face->c - face->a, face->b - face->a));
 		normal = normal * 0.5f + v3{ 0.5f, 0.5f, 0.5f };
-		buffer[faceIdx * 3 + 0] = { face->a, {}, normal };
-		buffer[faceIdx * 3 + 1] = { face->b, {}, normal };
-		buffer[faceIdx * 3 + 2] = { face->c, {}, normal };
+		buffer[faceIdx * 3 + 0] = { face->a, normal };
+		buffer[faceIdx * 3 + 1] = { face->b, normal };
+		buffer[faceIdx * 3 + 2] = { face->c, normal };
 	}
 }
 #endif
@@ -320,7 +308,7 @@ bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, v3 *hit, Triangle *t
 	return false;
 }
 
-void GetAABB(GameState *gameState, Entity *entity, v3 *min, v3 *max)
+void GetAABB(Entity *entity, v3 *min, v3 *max)
 {
 	Collider *c = &entity->collider;
 	ColliderType type = c->type;
@@ -388,10 +376,13 @@ void GetAABB(GameState *gameState, Entity *entity, v3 *min, v3 *max)
 	}
 	}
 
-	DrawDebugWiredBox(gameState, *min, *max);
+	if (g_debugContext->drawAABBs)
+	{
+		DrawDebugWiredBox(*min, *max);
+	}
 }
 
-v3 FurthestInDirection(GameState *gameState, Entity *entity, v3 dir)
+v3 FurthestInDirection(Entity *entity, v3 dir)
 {
 	v3 result = {};
 
@@ -498,25 +489,26 @@ v3 FurthestInDirection(GameState *gameState, Entity *entity, v3 dir)
 	}
 	}
 
-	DrawDebugCubeAA(gameState, result, 0.04f, {0,1,1});
+	if (g_debugContext->drawSupports)
+		DrawDebugCubeAA(result, 0.04f, {0,1,1});
 
 	return result;
 }
 
-inline v3 GJKSupport(GameState *gameState, Entity *vA, Entity *vB, v3 dir)
+inline v3 GJKSupport(Entity *vA, Entity *vB, v3 dir)
 {
-	v3 va = FurthestInDirection(gameState, vA, dir);
-	v3 vb = FurthestInDirection(gameState, vB, -dir);
+	v3 va = FurthestInDirection(vA, dir);
+	v3 vb = FurthestInDirection(vB, -dir);
 	return va - vb;
 }
 
-GJKResult GJKTest(GameState *gameState, Entity *vA, Entity *vB, PlatformCode *platformCode)
+GJKResult GJKTest(Entity *vA, Entity *vB, PlatformCode *platformCode)
 {
-#if GJK_VISUAL_DEBUGGING
-	if (g_GJKSteps[0] == nullptr)
+#if DEBUG_BUILD
+	if (g_debugContext->GJKSteps[0] == nullptr)
 	{
-		for (int i = 0; i < ArrayCount(g_GJKSteps); ++i)
-			g_GJKSteps[i] = (Vertex *)malloc(sizeof(Vertex) * 12);
+		for (int i = 0; i < ArrayCount(g_debugContext->GJKSteps); ++i)
+			g_debugContext->GJKSteps[i] = (DebugVertex *)TransientAlloc(sizeof(DebugVertex) * 12);
 	}
 #endif
 
@@ -524,9 +516,9 @@ GJKResult GJKTest(GameState *gameState, Entity *vA, Entity *vB, PlatformCode *pl
 	result.hit = true;
 
 	v3 minA, maxA;
-	GetAABB(gameState, vA, &minA, &maxA);
+	GetAABB(vA, &minA, &maxA);
 	v3 minB, maxB;
-	GetAABB(gameState, vB, &minB, &maxB);
+	GetAABB(vB, &minB, &maxB);
 	if ((minA.x > maxB.x || minB.x > maxA.x) ||
 		(minA.y > maxB.y || minB.y > maxA.y) ||
 		(minA.z > maxB.z || minB.z > maxA.z))
@@ -538,41 +530,42 @@ GJKResult GJKTest(GameState *gameState, Entity *vA, Entity *vB, PlatformCode *pl
 	int foundPointsCount = 1;
 	v3 testDir = { 0, 1, 0 }; // Random initial test direction
 
-	result.points[0] = GJKSupport(gameState, vB, vA, testDir);
+	result.points[0] = GJKSupport(vB, vA, testDir);
 	testDir = -result.points[0];
 
 	for (int iterations = 0; result.hit && foundPointsCount < 4; ++iterations)
 	{
-#if GJK_VISUAL_DEBUGGING
+#if DEBUG_BUILD
 		int i_ = iterations;
-		if (g_writeGJKGeom)
+		if (!g_debugContext->freezeGJKGeom)
 		{
-			g_GJKStepCounts[i_] = 0;
+			g_debugContext->GJKStepCounts[i_] = 0;
+			g_debugContext->gjkStepCount = i_ + 1;
 		}
 #endif
 
-		if (iterations >= 50)
+		if (iterations >= 30)
 		{
 			EPAERROR("GJK ERROR! Reached iteration limit!\n");
 			//ASSERT(false);
-#if GJK_VISUAL_DEBUGGING
-			g_writeGJKGeom = false;
+#if DEBUG_BUILD
+			g_debugContext->freezeGJKGeom = true;
 #endif
 			result.hit = false;
 			break;
 		}
 
-		v3 a = GJKSupport(gameState, vB, vA, testDir);
+		v3 a = GJKSupport(vB, vA, testDir);
 		if (V3Dot(testDir, a) < 0)
 		{
 			result.hit = false;
 			break;
 		}
 
-#if GJK_VISUAL_DEBUGGING
-		if (g_writeGJKGeom && iterations)
+#if DEBUG_BUILD
+		if ((!g_debugContext->freezeGJKGeom) && iterations)
 		{
-			g_GJKNewPoint[iterations - 1] = a;
+			g_debugContext->GJKNewPoint[iterations - 1] = a;
 		}
 #endif
 
@@ -596,16 +589,16 @@ GJKResult GJKTest(GameState *gameState, Entity *vA, Entity *vB, PlatformCode *pl
 				v3 abNor = V3Cross(nor, ab);
 				v3 acNor = V3Cross(ac, nor);
 
-#if GJK_VISUAL_DEBUGGING
-				if (g_writeGJKGeom)
+#if DEBUG_BUILD
+				if (!g_debugContext->freezeGJKGeom)
 				{
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ a, v2{}, v3{1,0,0} };
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ b, v2{}, v3{1,0,0} };
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ c, v2{}, v3{1,0,0} };
-					ASSERT(g_GJKStepCounts[i_] == 3);
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ a, v3{1,0,0} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ b, v3{1,0,0} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ c, v3{1,0,0} };
+					ASSERT(g_debugContext->GJKStepCounts[i_] == 3);
 				}
 #endif
 
@@ -661,38 +654,38 @@ GJKResult GJKTest(GameState *gameState, Entity *vA, Entity *vB, PlatformCode *pl
 				const v3 adbNor = V3Cross(ab, ad);
 				const v3 acdNor = V3Cross(ad, ac);
 
-#if GJK_VISUAL_DEBUGGING
-				if (g_writeGJKGeom)
+#if DEBUG_BUILD
+				if (!g_debugContext->freezeGJKGeom)
 				{
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ b, v2{}, v3{1,0,0} };
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ d, v2{}, v3{1,0,0} };
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ c, v2{}, v3{1,0,0} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ b, v3{1,0,0} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ d, v3{1,0,0} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ c, v3{1,0,0} };
 
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ a, v2{}, v3{0,1,0} };
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ b, v2{}, v3{0,1,0} };
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ c, v2{}, v3{0,1,0} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ a, v3{0,1,0} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ b, v3{0,1,0} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ c, v3{0,1,0} };
 
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ a, v2{}, v3{0,0,1} };
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ d, v2{}, v3{0,0,1} };
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ b, v2{}, v3{0,0,1} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ a, v3{0,0,1} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ d, v3{0,0,1} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ b, v3{0,0,1} };
 
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ a, v2{}, v3{1,0,1} };
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ c, v2{}, v3{1,0,1} };
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ d, v2{}, v3{1,0,1} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ a, v3{1,0,1} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ c, v3{1,0,1} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ d, v3{1,0,1} };
 
-					ASSERT(g_GJKStepCounts[i_] == 3 * 4);
+					ASSERT(g_debugContext->GJKStepCounts[i_] == 3 * 4);
 				}
 #endif
 
@@ -842,13 +835,13 @@ GJKResult GJKTest(GameState *gameState, Entity *vA, Entity *vB, PlatformCode *pl
 	return result;
 }
 
-v3 ComputeDepenetration(GameState *gameState, GJKResult gjkResult, Entity *vA, Entity *vB, PlatformCode *platformCode)
+v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB, PlatformCode *platformCode)
 {
-#if EPA_VISUAL_DEBUGGING
-	if (g_polytopeSteps[0] == nullptr)
+#if DEBUG_BUILD
+	if (g_debugContext->polytopeSteps[0] == nullptr)
 	{
-		for (int i = 0; i < ArrayCount(g_polytopeSteps); ++i)
-			g_polytopeSteps[i] = (Vertex *)malloc(sizeof(Vertex) * 256);
+		for (int i = 0; i < ArrayCount(g_debugContext->polytopeSteps); ++i)
+			g_debugContext->polytopeSteps[i] = (DebugVertex *)TransientAlloc(sizeof(DebugVertex) * 256);
 	}
 #endif
 
@@ -881,12 +874,13 @@ v3 ComputeDepenetration(GameState *gameState, GJKResult gjkResult, Entity *vA, E
 	{
 		ASSERT(epaStep < maxIterations - 1);
 
-#if EPA_VISUAL_DEBUGGING
+#if DEBUG_BUILD
 		// Save polytope for debug visualization
-		if (g_writePolytopeGeom)
+		if (!g_debugContext->freezePolytopeGeom && epaStep < DebugContext::epaMaxSteps)
 		{
-			GenPolytopeMesh(polytope, polytopeCount, g_polytopeSteps[epaStep]);
-			g_polytopeStepCounts[epaStep] = polytopeCount;
+			GenPolytopeMesh(polytope, polytopeCount, g_debugContext->polytopeSteps[epaStep]);
+			g_debugContext->polytopeStepCounts[epaStep] = polytopeCount;
+			g_debugContext->epaStepCount = epaStep + 1;
 		}
 #endif
 
@@ -942,12 +936,12 @@ v3 ComputeDepenetration(GameState *gameState, GJKResult gjkResult, Entity *vA, E
 
 		// Expand polytope!
 		v3 testDir = V3Cross(closestFeature.c - closestFeature.a, closestFeature.b - closestFeature.a);
-		v3 newPoint = GJKSupport(gameState, vB, vA, testDir);
+		v3 newPoint = GJKSupport(vB, vA, testDir);
 		EPALOG("Found new point { %.02f, %.02f. %.02f } while looking in direction { %.02f, %.02f. %.02f }\n",
 				newPoint.x, newPoint.y, newPoint.z, testDir.x, testDir.y, testDir.z);
-#if EPA_VISUAL_DEBUGGING
-		if (g_writePolytopeGeom)
-			g_epaNewPoint[epaStep] = newPoint;
+#if DEBUG_BUILD
+		if (!g_debugContext->freezePolytopeGeom && epaStep < DebugContext::epaMaxSteps)
+			g_debugContext->epaNewPoint[epaStep] = newPoint;
 #endif
 		// Without a little epsilon here we can sometimes pick a point that's already part of the
 		// polytope, resulting in weird artifacts later on. I guess we could manually check for that
@@ -1022,13 +1016,13 @@ v3 ComputeDepenetration(GameState *gameState, GJKResult gjkResult, Entity *vA, E
 		if (deletedFaces > 1 && holeEdgesCount >= deletedFaces * 3)
 		{
 			EPAERROR("EPA ERROR! Multiple holes were made on the polytope!\n");
-#if EPA_VISUAL_DEBUGGING
-			if (g_writePolytopeGeom)
+#if DEBUG_BUILD
+			if (!g_debugContext->freezePolytopeGeom && epaStep < DebugContext::epaMaxSteps - 1)
 			{
-				GenPolytopeMesh(polytope, polytopeCount, g_polytopeSteps[epaStep + 1]);
-				g_polytopeStepCounts[epaStep + 1] = polytopeCount;
-				g_epaNewPoint[epaStep + 1] = newPoint;
-				g_writePolytopeGeom = false;
+				GenPolytopeMesh(polytope, polytopeCount, g_debugContext->polytopeSteps[epaStep + 1]);
+				g_debugContext->polytopeStepCounts[epaStep + 1] = polytopeCount;
+				g_debugContext->epaNewPoint[epaStep + 1] = newPoint;
+				g_debugContext->freezePolytopeGeom = true;
 			}
 #endif
 		}
@@ -1050,19 +1044,17 @@ v3 ComputeDepenetration(GameState *gameState, GJKResult gjkResult, Entity *vA, E
 	return closestFeatureNor * V3Dot(closestFeatureNor, closestFeature.a);
 }
 
-#if GJK_VISUAL_DEBUGGING
-void GetGJKStepGeometry(int step, Vertex **buffer, u32 *count)
+#if DEBUG_BUILD
+void GetGJKStepGeometry(int step, DebugVertex **buffer, u32 *count)
 {
-	*count = g_GJKStepCounts[step];
-	*buffer = g_GJKSteps[step];
+	*count = g_debugContext->GJKStepCounts[step];
+	*buffer = g_debugContext->GJKSteps[step];
 }
-#endif
 
-#if EPA_VISUAL_DEBUGGING
-void GetEPAStepGeometry(int step, Vertex **buffer, u32 *count)
+void GetEPAStepGeometry(int step, DebugVertex **buffer, u32 *count)
 {
-	*count = g_polytopeStepCounts[step];
-	*buffer = g_polytopeSteps[step];
+	*count = g_debugContext->polytopeStepCounts[step];
+	*buffer = g_debugContext->polytopeSteps[step];
 }
 #endif
 

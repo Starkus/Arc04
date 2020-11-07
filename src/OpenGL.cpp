@@ -37,6 +37,7 @@ void LoadOpenGLProcs()
 	GL_GetProc(glGenTextures);
 	GL_GetProc(glDeleteTextures);
 	GL_GetProc(glBindTexture);
+	GL_GetProc(glBindSampler);
 	GL_GetProc(glTexImage2D);
 	GL_GetProc(glGenerateMipmap);
 	GL_GetProc(glTexParameteri);
@@ -60,6 +61,7 @@ void LoadOpenGLProcs()
 	GL_GetProc(glUseProgram);
 	GL_GetProc(glBindAttribLocation);
 	GL_GetProc(glGetUniformLocation);
+	GL_GetProc(glGetAttribLocation);
 	GL_GetProc(glUniformMatrix4fv);
 	GL_GetProc(glUniform1i);
 	GL_GetProc(glUniform1f);
@@ -84,5 +86,8 @@ void LoadOpenGLProcs()
 	GL_GetProc(glDrawArraysInstanced);
 	GL_GetProc(glDrawElements);
 	GL_GetProc(glDrawElementsInstanced);
+	GL_GetProc(glDrawElementsBaseVertex);
+	GL_GetProc(glBlendEquation);
+	GL_GetProc(glBlendEquationSeparate);
 #undef GL_GetProc
 }

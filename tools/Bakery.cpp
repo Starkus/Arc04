@@ -39,6 +39,8 @@ HANDLE g_hStdout;
 #include "LinuxCommon.cpp"
 #endif
 
+#define LOG(...) Log(__VA_ARGS__)
+
 #include "MemoryAlloc.cpp"
 
 void GetDataPath(char *dataPath)

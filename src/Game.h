@@ -107,10 +107,39 @@ struct DebugGeometryBuffer
 	DebugCube debugCubes[2048];
 	u32 debugCubeCount;
 };
+
+struct DebugContext
+{
+	DeviceProgram debugDrawProgram, debugCubesProgram;
+	DebugGeometryBuffer debugGeometryBuffer;
+
+	bool drawAABBs;
+	bool drawSupports;
+
+	// GJK EPA
+	bool drawGJKPolytope;
+	bool freezeGJKGeom;
+	int gjkDrawStep;
+	int gjkStepCount;
+	DebugVertex *GJKSteps[64];
+	int GJKStepCounts[64];
+	v3 GJKNewPoint[64];
+
+	static const int epaMaxSteps = 32;
+	bool drawEPAPolytope;
+	bool freezePolytopeGeom;
+	int polytopeDrawStep;
+	int epaStepCount;
+	DebugVertex *polytopeSteps[epaMaxSteps];
+	int polytopeStepCounts[epaMaxSteps];
+	v3 epaNewPoint[epaMaxSteps];
+};
 #endif
 
 struct GameState
 {
+	f32 timeMultiplier;
+
 	v3 camPos;
 	f32 camYaw;
 	f32 camPitch;
@@ -129,8 +158,8 @@ struct GameState
 
 	// Debug
 #if DEBUG_BUILD
-	DeviceProgram debugDrawProgram, debugCubesProgram;
-	DebugGeometryBuffer debugGeometryBuffer;
-	int currentPolytopeStep;
+	//DeviceProgram debugDrawProgram, debugCubesProgram;
+	//DebugGeometryBuffer debugGeometryBuffer;
+	//int currentPolytopeStep;
 #endif
 };
