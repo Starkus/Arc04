@@ -11,6 +11,11 @@ typedef PLATFORM_MALLOC(PlatformMalloc_t);
 #define PLATFORM_FREE(name) void name(void *ptr, void *nothing)
 typedef PLATFORM_FREE(PlatformFree_t);
 
+#ifdef USING_IMGUI
+#define PLATFORM_GET_IMGUI_CONTEXT(name) ImGuiContext *name()
+typedef PLATFORM_GET_IMGUI_CONTEXT(PlatformGetImguiContext_t);
+#endif
+
 #define RENDER_SET_UP_DEVICE(name) void name()
 typedef RENDER_SET_UP_DEVICE(SetUpDevice_t);
 
@@ -100,6 +105,10 @@ struct PlatformCode
 {
 	Log_t *Log;
 	PlatformReadEntireFile_t *PlatformReadEntireFile;
+
+#ifdef USING_IMGUI
+	PlatformGetImguiContext_t *PlatformGetImguiContext;
+#endif
 	PlatformMalloc_t *PlatformMalloc; // @Cleanup: this is only for Imgui.
 	PlatformFree_t *PlatformFree; // @Cleanup: this is only for Imgui.
 
@@ -138,6 +147,6 @@ typedef START_GAME(StartGame_t);
 START_GAME(StartGameStub) { (void) memory, platformCode; }
 
 #define UPDATE_AND_RENDER_GAME(name) void name(Controller *controller, Memory *memory, \
-		PlatformCode *platformCode, f32 deltaTime, ImGuiContext *imguiContext)
+		PlatformCode *platformCode, f32 deltaTime)
 typedef UPDATE_AND_RENDER_GAME(UpdateAndRenderGame_t);
-UPDATE_AND_RENDER_GAME(UpdateAndRenderGameStub) { (void) controller, memory, platformCode, deltaTime, imguiContext; }
+UPDATE_AND_RENDER_GAME(UpdateAndRenderGameStub) { (void) controller, memory, platformCode, deltaTime; }

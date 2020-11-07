@@ -20,6 +20,7 @@ static_assert(sizeof(LinuxFindData) <= sizeof(PlatformFindData),
 		"LinuxFindData doesn't fit in opaque handle!");
 
 typedef int FileHandle;
+#define Sleep(...) sleep(__VA_ARGS__)
 
 void Log(const char *format, ...)
 {

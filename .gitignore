@@ -3,6 +3,7 @@ build
 *.exe
 *.pdb
 *.obj
+*.ini
 
 *.b
 

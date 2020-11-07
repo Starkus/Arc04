@@ -376,10 +376,12 @@ void GetAABB(Entity *entity, v3 *min, v3 *max)
 	}
 	}
 
+#if DEBUG_BUILD
 	if (g_debugContext->drawAABBs)
 	{
 		DrawDebugWiredBox(*min, *max);
 	}
+#endif
 }
 
 v3 FurthestInDirection(Entity *entity, v3 dir)
@@ -489,8 +491,10 @@ v3 FurthestInDirection(Entity *entity, v3 dir)
 	}
 	}
 
+#if DEBUG_BUILD
 	if (g_debugContext->drawSupports)
 		DrawDebugCubeAA(result, 0.04f, {0,1,1});
+#endif
 
 	return result;
 }
@@ -507,7 +511,7 @@ GJKResult GJKTest(Entity *vA, Entity *vB, PlatformCode *platformCode)
 #if DEBUG_BUILD
 	if (g_debugContext->GJKSteps[0] == nullptr)
 	{
-		for (int i = 0; i < ArrayCount(g_debugContext->GJKSteps); ++i)
+		for (u32 i = 0; i < ArrayCount(g_debugContext->GJKSteps); ++i)
 			g_debugContext->GJKSteps[i] = (DebugVertex *)TransientAlloc(sizeof(DebugVertex) * 12);
 	}
 #endif
@@ -840,7 +844,7 @@ v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB, PlatformCod
 #if DEBUG_BUILD
 	if (g_debugContext->polytopeSteps[0] == nullptr)
 	{
-		for (int i = 0; i < ArrayCount(g_debugContext->polytopeSteps); ++i)
+		for (u32 i = 0; i < ArrayCount(g_debugContext->polytopeSteps); ++i)
 			g_debugContext->polytopeSteps[i] = (DebugVertex *)TransientAlloc(sizeof(DebugVertex) * 256);
 	}
 #endif

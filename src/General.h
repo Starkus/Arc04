@@ -48,8 +48,6 @@ typedef double f64;
 #define I32_MAX ((i32)0x7FFFFFFF)
 #define I64_MAX ((i64)0x7FFFFFFFFFFFFFFF)
 
-#define DEBUG_ONLY(a) a
-
 #if DEBUG_BUILD
 #if TARGET_WINDOWS
 #define ASSERT(expr) do { if (!(expr)) __debugbreak(); } while (false)

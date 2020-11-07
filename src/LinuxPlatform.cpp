@@ -50,6 +50,12 @@ Resource *CreateResource(const char *filename)
 #include "BakeryInterop.cpp"
 #include "Resource.cpp"
 
+#if DEBUG_BUILD
+const char *gameLibName = "./bin/Game_debug.so";
+#else
+const char *gameLibName = "./bin/Game.so";
+#endif
+
 GET_RESOURCE(GetResource)
 {
 	for (u32 i = 0; i < g_resources->size; ++i)
@@ -70,7 +76,7 @@ int main(int argc, char **argv)
 	StartGame_t *StartGame;
 	UpdateAndRenderGame_t *UpdateAndRenderGame;
 	{
-		void *gameLib = dlopen("./bin/Game.so", RTLD_NOW);
+		void *gameLib = dlopen(gameLibName, RTLD_NOW);
 		if (gameLib == nullptr)
 		{
 			printf("Couldn't load game library! Error %s\n", dlerror());

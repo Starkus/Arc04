@@ -9,13 +9,14 @@
 
 #include "OpenGL.h"
 
-#define USING_IMGUI
+#ifdef USING_IMGUI
 #define IMGUI_IMPL_OPENGL_LOADER_CUSTOM
 #include <imgui/imgui_impl_win32.cpp>
 #include <imgui/imgui_impl_opengl3.cpp>
 #include <imgui/imgui.cpp>
 #include <imgui/imgui_draw.cpp>
 #include <imgui/imgui_widgets.cpp>
+#endif
 
 #include "General.h"
 #include "MemoryAlloc.h"
@@ -42,7 +43,9 @@ struct ResourceBank
 HANDLE g_hStdout;
 Memory *g_memory;
 ResourceBank *g_resourceBank;
+#ifdef USING_IMGUI
 ImGuiTextBuffer *g_imguiLogBuffer;
+#endif
 
 #include "Win32Common.cpp"
 #include "OpenGL.cpp"
@@ -76,6 +79,13 @@ struct Win32Context
 	HGLRC glContext;
 	HWND windowHandle;
 };
+
+#ifdef USING_IMGUI
+PLATFORM_GET_IMGUI_CONTEXT(PlatformGetImguiContext)
+{
+	return GImGui;
+}
+#endif
 
 // These are for the game DLL to allocate things on platform heap.
 // Currently only used for ImGui
@@ -298,8 +308,10 @@ void Win32UnloadGameCode(Win32GameCode *gameCode)
 
 LRESULT CALLBACK Win32WindowCallback(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+#ifdef USING_IMGUI
 	if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam))
 		return true;
+#endif
 
 	switch(message)
 	{
@@ -532,6 +544,7 @@ void Win32Start(HINSTANCE hInstance)
 
 	InitOpenGLContext(&context);
 
+#ifdef USING_IMGUI
 	// Setup imgui
 	ImGuiTextBuffer logBuffer;
 	{
@@ -547,6 +560,7 @@ void Win32Start(HINSTANCE hInstance)
 
 		g_imguiLogBuffer = &logBuffer;
 	}
+#endif
 
 	// Get paths
 	char executableFilename[MAX_PATH];
@@ -634,6 +648,9 @@ void Win32Start(HINSTANCE hInstance)
 	platformCode.ResourceLoadPoints = ResourceLoadPoints;
 	platformCode.ResourceLoadShader = ResourceLoadShader;
 	platformCode.GetResource = GetResource;
+#ifdef USING_IMGUI
+	platformCode.PlatformGetImguiContext = PlatformGetImguiContext;
+#endif
 
 	gameCode.StartGame(&memory, &platformCode);
 
@@ -681,21 +698,31 @@ void Win32Start(HINSTANCE hInstance)
 			ProcessXInput(&oldController, &controller);
 		}
 
+#ifdef USING_IMGUI
 		// Start the Dear ImGui frame
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplWin32_NewFrame();
 		ImGui::NewFrame();
+#endif
 
-		gameCode.UpdateAndRenderGame(&controller, &memory, &platformCode, deltaTime, GImGui);
+		gameCode.UpdateAndRenderGame(&controller, &memory, &platformCode, deltaTime);
 
+#ifdef USING_IMGUI
 		// In game log
-		ImGui::Begin("Console", nullptr, 0);
-		ImGui::TextUnformatted(g_imguiLogBuffer->begin(), g_imguiLogBuffer->end());
+		ImGui::SetNextWindowPos(ImVec2(7, 496), ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowSize(ImVec2(1407, 271), ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
+
+		if (ImGui::Begin("Console", nullptr, 0))
+		{
+			ImGui::TextUnformatted(g_imguiLogBuffer->begin(), g_imguiLogBuffer->end());
+		}
 		ImGui::End();
 
 		// Rendering
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+#endif
 
 		SwapBuffers(context.deviceContext);
 

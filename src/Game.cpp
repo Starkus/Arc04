@@ -1,10 +1,12 @@
 #include <stddef.h>
 #include <memory.h>
 
+#ifdef USING_IMGUI
 #include <imgui/imgui.cpp>
 #include <imgui/imgui_draw.cpp>
 #include <imgui/imgui_widgets.cpp>
 #include <imgui/imgui_demo.cpp>
+#endif
 
 #include "General.h"
 #include "Maths.h"
@@ -19,7 +21,9 @@
 
 Memory *g_memory;
 Log_t *g_log;
+#if DEBUG_BUILD
 DebugContext *g_debugContext;
+#endif
 
 #define LOG(...) g_log(__VA_ARGS__)
 
@@ -29,6 +33,9 @@ DECLARE_ARRAY(u32);
 #include "MemoryAlloc.cpp"
 #include "Collision.cpp"
 #include "BakeryInterop.cpp"
+#ifdef USING_IMGUI
+#include "Imgui.cpp"
+#endif
 
 #if TARGET_WINDOWS
 #define GAMEDLL NOMANGLE __declspec(dllexport)
@@ -38,14 +45,18 @@ DECLARE_ARRAY(u32);
 
 GAMEDLL START_GAME(StartGame)
 {
+#ifdef USING_IMGUI
 	ImGui::SetAllocatorFunctions(platformCode->PlatformMalloc, platformCode->PlatformFree, nullptr);
+#endif
 
 	g_memory = memory;
 	g_log = platformCode->Log;
 
 	ASSERT(memory->transientMem == memory->transientPtr);
 	GameState *gameState = (GameState *)TransientAlloc(sizeof(GameState));
+#if DEBUG_BUILD
 	g_debugContext = (DebugContext *)TransientAlloc(sizeof(DebugContext));
+#endif
 
 	gameState->timeMultiplier = 1.0f;
 
@@ -222,57 +233,25 @@ void ChangeState(GameState *gameState, PlayerState newState, PlayerAnim newAnim)
 	gameState->player.state = newState;
 }
 
-void ImguiShowDebugWindow(GameState *gameState)
-{
-	if (!ImGui::Begin("Debug things", nullptr, 0))
-		return;
-
-	ImGui::SliderFloat("Time speed", &gameState->timeMultiplier, 0.001f, 10.0f, "factor = %.3f", ImGuiSliderFlags_Logarithmic);
-
-	if (ImGui::CollapsingHeader("Collision debug"))
-	{
-		ImGui::Checkbox("Draw AABBs", &g_debugContext->drawAABBs);
-		ImGui::Checkbox("Draw GJK support function results", &g_debugContext->drawSupports);
-
-		ImGui::Separator();
-
-		ImGui::Text("GJK:");
-		ImGui::Checkbox("Draw polytope", &g_debugContext->drawGJKPolytope);
-		ImGui::SameLine();
-		ImGui::Checkbox("Freeze", &g_debugContext->freezeGJKGeom);
-		ImGui::InputInt("Step", &g_debugContext->gjkDrawStep);
-		if (g_debugContext->gjkDrawStep >= g_debugContext->gjkStepCount)
-			g_debugContext->gjkDrawStep = g_debugContext->gjkStepCount;
-
-		ImGui::Separator();
-
-		ImGui::Text("EPA:");
-		ImGui::Checkbox("Draw polytope##", &g_debugContext->drawEPAPolytope);
-		ImGui::SameLine();
-		ImGui::Checkbox("Freeze##", &g_debugContext->freezePolytopeGeom);
-		ImGui::InputInt("Step##", &g_debugContext->polytopeDrawStep);
-		if (g_debugContext->polytopeDrawStep >= g_debugContext->epaStepCount)
-			g_debugContext->polytopeDrawStep = g_debugContext->epaStepCount;
-	}
-
-	ImGui::End();
-}
-
 GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 {
 	g_memory = memory;
 	g_log = platformCode->Log;
 	GameState *gameState = (GameState *)memory->transientMem;
+#if DEBUG_BUILD
 	g_debugContext = (DebugContext *)((u8 *)memory->transientMem + sizeof(GameState));
+#endif
 
 	deltaTime *= gameState->timeMultiplier;
 
-	ImGui::SetCurrentContext(imguiContext);
+#ifdef USING_IMGUI
+	ImGui::SetCurrentContext(platformCode->PlatformGetImguiContext());
 	ImGui::SetAllocatorFunctions(platformCode->PlatformMalloc, platformCode->PlatformFree, nullptr);
 
 	ImGui::ShowDemoWindow();
 
 	ImguiShowDebugWindow(gameState);
+#endif
 
 	if (deltaTime < 0 || deltaTime > 1)
 	{
