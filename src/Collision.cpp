@@ -498,14 +498,11 @@ v3 FurthestInDirection(GameState *gameState, Entity *entity, v3 dir)
 			d = d * c->capsule.radius;
 
 			// If it goes out the top, return furthest point from top sphere
-			if (d.z > halfH)
+			if (d.z > 0)
 				result += v3{ 0, 0, halfH } + V3Normalize(dir) * c->capsule.radius;
 			// Analogue for bottom
-			else if (d.z < -halfH)
-				result += v3{ 0, 0, -halfH } + V3Normalize(dir) * c->capsule.radius;
-			// Else just return the vector projected to the wall
 			else
-				result += d;
+				result += v3{ 0, 0, -halfH } + V3Normalize(dir) * c->capsule.radius;
 		}
 	} break;
 	default:
