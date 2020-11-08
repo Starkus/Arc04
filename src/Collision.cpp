@@ -455,29 +455,15 @@ v3 FurthestInDirection(GameState *gameState, Entity *entity, v3 dir)
 		result = entity->pos + c->cylinder.offset;
 
 		f32 halfH = c->cylinder.height * 0.5f;
-		f32 lat = Sqrt(dir.x * dir.x + dir.y * dir.y);
-		if (lat == 0)
+		if (dir.z != 0)
 		{
-			// If direction is parallel to cylinder the answer is trivial
 			result.z += Sign(dir.z) * halfH;
 		}
-		else
+		if (dir.x != 0 || dir.y != 0)
 		{
-			// Project dir into cylinder wall
-			v3 d = dir / lat;
-			d = d * c->cylinder.radius;
-
-			// Crop d if it goes out the top/bottom
-			if (d.z > halfH)
-			{
-				d.z = halfH;
-			}
-			else if (d.z < -halfH)
-			{
-				d.z = -halfH;
-			}
-
-			result += d;
+			f32 lat = Sqrt(dir.x * dir.x + dir.y * dir.y);
+			result.x += dir.x / lat * c->cylinder.radius;
+			result.y += dir.y / lat * c->cylinder.radius;
 		}
 	} break;
 	case COLLIDER_CAPSULE:
@@ -572,6 +558,7 @@ GJKResult GJKTest(GameState *gameState, Entity *vA, Entity *vB, PlatformCode *pl
 #if GJK_VISUAL_DEBUGGING
 			g_writeGJKGeom = false;
 #endif
+			result.hit = false;
 			break;
 		}
 
@@ -934,7 +921,7 @@ v3 ComputeDepenetration(GameState *gameState, GJKResult gjkResult, Entity *vA, E
 			//ASSERT(false);
 			EPAERROR("EPA ERROR: Couldn't find closest feature!");
 			// Collision is probably on the very edge, we don't need depenetration
-			break;
+			return {};
 		}
 		else if (leastDistance <= lastLeastDistance + 0.0001f)
 		{
@@ -971,18 +958,20 @@ v3 ComputeDepenetration(GameState *gameState, GJKResult gjkResult, Entity *vA, E
 			EPALOG("Done! Couldn't find a closer point\n");
 			break;
 		}
+#if DEBUG_BUILD
 		else if (V3Dot(testDir, newPoint - closestFeature.b) <= epsilon)
 		{
 			EPAERROR("EPA ERROR! Redundant check triggered (B)\n");
-			ASSERT(false);
+			//ASSERT(false);
 			break;
 		}
 		else if (V3Dot(testDir, newPoint - closestFeature.c) <= epsilon)
 		{
 			EPAERROR("EPA ERROR! Redundant check triggered (C)\n");
-			ASSERT(false);
+			//ASSERT(false);
 			break;
 		}
+#endif
 		EPAEdge holeEdges[256];
 		int holeEdgesCount = 0;
 		int oldPolytopeCount = polytopeCount;
