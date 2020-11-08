@@ -101,7 +101,7 @@ void *BuddyFindFreeBlockOfOrder(u8 desiredOrder, u8 **bookkeep)
 		{
 			// Advance the size of block we are looking for, no need to visit the next smaller blocks
 			const u8 higherOrder = Max(order, desiredOrder);
-			bScan += 1i64 << higherOrder;
+			bScan += (u64)1 << higherOrder;
 			mScan += Memory::buddySmallest << higherOrder;
 		}
 	}
@@ -119,7 +119,7 @@ void *BuddyFindFreeBlockOfOrder(u8 desiredOrder, u8 **bookkeep)
 	ASSERT((**bookkeep & Memory::buddyUsedBit) == 0);
 	**bookkeep = desiredOrder;
 
-	u8 *newBuddyBookkeep = ((*bookkeep) + (1i64 << desiredOrder));
+	u8 *newBuddyBookkeep = ((*bookkeep) + ((u64)1 << desiredOrder));
 	*newBuddyBookkeep = desiredOrder;
 	return block;
 }

@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <linux/limits.h>
 #include <time.h>
 #include <errno.h>
@@ -132,18 +133,20 @@ int main(int argc, char **argv)
 	glXMakeCurrent(display, window, glContext);
 
 	Memory memory = {};
-	memory.frameMem = malloc(frameSize);
-	memory.stackMem = malloc(frameSize);
-	memory.transientMem = malloc(frameSize);
-	memory.framePtr = memory.frameMem;
-	memory.stackPtr = memory.stackMem;
-	memory.transientPtr = memory.transientMem;
 	g_memory = &memory;
+	const int prot = PROT_READ | PROT_WRITE;
+	const int flags = MAP_ANONYMOUS;
+	memory.frameMem = mmap((void *)0x1000000000000000, Memory::frameSize, prot, flags, 0, 0);
+	memory.stackMem = mmap((void *)0x2000000000000000, Memory::stackSize, prot, flags, 0, 0);
+	memory.transientMem = mmap((void *)0x3000000000000000, Memory::transientSize, prot, flags, 0, 0);
+	memory.buddyMem = mmap((void *)0x4000000000000000, Memory::buddySize, prot, flags, 0, 0);
 
-	TransientAlloc(sizeof(GameState));
+	const u32 maxNumOfBuddyBlocks = Memory::buddySize / Memory::buddySmallest;
+	memory.buddyBookkeep = (u8 *)malloc( maxNumOfBuddyBlocks);
+	MemoryInit(&memory);
 
 	Array_Resource resources;
-	ArrayInit_Resource(&resources, 256, TransientAlloc);
+	ArrayInit_Resource(&resources, 256, malloc);
 	g_resources = &resources;
 
 	PlatformCode platformCode = {};
