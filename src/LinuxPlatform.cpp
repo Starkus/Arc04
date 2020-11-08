@@ -160,6 +160,7 @@ int main(int argc, char **argv)
 	platformCode.AttachShader = AttachShader;
 	platformCode.CreateDeviceProgram = CreateDeviceProgram;
 	platformCode.LinkDeviceProgram = LinkDeviceProgram;
+	platformCode.SetViewport = SetViewport;
 	platformCode.SetFillMode = SetFillMode;
 	platformCode.ResourceLoadMesh = ResourceLoadMesh;
 	platformCode.ResourceLoadSkinnedMesh = ResourceLoadSkinnedMesh;
@@ -227,7 +228,7 @@ int main(int argc, char **argv)
 
 		XWindowAttributes windowAttr;
 		XGetWindowAttributes(display, window, &windowAttr);
-		glViewport(0, 0, windowAttr.width, windowAttr.height);
+		SetViewport(0, 0, windowAttr.width, windowAttr.height);
 
 		UpdateAndRenderGame(&controller, &memory, &platformCode, deltaTime);
 

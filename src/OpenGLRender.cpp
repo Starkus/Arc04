@@ -417,3 +417,8 @@ void SetFillMode(RenderFillMode mode)
 			break;
 	}
 }
+
+void SetViewport(int posX, int posY, int width, int height)
+{
+	glViewport(posX, posY, width, height);
+}

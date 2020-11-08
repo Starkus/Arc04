@@ -280,7 +280,7 @@ LRESULT CALLBACK Win32WindowCallback(HWND hWnd, UINT message, WPARAM wParam, LPA
 	} break;
 	case WM_SIZE:
 	{
-		glViewport(0, 0,LOWORD(lParam), HIWORD(lParam));
+		SetViewport(0, 0,LOWORD(lParam), HIWORD(lParam));
 	}break;
 	default:
 		return DefWindowProc(hWnd, message, wParam, lParam);
@@ -579,6 +579,7 @@ void Win32Start(HINSTANCE hInstance)
 	platformCode.AttachShader = AttachShader;
 	platformCode.CreateDeviceProgram = CreateDeviceProgram;
 	platformCode.LinkDeviceProgram = LinkDeviceProgram;
+	platformCode.SetViewport = SetViewport;
 	platformCode.SetFillMode = SetFillMode;
 	platformCode.ResourceLoadMesh = ResourceLoadMesh;
 	platformCode.ResourceLoadSkinnedMesh = ResourceLoadSkinnedMesh;

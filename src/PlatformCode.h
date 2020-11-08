@@ -66,6 +66,9 @@ typedef RENDER_CREATE_DEVICE_PROGRAM(CreateDeviceProgram_t);
 #define RENDER_LINK_DEVICE_PROGRAM(name) bool name(DeviceProgram program)
 typedef RENDER_LINK_DEVICE_PROGRAM(LinkDeviceProgram_t);
 
+#define RENDER_SET_VIEWPORT(name) void name(int posX, int posY, int width, int height)
+typedef RENDER_SET_VIEWPORT(SetViewport_t);
+
 #define SET_FILL_MODE(name) void name(RenderFillMode mode)
 typedef SET_FILL_MODE(SetFillMode_t);
 
@@ -111,6 +114,7 @@ struct PlatformCode
 	AttachShader_t *AttachShader;
 	CreateDeviceProgram_t *CreateDeviceProgram;
 	LinkDeviceProgram_t *LinkDeviceProgram;
+	SetViewport_t *SetViewport;
 	SetFillMode_t *SetFillMode;
 
 	ResourceLoadMesh_t *ResourceLoadMesh;
