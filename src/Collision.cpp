@@ -393,8 +393,6 @@ void GetAABB(GameState *gameState, Entity *entity, v3 *min, v3 *max)
 
 v3 FurthestInDirection(GameState *gameState, Entity *entity, v3 dir)
 {
-	void *oldStackPtr = g_memory->stackPtr;
-
 	v3 result = {};
 
 	Collider *c = &entity->collider;
@@ -405,7 +403,6 @@ v3 FurthestInDirection(GameState *gameState, Entity *entity, v3 dir)
 	{
 		f32 maxDist = -INFINITY;
 
-		// @Speed: inverse-transform direction, pick a point, and then transform only that point!
 		const v3 worldUp = { 0, 0, 1 };
 		const v3 pos = entity->pos;
 		const v3 fw = entity->fw;
@@ -419,32 +416,36 @@ v3 FurthestInDirection(GameState *gameState, Entity *entity, v3 dir)
 			pos.x,		pos.y,		pos.z,		1.0f
 		};
 
-		const ResourcePointCloud *pointsRes = &c->convexHull.pointCloud->points;
-		u32 pointCount = pointsRes->pointCount;
-		v3 *points = (v3 *)StackAlloc(pointCount * sizeof(v3));
-
-		// Compute all points
+		// Un-rotate direction
+		// @Speed: maybe do this with quaternions once decomposed transformations are a thing.
+		mat4 rotMatrixInv =
 		{
-			for (u32 i = 0; i < pointCount; ++i)
-			{
-				v3 p = pointsRes->pointData[i];
-				v4 v = { p.x, p.y, p.z, 1.0f };
-				v = Mat4TransformV4(modelMatrix, v);
-				points[i] = { v.x, v.y, v.z };
-			}
-		}
+			right.x,	fw.x,	up.x,	0,
+			right.y,	fw.y,	up.y,	0,
+			right.z,	fw.z,	up.z,	0,
+			0,			0,		0,		1
+		};
+		v4 locDir4 = Mat4TransformV4(rotMatrixInv, v4{ dir.x, dir.y, dir.z, 0 });
+		v3 locDir = { locDir4.x, locDir4.y, locDir4.z };
 
-		const v3 *scan = points;
+		const ResourcePointCloud *pointsRes = &c->convexHull.pointCloud->points;
+		const u32 pointCount = pointsRes->pointCount;
+		const v3 *scan = pointsRes->pointData;
 		for (u32 i = 0; i < pointCount; ++i)
 		{
 			v3 p = *scan++;
-			f32 dot = V3Dot(p, dir);
+			f32 dot = V3Dot(p, locDir);
 			if (dot > maxDist)
 			{
 				maxDist = dot;
 				result = p;
 			}
 		}
+
+		// Transform point to world coordinates and return as result
+		v4 r4 = { result.x, result.y, result.z, 1 };
+		r4 = Mat4TransformV4(modelMatrix, r4);
+		result = v3{ r4.x, r4.y, r4.z };
 	} break;
 	case COLLIDER_SPHERE:
 	{
@@ -499,7 +500,6 @@ v3 FurthestInDirection(GameState *gameState, Entity *entity, v3 dir)
 
 	DrawDebugCubeAA(gameState, result, 0.04f, {0,1,1});
 
-	StackFree(oldStackPtr);
 	return result;
 }
 
