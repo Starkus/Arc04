@@ -5,12 +5,6 @@ typedef PLATFORM_LOG(Log_t);
 		u64 *fileSize, void *(*allocFunc)(u64))
 typedef PLATFORM_READ_ENTIRE_FILE(PlatformReadEntireFile_t);
 
-#define PLATFORM_MALLOC(name) void *name(u64 size, void *nothing)
-typedef PLATFORM_MALLOC(PlatformMalloc_t);
-
-#define PLATFORM_FREE(name) void name(void *ptr, void *nothing)
-typedef PLATFORM_FREE(PlatformFree_t);
-
 #ifdef USING_IMGUI
 #define PLATFORM_GET_IMGUI_CONTEXT(name) ImGuiContext *name()
 typedef PLATFORM_GET_IMGUI_CONTEXT(PlatformGetImguiContext_t);
@@ -109,8 +103,6 @@ struct PlatformCode
 #ifdef USING_IMGUI
 	PlatformGetImguiContext_t *PlatformGetImguiContext;
 #endif
-	PlatformMalloc_t *PlatformMalloc; // @Cleanup: this is only for Imgui.
-	PlatformFree_t *PlatformFree; // @Cleanup: this is only for Imgui.
 
 	SetUpDevice_t *SetUpDevice;
 	ClearBuffers_t *ClearBuffers;

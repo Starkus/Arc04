@@ -7,6 +7,93 @@ const f64 PI_64 = 3.1415926535897932384626433832795;
 const f64 HALFPI_64 = 1.5707963267948966192313216916398;
 const f64 PI2_64 = 6.283185307179586476925286766559;
 
+inline u8 Nlz(u32 x)
+{
+#if TARGET_WINDOWS
+	DWORD i;
+	if (_BitScanReverse(&i, x))
+		return 31 - (u8)i;
+	return 32;
+#else
+	// From Hacker's Delight
+	union
+	{
+		u32 asInt[2];
+		f64 asDouble;
+	};
+	int n;
+	asDouble = (double)x + 0.5;
+	n = 1054 - (asInt[0] >> 20);
+	return n;
+#endif
+}
+
+inline u8 Ntz(u32 n)
+{
+#if TARGET_WINDOWS
+	DWORD i;
+	_BitScanForward(&i, n);
+	return (u8)i;
+#else
+	// From Hacker's Delight
+	return 32 - Nlz(~n & (n - 1));
+#endif
+}
+
+inline u32 NextPowerOf2(u32 n)
+{
+	return 0x80000000 >> (Nlz(n - 1) - 1);
+}
+
+inline u32 LastPowerOf2(u32 n)
+{
+	return 0x80000000 >> Nlz(n);
+}
+
+inline u8 Nlz64(u64 x)
+{
+#if TARGET_WINDOWS
+	DWORD i;
+	if (_BitScanReverse64(&i, x))
+		return 63 - (u8)i;
+	return 64;
+#else
+	// From Hacker's Delight
+	union
+	{
+		u64 asInt;
+		f64 asDouble;
+	};
+	x = x & ~(x >> 1);
+	int n;
+	asDouble = (double)x + 0.5;
+	n = 1086 - (asInt >> 52);
+	return n;
+#endif
+}
+
+inline u8 Ntz64(u64 n)
+{
+#if TARGET_WINDOWS
+	DWORD i;
+	_BitScanForward64(&i, n);
+	return (u8)i;
+#else
+	// From Hacker's Delight
+	return 64 - Nlz64(~n & (n - 1));
+#endif
+}
+
+inline u64 NextPowerOf264(u64 n)
+{
+	return 0x8000000000000000 >> (Nlz64(n - 1) - 1);
+}
+
+inline u64 LastPowerOf264(u64 n)
+{
+	return 0x8000000000000000 >> Nlz64(n);
+}
+
 inline bool EqualWithEpsilon(f32 a, f32 b, f32 epsilon)
 {
 	return a > b - epsilon && a < b + epsilon;
@@ -32,15 +119,9 @@ inline f32 Ceil(f32 n)
 	return ceilf(n);
 }
 
-inline f32 Min(f32 a, f32 b)
-{
-	return a > b ? b : a;
-}
+#define Min(a, b) (a > b ? b : a)
 
-inline f32 Max(f32 a, f32 b)
-{
-	return a > b ? a : b;
-}
+#define Max(a, b) (a > b ? a : b)
 
 inline f32 Fmod(f32 n, f32 d)
 {

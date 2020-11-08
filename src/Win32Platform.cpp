@@ -45,7 +45,10 @@ Memory *g_memory;
 ResourceBank *g_resourceBank;
 #ifdef USING_IMGUI
 ImGuiTextBuffer *g_imguiLogBuffer;
+bool g_showConsole;
 #endif
+u32 g_windowWidth = 1440;
+u32 g_windowHeight = 810;
 
 #include "Win32Common.cpp"
 #include "OpenGL.cpp"
@@ -86,20 +89,6 @@ PLATFORM_GET_IMGUI_CONTEXT(PlatformGetImguiContext)
 	return GImGui;
 }
 #endif
-
-// These are for the game DLL to allocate things on platform heap.
-// Currently only used for ImGui
-PLATFORM_MALLOC(PlatformMalloc)
-{
-	(void)nothing;
-	return malloc(size);
-}
-
-PLATFORM_FREE(PlatformFree)
-{
-	(void)nothing;
-	free(ptr);
-}
 
 // XInput functions
 // XInputGetState
@@ -161,6 +150,10 @@ bool ProcessKeyboard(Controller *controller)
 				{
 					case 'Q':
 						return true;
+					case VK_OEM_3:
+						if (isDown && !wasDown)
+							g_showConsole = !g_showConsole;
+						break;
 					case 'W':
 						checkButton(c->up);
 						break;
@@ -321,7 +314,9 @@ LRESULT CALLBACK Win32WindowCallback(HWND hWnd, UINT message, WPARAM wParam, LPA
 	} break;
 	case WM_SIZE:
 	{
-		SetViewport(0, 0,LOWORD(lParam), HIWORD(lParam));
+		g_windowWidth = LOWORD(lParam);
+		g_windowHeight = HIWORD(lParam);
+		SetViewport(0, 0, g_windowWidth, g_windowHeight);
 	}break;
 	default:
 		return DefWindowProc(hWnd, message, wParam, lParam);
@@ -487,7 +482,7 @@ void InitOpenGLContext(Win32Context *context)
 	LoadWGLProcs();
 
 	context->windowHandle = CreateWindowA("window", "3DVania",
-			WS_OVERLAPPEDWINDOW | WS_VISIBLE, 16, 16, 1440, 810, 0, 0, context->hInstance, 0);
+			WS_OVERLAPPEDWINDOW | WS_VISIBLE, 16, 16, g_windowWidth, g_windowHeight, 0, 0, context->hInstance, 0);
 
 
 	context->deviceContext = GetDC(context->windowHandle);
@@ -542,10 +537,23 @@ void Win32Start(HINSTANCE hInstance)
 	Win32Context context;
 	context.hInstance = hInstance;
 
+	// Allocate memory
+	Memory memory;
+	g_memory = &memory;
+	memory.frameMem = VirtualAlloc(0, Memory::frameSize, MEM_COMMIT, PAGE_READWRITE);
+	memory.stackMem = VirtualAlloc(0, Memory::stackSize, MEM_COMMIT, PAGE_READWRITE);
+	memory.transientMem = VirtualAlloc(0, Memory::transientSize, MEM_COMMIT, PAGE_READWRITE);
+	memory.buddyMem = VirtualAlloc(0, Memory::buddySize, MEM_COMMIT, PAGE_READWRITE);
+
+	const u32 maxNumOfBuddyBlocks = Memory::buddySize / Memory::buddySmallest;
+	memory.buddyBookkeep = (u8 *)VirtualAlloc(0, maxNumOfBuddyBlocks, MEM_COMMIT, PAGE_READWRITE);
+	MemoryInit(&memory);
+
 	InitOpenGLContext(&context);
 
 #ifdef USING_IMGUI
 	// Setup imgui
+	ImGui::SetAllocatorFunctions(BuddyAlloc, BuddyFree);
 	ImGuiTextBuffer logBuffer;
 	{
 		IMGUI_CHECKVERSION();
@@ -553,10 +561,8 @@ void Win32Start(HINSTANCE hInstance)
 
 		ImGui_ImplWin32_Init(context.windowHandle);
 
-		const char* glslVersion = "#version 130";
+		const char* glslVersion = "#version 330";
 		ImGui_ImplOpenGL3_Init(glslVersion);
-
-		ImGui::SetAllocatorFunctions(PlatformMalloc, PlatformFree, nullptr);
 
 		g_imguiLogBuffer = &logBuffer;
 	}
@@ -600,16 +606,6 @@ void Win32Start(HINSTANCE hInstance)
 	QueryPerformanceFrequency(&largeInteger);
 	u64 perfFrequency = largeInteger.LowPart;
 
-	// Allocate memory
-	Memory memory;
-	memory.frameMem = VirtualAlloc(0, frameSize, MEM_COMMIT, PAGE_READWRITE);
-	memory.stackMem = VirtualAlloc(0, stackSize, MEM_COMMIT, PAGE_READWRITE);
-	memory.transientMem = VirtualAlloc(0, transientSize, MEM_COMMIT, PAGE_READWRITE);
-	memory.framePtr = memory.frameMem;
-	memory.stackPtr = memory.stackMem;
-	memory.transientPtr = memory.transientMem;
-	g_memory = &memory;
-
 	ResourceBank resourceBank;
 	ArrayInit_Resource(&resourceBank.resources, 256, malloc);
 	ArrayInit_FILETIME(&resourceBank.lastWriteTimes, 256, malloc);
@@ -619,8 +615,6 @@ void Win32Start(HINSTANCE hInstance)
 	PlatformCode platformCode;
 	platformCode.Log = Log;
 	platformCode.PlatformReadEntireFile = PlatformReadEntireFile;
-	platformCode.PlatformMalloc = PlatformMalloc;
-	platformCode.PlatformFree = PlatformFree;
 	platformCode.SetUpDevice = SetUpDevice;
 	platformCode.ClearBuffers = ClearBuffers;
 	platformCode.GetUniform = GetUniform;
@@ -708,16 +702,55 @@ void Win32Start(HINSTANCE hInstance)
 		gameCode.UpdateAndRenderGame(&controller, &memory, &platformCode, deltaTime);
 
 #ifdef USING_IMGUI
-		// In game log
-		ImGui::SetNextWindowPos(ImVec2(7, 496), ImGuiCond_FirstUseEver);
-		ImGui::SetNextWindowSize(ImVec2(1407, 271), ImGuiCond_FirstUseEver);
-		ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
-
-		if (ImGui::Begin("Console", nullptr, 0))
+		if (g_showConsole)
 		{
-			ImGui::TextUnformatted(g_imguiLogBuffer->begin(), g_imguiLogBuffer->end());
+			// In game console
+			ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
+			ImGui::SetNextWindowSize(ImVec2((f32)g_windowWidth, 250), ImGuiCond_Always);
+
+			if (ImGui::Begin("Console", nullptr, ImGuiWindowFlags_NoTitleBar |
+						ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+						ImGuiWindowFlags_NoCollapse))
+			{
+				static bool autoScroll = true;
+				ImGui::Checkbox("Auto-scroll", &autoScroll);
+
+				ImGui::Separator();
+
+				ImGui::BeginChild("ConsoleScrollingRegion", ImVec2(0, 0), false,
+						ImGuiWindowFlags_HorizontalScrollbar);
+				const char *lineStart = g_imguiLogBuffer->begin();
+				for (const char *scan = g_imguiLogBuffer->begin();
+						scan != g_imguiLogBuffer->end();
+						++scan)
+				{
+					if (*scan == '\n')
+					{
+						ImVec4 color;
+						bool hasColor = false;
+						if (strncmp(lineStart, "ERROR", 5) == 0)
+						{
+							color = ImVec4(0.6f, 0.1f, 0.1f, 1.0f);
+							hasColor = true;
+						}
+						else if (strncmp(lineStart, "WARNING", 7) == 0)
+						{
+							color = ImVec4(0.4f, 0.3f, 0.1f, 1.0f);
+							hasColor = true;
+						}
+						if (hasColor) ImGui::PushStyleColor(ImGuiCol_Text, color);
+						ImGui::TextUnformatted(lineStart, scan);
+						if (hasColor) ImGui::PopStyleColor();
+						lineStart = scan + 1;
+					}
+				}
+				if (autoScroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+					ImGui::SetScrollHereY(1.0f);
+
+				ImGui::EndChild();
+			}
+			ImGui::End();
 		}
-		ImGui::End();
 
 		// Rendering
 		ImGui::Render();
@@ -735,6 +768,8 @@ void Win32Start(HINSTANCE hInstance)
 	wglDeleteContext(context.glContext);
 	ReleaseDC(context.windowHandle, context.deviceContext);
 	DestroyWindow(context.windowHandle);
+
+	Win32UnloadGameCode(&gameCode);
 }
 
 int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR cmdLine, int showCmd)

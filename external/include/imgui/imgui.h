@@ -781,7 +781,7 @@ namespace ImGui
     // Memory Allocators
     // - All those functions are not reliant on the current context.
     // - If you reload the contents of imgui.cpp at runtime, you may need to call SetCurrentContext() + SetAllocatorFunctions() again because we use global storage for those.
-    IMGUI_API void          SetAllocatorFunctions(void* (*alloc_func)(size_t sz, void* user_data), void (*free_func)(void* ptr, void* user_data), void* user_data = NULL);
+    IMGUI_API void          SetAllocatorFunctions(void* (*alloc_func)(size_t sz), void (*free_func)(void* ptr));
     IMGUI_API void*         MemAlloc(size_t size);
     IMGUI_API void          MemFree(void* ptr);
 
@@ -1423,10 +1423,39 @@ struct ImVector
     inline void         swap(ImVector<T>& rhs)              { int rhs_size = rhs.Size; rhs.Size = Size; Size = rhs_size; int rhs_cap = rhs.Capacity; rhs.Capacity = Capacity; Capacity = rhs_cap; T* rhs_data = rhs.Data; rhs.Data = Data; Data = rhs_data; }
 
     inline int          _grow_capacity(int sz) const        { int new_capacity = Capacity ? (Capacity + Capacity / 2) : 8; return new_capacity > sz ? new_capacity : sz; }
-    inline void         resize(int new_size)                { if (new_size > Capacity) reserve(_grow_capacity(new_size)); Size = new_size; }
-    inline void         resize(int new_size, const T& v)    { if (new_size > Capacity) reserve(_grow_capacity(new_size)); if (new_size > Size) for (int n = Size; n < new_size; n++) memcpy(&Data[n], &v, sizeof(v)); Size = new_size; }
-    inline void         shrink(int new_size)                { IM_ASSERT(new_size <= Size); Size = new_size; } // Resize a vector to a smaller size, guaranteed not to cause a reallocation
-    inline void         reserve(int new_capacity)           { if (new_capacity <= Capacity) return; T* new_data = (T*)IM_ALLOC((size_t)new_capacity * sizeof(T)); if (Data) { memcpy(new_data, Data, (size_t)Size * sizeof(T)); IM_FREE(Data); } Data = new_data; Capacity = new_capacity; }
+    inline void resize(int new_size)
+	{
+		if (new_size > Capacity)
+			reserve(_grow_capacity(new_size));
+		Size = new_size;
+	}
+    inline void resize(int new_size, const T& v)
+	{
+		if (new_size > Capacity)
+			reserve(_grow_capacity(new_size));
+		if (new_size > Size)
+			for (int n = Size; n < new_size; n++)
+				memcpy(&Data[n], &v, sizeof(v));
+		Size = new_size;
+	}
+    inline void shrink(int new_size)
+	{
+		IM_ASSERT(new_size <= Size);
+		Size = new_size;
+	} // Resize a vector to a smaller size, guaranteed not to cause a reallocation
+    inline void reserve(int new_capacity)
+	{
+		if (new_capacity <= Capacity)
+			return;
+		T* new_data = (T*)IM_ALLOC((size_t)new_capacity * sizeof(T));
+		if (Data)
+		{
+			memcpy(new_data, Data, (size_t)Size * sizeof(T));
+			IM_FREE(Data);
+		}
+		Data = new_data;
+		Capacity = new_capacity;
+	}
 
     // NB: It is illegal to call push_back/push_front/insert with a reference pointing inside the ImVector data itself! e.g. v.push_back(v[10]) is forbidden.
     inline void         push_back(const T& v)               { if (Size == Capacity) reserve(_grow_capacity(Size + 1)); memcpy(&Data[Size], &v, sizeof(v)); Size++; }

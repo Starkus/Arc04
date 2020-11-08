@@ -113,8 +113,10 @@ struct DebugContext
 	DeviceProgram debugDrawProgram, debugCubesProgram;
 	DebugGeometryBuffer debugGeometryBuffer;
 
+	bool wireframeDebugDraws;
 	bool drawAABBs;
 	bool drawSupports;
+	bool verboseCollisionLogging;
 
 	// GJK EPA
 	bool drawGJKPolytope;

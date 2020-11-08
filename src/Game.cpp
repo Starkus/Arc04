@@ -46,7 +46,7 @@ DECLARE_ARRAY(u32);
 GAMEDLL START_GAME(StartGame)
 {
 #ifdef USING_IMGUI
-	ImGui::SetAllocatorFunctions(platformCode->PlatformMalloc, platformCode->PlatformFree, nullptr);
+	ImGui::SetAllocatorFunctions(BuddyAlloc, BuddyFree);
 #endif
 
 	g_memory = memory;
@@ -227,7 +227,7 @@ GAMEDLL START_GAME(StartGame)
 
 void ChangeState(GameState *gameState, PlayerState newState, PlayerAnim newAnim)
 {
-	LOG("Changed state: 0x%X -> 0x%X\n", gameState->player.state, newState);
+	//LOG("Changed state: 0x%X -> 0x%X\n", gameState->player.state, newState);
 	gameState->animationIdx = newAnim;
 	gameState->animationTime = 0;
 	gameState->player.state = newState;
@@ -246,7 +246,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 #ifdef USING_IMGUI
 	ImGui::SetCurrentContext(platformCode->PlatformGetImguiContext());
-	ImGui::SetAllocatorFunctions(platformCode->PlatformMalloc, platformCode->PlatformFree, nullptr);
+	ImGui::SetAllocatorFunctions(BuddyAlloc, BuddyFree);
 
 	ImGui::ShowDemoWindow();
 
@@ -255,7 +255,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 	if (deltaTime < 0 || deltaTime > 1)
 	{
-		LOG("Delta time out of range! %f\n", deltaTime);
+		LOG("WARNING: Delta time out of range! %f\n", deltaTime);
 		deltaTime = 1 / 60.0f;
 	}
 
@@ -375,11 +375,10 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			Entity *entity = &gameState->entities[entityIndex];
 			if (entity != gameState->player.entity)
 			{
-				GJKResult gjkResult = GJKTest(player->entity, entity, platformCode);
+				GJKResult gjkResult = GJKTest(player->entity, entity);
 				if (gjkResult.hit)
 				{
-					v3 depenetration = ComputeDepenetration(gjkResult, player->entity, entity,
-							platformCode);
+					v3 depenetration = ComputeDepenetration(gjkResult, player->entity, entity);
 					// @Hack: ignoring depenetration when it's too big
 					if (V3Length(depenetration) < 2.0f)
 					{
@@ -746,7 +745,8 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		// Debug meshes
 		{
 			DebugGeometryBuffer *dgb = &g_debugContext->debugGeometryBuffer;
-			//platformCode->SetFillMode(RENDER_LINE);
+			if (g_debugContext->wireframeDebugDraws)
+				platformCode->SetFillMode(RENDER_LINE);
 
 			platformCode->UseProgram(g_debugContext->debugDrawProgram);
 			viewUniform = platformCode->GetUniform(g_debugContext->debugDrawProgram, "view");

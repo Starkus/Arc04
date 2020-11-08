@@ -1,13 +1,7 @@
-#if EPA_LOGGING
-#define EPALOG(...) platformCode->Log(__VA_ARGS__)
+#if DEBUG_BUILD && defined(USING_IMGUI)
+#define VERBOSE_LOG(...) if (g_debugContext->verboseCollisionLogging) LOG(__VA_ARGS__)
 #else
-#define EPALOG(...)
-#endif
-
-#if EPA_ERROR_LOGGING
-#define EPAERROR(...) platformCode->Log(__VA_ARGS__)
-#else
-#define EPAERROR(...)
+#define VERBOSE_LOG(...)
 #endif
 
 struct GJKResult
@@ -506,7 +500,7 @@ inline v3 GJKSupport(Entity *vA, Entity *vB, v3 dir)
 	return va - vb;
 }
 
-GJKResult GJKTest(Entity *vA, Entity *vB, PlatformCode *platformCode)
+GJKResult GJKTest(Entity *vA, Entity *vB)
 {
 #if DEBUG_BUILD
 	if (g_debugContext->GJKSteps[0] == nullptr)
@@ -550,7 +544,7 @@ GJKResult GJKTest(Entity *vA, Entity *vB, PlatformCode *platformCode)
 
 		if (iterations >= 30)
 		{
-			EPAERROR("GJK ERROR! Reached iteration limit!\n");
+			LOG("ERROR! GJK: Reached iteration limit!\n");
 			//ASSERT(false);
 #if DEBUG_BUILD
 			g_debugContext->freezeGJKGeom = true;
@@ -696,17 +690,17 @@ GJKResult GJKTest(Entity *vA, Entity *vB, PlatformCode *platformCode)
 				// Assert normals point outside
 				if (V3Dot(d - a, abcNor) > 0)
 				{
-					EPAERROR("EPA ERROR: ABC normal facing inward! (dot=%f)\n",
+					LOG("ERROR: ABC normal facing inward! (dot=%f)\n",
 							V3Dot(d - a, abcNor));
 				}
 				if (V3Dot(c - a, adbNor) > 0)
 				{
-					EPAERROR("EPA ERROR: ADB normal facing inward! (dot=%f)\n",
+					LOG("ERROR: ADB normal facing inward! (dot=%f)\n",
 							V3Dot(d - a, abcNor));
 				}
 				if (V3Dot(b - a, acdNor) > 0)
 				{
-					EPAERROR("EPA ERROR: ACD normal facing inward! (dot=%f)\n",
+					LOG("ERROR: ACD normal facing inward! (dot=%f)\n",
 							V3Dot(d - a, abcNor));
 				}
 
@@ -839,7 +833,7 @@ GJKResult GJKTest(Entity *vA, Entity *vB, PlatformCode *platformCode)
 	return result;
 }
 
-v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB, PlatformCode *platformCode)
+v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB)
 {
 #if DEBUG_BUILD
 	if (g_debugContext->polytopeSteps[0] == nullptr)
@@ -849,7 +843,7 @@ v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB, PlatformCod
 	}
 #endif
 
-	EPALOG("\n\nNew EPA calculation\n");
+	VERBOSE_LOG("\n\nNew EPA calculation\n");
 
 	// By now we should have the tetrahedron from GJK
 	// TODO dynamic array?
@@ -892,7 +886,7 @@ v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB, PlatformCod
 		EPAFace newClosestFeature = {};
 		int validFacesFound = 0;
 		f32 leastDistance = INFINITY;
-		EPALOG("Looking for closest feature\n");
+		VERBOSE_LOG("Looking for closest feature\n");
 		for (int faceIdx = 0; faceIdx < polytopeCount; ++faceIdx)
 		{
 			EPAFace *face = &polytope[faceIdx];
@@ -917,7 +911,7 @@ v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB, PlatformCod
 		if (leastDistance == INFINITY)
 		{
 			//ASSERT(false);
-			EPAERROR("EPA ERROR: Couldn't find closest feature!");
+			LOG("ERROR: EPA: Couldn't find closest feature!");
 			// Collision is probably on the very edge, we don't need depenetration
 			return {};
 		}
@@ -927,21 +921,21 @@ v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB, PlatformCod
 			// the Minkowski difference
 			// TODO do we really need two exit conditions? Something must be wrong with
 			// the other one!
-			EPALOG("Ending because couldn't get any further away from the outer edge");
+			VERBOSE_LOG("Ending because couldn't get any further away from the outer edge");
 			break;
 		}
 		else
 		{
 			closestFeature = newClosestFeature;
 			lastLeastDistance = leastDistance;
-			EPALOG("Picked face with distance %.02f out of %d faces\n", leastDistance,
+			VERBOSE_LOG("Picked face with distance %.02f out of %d faces\n", leastDistance,
 					validFacesFound);
 		}
 
 		// Expand polytope!
 		v3 testDir = V3Cross(closestFeature.c - closestFeature.a, closestFeature.b - closestFeature.a);
 		v3 newPoint = GJKSupport(vB, vA, testDir);
-		EPALOG("Found new point { %.02f, %.02f. %.02f } while looking in direction { %.02f, %.02f. %.02f }\n",
+		VERBOSE_LOG("Found new point { %.02f, %.02f. %.02f } while looking in direction { %.02f, %.02f. %.02f }\n",
 				newPoint.x, newPoint.y, newPoint.z, testDir.x, testDir.y, testDir.z);
 #if DEBUG_BUILD
 		if (!g_debugContext->freezePolytopeGeom && epaStep < DebugContext::epaMaxSteps)
@@ -953,19 +947,19 @@ v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB, PlatformCod
 		const f32 epsilon = 0.000001f;
 		if (V3Dot(testDir, newPoint - closestFeature.a) <= epsilon)
 		{
-			EPALOG("Done! Couldn't find a closer point\n");
+			VERBOSE_LOG("Done! Couldn't find a closer point\n");
 			break;
 		}
 #if DEBUG_BUILD
 		else if (V3Dot(testDir, newPoint - closestFeature.b) <= epsilon)
 		{
-			EPAERROR("EPA ERROR! Redundant check triggered (B)\n");
+			LOG("ERROR! EPA: Redundant check triggered (B)\n");
 			//ASSERT(false);
 			break;
 		}
 		else if (V3Dot(testDir, newPoint - closestFeature.c) <= epsilon)
 		{
-			EPAERROR("EPA ERROR! Redundant check triggered (C)\n");
+			LOG("ERROR! EPA: Redundant check triggered (C)\n");
 			//ASSERT(false);
 			break;
 		}
@@ -1015,11 +1009,11 @@ v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB, PlatformCod
 			polytope[faceIdx] = polytope[--polytopeCount];
 		}
 		int deletedFaces = oldPolytopeCount - polytopeCount;
-		EPALOG("Deleted %d faces which were facing new point\n", deletedFaces);
-		EPALOG("Presumably left a hole with %d edges\n", holeEdgesCount);
+		VERBOSE_LOG("Deleted %d faces which were facing new point\n", deletedFaces);
+		VERBOSE_LOG("Presumably left a hole with %d edges\n", holeEdgesCount);
 		if (deletedFaces > 1 && holeEdgesCount >= deletedFaces * 3)
 		{
-			EPAERROR("EPA ERROR! Multiple holes were made on the polytope!\n");
+			LOG("ERROR! EPA: Multiple holes were made on the polytope!\n");
 #if DEBUG_BUILD
 			if (!g_debugContext->freezePolytopeGeom && epaStep < DebugContext::epaMaxSteps - 1)
 			{
@@ -1039,7 +1033,7 @@ v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB, PlatformCod
 			EPAFace newFace = { holeEdge.a, holeEdge.b, newPoint };
 			polytope[polytopeCount++] = newFace;
 		}
-		EPALOG("Added %d faces to fill the hole. Polytope now has %d faces\n",
+		VERBOSE_LOG("Added %d faces to fill the hole. Polytope now has %d faces\n",
 				polytopeCount - oldPolytopeCount, polytopeCount);
 	}
 
@@ -1062,4 +1056,4 @@ void GetEPAStepGeometry(int step, DebugVertex **buffer, u32 *count)
 }
 #endif
 
-#undef EPALOG
+#undef VERBOSE_LOG

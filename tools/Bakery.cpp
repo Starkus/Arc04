@@ -395,11 +395,11 @@ int main(int argc, char **argv)
 	Memory memory;
 	g_memory = &memory;
 
-	memory.stackMem = malloc(stackSize);
+	memory.stackMem = malloc(Memory::stackSize);
 	memory.stackPtr = memory.stackMem;
-	memory.frameMem = malloc(frameSize);
+	memory.frameMem = malloc(Memory::frameSize);
 	memory.framePtr = memory.frameMem;
-	memory.transientMem = malloc(transientSize);
+	memory.transientMem = malloc(Memory::transientSize);
 	memory.transientPtr = memory.transientMem;
 
 	Array_FileCacheEntry cache;
