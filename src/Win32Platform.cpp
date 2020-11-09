@@ -13,9 +13,7 @@
 #define IMGUI_IMPL_OPENGL_LOADER_CUSTOM
 #include <imgui/imgui_impl_win32.cpp>
 #include <imgui/imgui_impl_opengl3.cpp>
-#include <imgui/imgui.cpp>
-#include <imgui/imgui_draw.cpp>
-#include <imgui/imgui_widgets.cpp>
+#include <imgui/imgui.h>
 #endif
 
 #include "General.h"
@@ -86,7 +84,7 @@ struct Win32Context
 #ifdef USING_IMGUI
 PLATFORM_GET_IMGUI_CONTEXT(PlatformGetImguiContext)
 {
-	return GImGui;
+	return ImGui::GetCurrentContext();
 }
 #endif
 

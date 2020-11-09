@@ -18,6 +18,16 @@ ForEach(.BuildType in .BuildTypes)
 {
 	Using(.BuildType)
 
+	// ImGui
+	ObjectList('ImGuiSource_$BuildTypeName$')
+	{
+		.CompilerOptions = '$ExeCompilerOptions$ -DIMGUI_IMPL_OPENGL_LOADER_CUSTOM'
+		.CompilerInputFiles = {
+			'external/include/imgui/imgui_impl.cpp',
+		}
+		.CompilerOutputPath = '$OutputPath$/$BuildTypeName$'
+	}
+
 	// Win32 Platform
 	ObjectList('Win32PlatformSource_$BuildTypeName$')
 	{
@@ -33,6 +43,7 @@ ForEach(.BuildType in .BuildTypes)
 		.LinkerOutput = '$BinPath$/Win32Platform$BuildTypeSufix$.exe'
 		.Libraries = {
 			'Win32PlatformSource_$BuildTypeName$',
+			'ImGuiSource_$BuildTypeName$',
 		}
 		.PreBuildDependencies = 'Copy_Libs'
 	}
@@ -55,6 +66,7 @@ ForEach(.BuildType in .BuildTypes)
 		.LinkerOutput = '$BinPath$/$GameName$$BuildTypeSufix$.dll'
 		.Libraries = {
 			'GameSource_$BuildTypeName$',
+			'ImGuiSource_$BuildTypeName$',
 		}
 		.PreBuildDependencies = 'Copy_Libs'
 	}

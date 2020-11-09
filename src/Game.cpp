@@ -2,10 +2,10 @@
 #include <memory.h>
 
 #ifdef USING_IMGUI
-#include <imgui/imgui.cpp>
-#include <imgui/imgui_draw.cpp>
-#include <imgui/imgui_widgets.cpp>
-#include <imgui/imgui_demo.cpp>
+#include <imgui/imgui.h>
+#ifdef IMGUI_SHOW_DEMO
+#include <imgui/imgui_demo.cpp> // @Todo: remove
+#endif
 #endif
 
 #include "General.h"
@@ -248,7 +248,9 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 	ImGui::SetCurrentContext(platformCode->PlatformGetImguiContext());
 	ImGui::SetAllocatorFunctions(BuddyAlloc, BuddyFree);
 
+#ifdef IMGUI_SHOW_DEMO
 	ImGui::ShowDemoWindow();
+#endif
 
 	ImguiShowDebugWindow(gameState);
 #endif

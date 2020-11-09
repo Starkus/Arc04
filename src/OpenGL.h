@@ -1,7 +1,4 @@
-//#include <GL/gl.h>
 #include <GLES3/gl32.h>
-//#include <GLES3/glext.h>
-//#include <GLES3/wglext.h>
 
 #if defined(__MINGW32__) && defined(GL_NO_STDCALL) || defined(UNDER_CE)
 #define GLAPIENTRY 
