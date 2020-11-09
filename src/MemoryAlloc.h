@@ -10,7 +10,7 @@ struct Memory
 	u64 buddyMemoryUsage;
 #endif
 
-	static const u64 frameSize = 8 * 1024 * 1024;
+	static const u64 frameSize = 64 * 1024 * 1024;
 	static const u64 stackSize = 8 * 1024 * 1024;
 	static const u64 transientSize = 8 * 1024 * 1024;
 	static const u64 buddySize = 32 * 1024 * 1024;

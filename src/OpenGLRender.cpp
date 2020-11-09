@@ -16,6 +16,13 @@ struct GLDeviceMesh
 static_assert(sizeof(GLDeviceMesh) <= sizeof(DeviceMesh),
 		"Size of GLDeviceMesh greater than handle");
 
+struct GLDeviceTexture
+{
+	GLuint texture;
+};
+static_assert(sizeof(GLDeviceMesh) <= sizeof(DeviceMesh),
+		"Size of GLDeviceMesh greater than handle");
+
 struct GLDeviceShader
 {
 	GLuint shader;
@@ -72,6 +79,12 @@ void UniformMat4(DeviceUniform uniform, u32 count, const f32 *buffer)
 {
 	GLDeviceUniform *glUniform = (GLDeviceUniform *)&uniform;
 	glUniformMatrix4fv(glUniform->location, count, false, buffer);
+}
+
+void UniformInt(DeviceUniform uniform, int n)
+{
+	GLDeviceUniform *glUniform = (GLDeviceUniform *)&uniform;
+	glUniform1i(glUniform->location, n);
 }
 
 void RenderIndexedMesh(DeviceMesh mesh)
@@ -270,6 +283,15 @@ DeviceMesh CreateDeviceIndexedMesh(int attribs)
 	return result;
 }
 
+DeviceTexture CreateDeviceTexture()
+{
+	DeviceTexture result;
+	GLDeviceTexture *glTexture = (GLDeviceTexture *)&result;
+	glGenTextures(1, &glTexture->texture);
+
+	return result;
+}
+
 void SendMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, u32 stride, bool dynamic)
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)mesh;
@@ -297,6 +319,34 @@ void SendIndexedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, u32 st
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, glMesh->indexBuffer);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(u16) * indexCount, indexData,
 			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
+}
+
+void SendTexture(DeviceTexture texture, const void *imageData, u32 width, u32 height, u32 components)
+{
+	GLDeviceTexture *glTexture = (GLDeviceTexture *)&texture;
+	glBindTexture(GL_TEXTURE_2D, glTexture->texture);
+	const GLenum mode = components == 4 ? GL_RGBA : GL_RGB;
+	const GLenum format = components == 4 ? GL_RGBA : GL_RGB;
+	glTexImage2D(GL_TEXTURE_2D, 0, mode, width, height, 0, format, GL_UNSIGNED_BYTE, imageData);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+}
+
+void BindTexture(DeviceTexture texture, int slot)
+{
+	GLDeviceTexture *glTexture = (GLDeviceTexture *)&texture;
+
+	const GLenum glSlots[] =
+	{
+		GL_TEXTURE0,
+		GL_TEXTURE1,
+		GL_TEXTURE2,
+		GL_TEXTURE3
+	};
+
+	glActiveTexture(glSlots[slot]);
+	glBindTexture(GL_TEXTURE_2D, glTexture->texture);
 }
 
 DeviceShader CreateShader(ShaderType shaderType)

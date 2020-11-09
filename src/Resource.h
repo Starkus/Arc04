@@ -4,7 +4,8 @@ enum ResourceType
 	RESOURCETYPE_SKINNEDMESH,
 	RESOURCETYPE_LEVELGEOMETRYGRID,
 	RESOURCETYPE_POINTS,
-	RESOURCETYPE_SHADER
+	RESOURCETYPE_SHADER,
+	RESOURCETYPE_TEXTURE
 };
 
 struct ResourceMesh
@@ -43,6 +44,14 @@ struct ResourceShader
 	DeviceProgram programHandle;
 };
 
+struct ResourceTexture
+{
+	u32 width;
+	u32 height;
+	u32 components;
+	DeviceTexture deviceTexture;
+};
+
 struct Resource
 {
 	ResourceType type;
@@ -54,5 +63,6 @@ struct Resource
 		ResourceGeometryGrid geometryGrid;
 		ResourcePointCloud points;
 		ResourceShader shader;
+		ResourceTexture texture;
 	};
 };

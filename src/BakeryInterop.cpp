@@ -125,3 +125,13 @@ void ReadPoints(const u8 *fileBuffer, ResourcePointCloud *pointCloud)
 	pointCloud->pointData = (v3 *)TransientAlloc(sizeof(v3) * pointCloud->pointCount);
 	memcpy(pointCloud->pointData, fileBuffer + header->pointsBlobOffset, sizeof(v3) * pointCloud->pointCount);
 }
+
+void ReadImage(const u8* fileBuffer, const u8 **imageData, u32 *width, u32 *height, u32 *components)
+{
+	BakeryImageHeader *header = (BakeryImageHeader *)fileBuffer;
+
+	*width = header->width;
+	*height = header->height;
+	*components = header->components;
+	*imageData = fileBuffer + header->dataBlobOffset;
+}

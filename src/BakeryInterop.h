@@ -57,3 +57,11 @@ struct BakeryShaderHeader
 	u64 vertexShaderBlobOffset;
 	u64 fragmentShaderBlobOffset;
 };
+
+struct BakeryImageHeader
+{
+	u32 width;
+	u32 height;
+	u32 components;
+	u64 dataBlobOffset;
+};

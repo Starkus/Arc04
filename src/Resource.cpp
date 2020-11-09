@@ -114,3 +114,24 @@ RESOURCE_LOAD_SHADER(ResourceLoadShader)
 	shader->programHandle = programHandle;
 	return result;
 }
+
+RESOURCE_LOAD_TEXTURE(ResourceLoadTexture)
+{
+	Resource *result = CreateResource(filename);
+	result->type = RESOURCETYPE_TEXTURE;
+
+	u8 *fileBuffer;
+	u64 fileSize;
+	bool success = PlatformReadEntireFile(filename, &fileBuffer, &fileSize, FrameAlloc);
+	ASSERT(success);
+
+	const u8 *imageData;
+	ReadImage(fileBuffer, &imageData, &result->texture.width, &result->texture.height,
+			&result->texture.components);
+
+	result->texture.deviceTexture = CreateDeviceTexture();
+	SendTexture(result->texture.deviceTexture, imageData, result->texture.width,
+			result->texture.height, result->texture.components);
+
+	return result;
+}

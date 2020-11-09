@@ -25,6 +25,9 @@ typedef RENDER_USE_PROGRAM(UseProgram_t);
 #define RENDER_UNIFORM_MAT4(name) void name(DeviceUniform uniform, u32 count, const f32 *buffer)
 typedef RENDER_UNIFORM_MAT4(UniformMat4_t);
 
+#define RENDER_UNIFORM_INT(name) void name(DeviceUniform uniform, int n)
+typedef RENDER_UNIFORM_INT(UniformInt_t);
+
 #define RENDER_RENDER_INDEXED_MESH(name) void name(DeviceMesh mesh)
 typedef RENDER_RENDER_INDEXED_MESH(RenderIndexedMesh_t);
 
@@ -48,6 +51,9 @@ typedef RENDER_CREATE_DEVICE_MESH(CreateDeviceMesh_t);
 #define RENDER_CREATE_DEVICE_INDEXED_MESH(name) DeviceMesh name(int attribs)
 typedef RENDER_CREATE_DEVICE_INDEXED_MESH(CreateDeviceIndexedMesh_t);
 
+#define RENDER_CREATE_DEVICE_TEXTURE(name) DeviceTexture name()
+typedef RENDER_CREATE_DEVICE_TEXTURE(CreateDeviceTexture_t);
+
 #define RENDER_SEND_MESH(name) void name(DeviceMesh *mesh, void *vertexData, u32 vertexCount, \
 		u32 stride, bool dynamic)
 typedef RENDER_SEND_MESH(SendMesh_t);
@@ -55,6 +61,13 @@ typedef RENDER_SEND_MESH(SendMesh_t);
 #define RENDER_SEND_INDEXED_MESH(name) void name(DeviceMesh *mesh, void *vertexData, u32 vertexCount, \
 		u32 stride, void *indexData, u32 indexCount, bool dynamic)
 typedef RENDER_SEND_INDEXED_MESH(SendIndexedMesh_t);
+
+#define RENDER_SEND_TEXTURE(name) void name(DeviceTexture texture, const void *imageData, u32 width, \
+		u32 height, u32 components)
+typedef RENDER_SEND_TEXTURE(SendTexture_t);
+
+#define RENDER_BIND_TEXTURE(name) void name(DeviceTexture texture, int slot)
+typedef RENDER_BIND_TEXTURE(BindTexture_t);
 
 #define RENDER_CREATE_SHADER(name) DeviceShader name(ShaderType shaderType)
 typedef RENDER_CREATE_SHADER(CreateShader_t);
@@ -92,6 +105,9 @@ typedef RESOURCE_LOAD_POINTS(ResourceLoadPoints_t);
 #define RESOURCE_LOAD_SHADER(name) const Resource *name(const char *filename)
 typedef RESOURCE_LOAD_SHADER(ResourceLoadShader_t);
 
+#define RESOURCE_LOAD_TEXTURE(name) const Resource *name(const char *filename)
+typedef RESOURCE_LOAD_TEXTURE(ResourceLoadTexture_t);
+
 #define GET_RESOURCE(name) const Resource *name(const char *filename)
 typedef GET_RESOURCE(GetResource_t);
 
@@ -109,6 +125,7 @@ struct PlatformCode
 	GetUniform_t *GetUniform;
 	UseProgram_t *UseProgram;
 	UniformMat4_t *UniformMat4;
+	UniformInt_t *UniformInt;
 	RenderIndexedMesh_t *RenderIndexedMesh;
 	RenderMesh_t *RenderMesh;
 	RenderMeshInstanced_t *RenderMeshInstanced;
@@ -116,8 +133,11 @@ struct PlatformCode
 	RenderLines_t *RenderLines;
 	CreateDeviceMesh_t *CreateDeviceMesh;
 	CreateDeviceIndexedMesh_t *CreateDeviceIndexedMesh;
+	CreateDeviceTexture_t *CreateDeviceTexture;
 	SendMesh_t *SendMesh;
 	SendIndexedMesh_t *SendIndexedMesh;
+	SendTexture_t *SendTexture;
+	BindTexture_t *BindTexture;
 	CreateShader_t *CreateShader;
 	LoadShader_t *LoadShader;
 	AttachShader_t *AttachShader;
@@ -131,6 +151,7 @@ struct PlatformCode
 	ResourceLoadLevelGeometryGrid_t *ResourceLoadLevelGeometryGrid;
 	ResourceLoadPoints_t *ResourceLoadPoints;
 	ResourceLoadShader_t *ResourceLoadShader;
+	ResourceLoadTexture_t *ResourceLoadTexture;
 	GetResource_t *GetResource;
 };
 

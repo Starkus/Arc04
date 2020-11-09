@@ -19,6 +19,9 @@
 #include "tinyxml/tinyxml2.cpp"
 using namespace tinyxml2;
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb/stb_image.h"
+
 #include "MemoryAlloc.h"
 #include "Maths.h"
 #include "BakeryInterop.h"
@@ -308,6 +311,35 @@ ErrorCode ProcessMetaFile(const char *filename, const char *fullDataDir)
 		PlatformWriteToFile(file, &header, sizeof(header));
 
 		PlatformCloseFile(file);
+	} break;
+	case METATYPE_IMAGE:
+	{
+		char outputName[MAX_PATH];
+		GetOutputFilename(filename, outputName);
+
+		XMLElement *imageEl = rootEl->FirstChildElement("image");
+		const char *imageFile = imageEl->FirstChild()->ToText()->Value();
+
+		char fullname[MAX_PATH];
+		sprintf(fullname, "%s%s", fullDataDir, imageFile);
+
+		int width, height, components;
+		u8 *imageData = stbi_load(fullname, &width, &height, &components, 0);
+		ASSERT(imageData);
+
+		FileHandle file = PlatformOpenForWrite(outputName);
+
+		BakeryImageHeader header;
+		header.width = width;
+		header.height = height;
+		header.components = components;
+		header.dataBlobOffset = sizeof(BakeryImageHeader);
+		PlatformWriteToFile(file, &header, sizeof(BakeryImageHeader));
+
+		PlatformWriteToFile(file, imageData, width * height * components);
+
+		PlatformCloseFile(file);
+		stbi_image_free(imageData);
 	} break;
 	default:
 	{

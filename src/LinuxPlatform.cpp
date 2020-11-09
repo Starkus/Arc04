@@ -157,13 +157,17 @@ int main(int argc, char **argv)
 	platformCode.GetUniform = GetUniform;
 	platformCode.UseProgram = UseProgram;
 	platformCode.UniformMat4 = UniformMat4;
+	platformCode.UniformInt = UniformInt;
 	platformCode.RenderIndexedMesh = RenderIndexedMesh;
 	platformCode.RenderMesh = RenderMesh;
 	platformCode.RenderLines = RenderLines;
 	platformCode.CreateDeviceMesh = CreateDeviceMesh;
 	platformCode.CreateDeviceIndexedMesh = CreateDeviceIndexedMesh;
+	platformCode.CreateDeviceTexture = CreateDeviceTexture;
 	platformCode.SendMesh = SendMesh;
 	platformCode.SendIndexedMesh = SendIndexedMesh;
+	platformCode.SendTexture = SendTexture;
+	platformCode.BindTexture = BindTexture;
 	platformCode.CreateShader = CreateShader;
 	platformCode.LoadShader = LoadShader;
 	platformCode.AttachShader = AttachShader;
@@ -176,6 +180,7 @@ int main(int argc, char **argv)
 	platformCode.ResourceLoadLevelGeometryGrid = ResourceLoadLevelGeometryGrid;
 	platformCode.ResourceLoadPoints = ResourceLoadPoints;
 	platformCode.ResourceLoadShader = ResourceLoadShader;
+	platformCode.ResourceLoadTexture = ResourceLoadTexture;
 	platformCode.GetResource = GetResource;
 
 	StartGame(&memory, &platformCode);

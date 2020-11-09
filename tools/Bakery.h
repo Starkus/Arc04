@@ -37,6 +37,7 @@ enum MetaType
 	METATYPE_TRIANGLE_DATA,
 	METATYPE_POINTS,
 	METATYPE_SHADER,
+	METATYPE_IMAGE,
 	METATYPE_COUNT
 };
 
@@ -46,7 +47,8 @@ const char *MetaTypeNames[] =
 	"SKINNED_MESH",
 	"TRIANGLE_DATA",
 	"POINTS",
-	"SHADER"
+	"SHADER",
+	"IMAGE"
 };
 
 struct SkinnedPosition

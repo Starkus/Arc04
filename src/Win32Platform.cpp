@@ -618,6 +618,7 @@ void Win32Start(HINSTANCE hInstance)
 	platformCode.GetUniform = GetUniform;
 	platformCode.UseProgram = UseProgram;
 	platformCode.UniformMat4 = UniformMat4;
+	platformCode.UniformInt = UniformInt;
 	platformCode.RenderIndexedMesh = RenderIndexedMesh;
 	platformCode.RenderMesh = RenderMesh;
 	platformCode.RenderMeshInstanced = RenderMeshInstanced;
@@ -625,8 +626,11 @@ void Win32Start(HINSTANCE hInstance)
 	platformCode.RenderLines = RenderLines;
 	platformCode.CreateDeviceMesh = CreateDeviceMesh;
 	platformCode.CreateDeviceIndexedMesh = CreateDeviceIndexedMesh;
+	platformCode.CreateDeviceTexture = CreateDeviceTexture;
 	platformCode.SendMesh = SendMesh;
 	platformCode.SendIndexedMesh = SendIndexedMesh;
+	platformCode.SendTexture = SendTexture;
+	platformCode.BindTexture = BindTexture;
 	platformCode.CreateShader = CreateShader;
 	platformCode.LoadShader = LoadShader;
 	platformCode.AttachShader = AttachShader;
@@ -639,6 +643,7 @@ void Win32Start(HINSTANCE hInstance)
 	platformCode.ResourceLoadLevelGeometryGrid = ResourceLoadLevelGeometryGrid;
 	platformCode.ResourceLoadPoints = ResourceLoadPoints;
 	platformCode.ResourceLoadShader = ResourceLoadShader;
+	platformCode.ResourceLoadTexture = ResourceLoadTexture;
 	platformCode.GetResource = GetResource;
 #ifdef USING_IMGUI
 	platformCode.PlatformGetImguiContext = PlatformGetImguiContext;

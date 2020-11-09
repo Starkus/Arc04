@@ -74,6 +74,11 @@ GAMEDLL START_GAME(StartGame)
 		platformCode->ResourceLoadLevelGeometryGrid("data/level.b");
 		platformCode->ResourceLoadPoints("data/anvil_collision.b");
 
+		const Resource *texAlb = platformCode->ResourceLoadTexture("data/sparkus_albedo.b");
+		const Resource *texNor = platformCode->ResourceLoadTexture("data/sparkus_normal.b");
+		platformCode->BindTexture(texAlb->texture.deviceTexture, 0);
+		platformCode->BindTexture(texNor->texture.deviceTexture, 1);
+
 #if DEBUG_BUILD
 		// Debug geometry buffer
 		{
@@ -543,6 +548,11 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		DeviceUniform projUniform = platformCode->GetUniform(gameState->program, "projection");
 		platformCode->UniformMat4(projUniform, 1, proj.m);
 
+		DeviceUniform albedoUniform = platformCode->GetUniform(gameState->program, "texAlbedo");
+		platformCode->UniformInt(albedoUniform, 0);
+		DeviceUniform normalUniform = platformCode->GetUniform(gameState->program, "texNormal");
+		platformCode->UniformInt(normalUniform, 1);
+
 		DeviceUniform modelUniform = platformCode->GetUniform(gameState->program, "model");
 
 		const v4 clearColor = { 0.95f, 0.88f, 0.05f, 1.0f };
@@ -586,6 +596,11 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		modelUniform = platformCode->GetUniform(gameState->skinnedMeshProgram, "model");
 		projUniform = platformCode->GetUniform(gameState->skinnedMeshProgram, "projection");
 		platformCode->UniformMat4(projUniform, 1, proj.m);
+
+		albedoUniform = platformCode->GetUniform(gameState->skinnedMeshProgram, "texAlbedo");
+		platformCode->UniformInt(albedoUniform, 0);
+		normalUniform = platformCode->GetUniform(gameState->skinnedMeshProgram, "texNormal");
+		platformCode->UniformInt(normalUniform, 1);
 
 		DeviceUniform jointsUniform = platformCode->GetUniform(gameState->skinnedMeshProgram, "joints");
 		platformCode->UniformMat4(viewUniform, 1, view.m);
