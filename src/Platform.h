@@ -1,3 +1,5 @@
+#define PLATFORMPROC
+
 struct Button
 {
 	bool endedDown;

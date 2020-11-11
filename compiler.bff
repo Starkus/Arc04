@@ -34,6 +34,7 @@ Compiler('Compiler_x64')
 
 // Paths
 
+.GeneratedIncludePath = 'gen'
 .ExternalIncludePath = 'external\include'
 .ExternalLibrariesPath = 'external\lib'
 
@@ -53,6 +54,7 @@ Compiler('Compiler_x64')
 					+ ' /I"$WindowsSDKIncludePath$\cppwinrt"'
 					+ ' /I"$SourcePath$"'
 					+ ' /I"$ExternalIncludePath$"'
+					+ ' /I"$GeneratedIncludePath$"'
 
 .CommonCompilerOptions = '/c "%1" /Fo"%2" /nologo /FC /GF /Gm- /GR- /Oi /fp:fast /EHa- /EHs- /EHc-'
 					+ .CompilerWarningOptions

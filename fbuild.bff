@@ -14,6 +14,33 @@
 
 .AllTargets = {}
 
+// Preprocessor
+ObjectList('PreprocessorSource')
+{
+	Using(.DebugBuild)
+
+	.CompilerOptions = '$ExeCompilerOptions$'
+	.CompilerInputFiles = '$ToolsSourcePath$/Preprocessor.cpp'
+	.CompilerOutputPath = '$OutputPath$/$BuildTypeName$'
+}
+Executable('Preprocessor')
+{
+	Using(.DebugBuild)
+
+	.LinkerOptions = .ExeLinkerOptions + ' /SUBSYSTEM:CONSOLE'
+	.LinkerOutput = '$BinPath$/Preprocessor.exe'
+	.Libraries = {
+		'PreprocessorSource',
+	}
+	.PreBuildDependencies = 'Copy_Libs'
+}
+Exec('Preprocessor_Run')
+{
+	.ExecExecutable = 'Preprocessor'
+	.ExecInputPath = '$SourcePath$'
+	.ExecOutput = 'gen/PlatformCode.h'
+}
+
 ForEach(.BuildType in .BuildTypes)
 {
 	Using(.BuildType)

@@ -1,5 +1,5 @@
 #/bin/bash
-common_compiler="-Iexternal/include -lm -W -Wno-unused-value"
+common_compiler="-Igen -Iexternal/include -lm -W -Wno-unused-value"
 debug_options="-O0 -g -DDEBUG_BUILD"
 if [ -n "$1" ] && [ $1 == '-r' ]
 then

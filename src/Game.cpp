@@ -20,7 +20,7 @@
 #include "Game.h"
 
 Memory *g_memory;
-Log_t *g_log;
+void (*g_log)(const char *, ...);
 #if DEBUG_BUILD
 DebugContext *g_debugContext;
 #endif
@@ -43,7 +43,7 @@ DECLARE_ARRAY(u32);
 #define GAMEDLL NOMANGLE __attribute__((visibility("default")))
 #endif
 
-GAMEDLL START_GAME(StartGame)
+GAMEDLL void StartGame(Memory *memory, PlatformCode *platformCode)
 {
 #ifdef USING_IMGUI
 	ImGui::SetAllocatorFunctions(BuddyAlloc, BuddyFree);
@@ -238,7 +238,8 @@ void ChangeState(GameState *gameState, PlayerState newState, PlayerAnim newAnim)
 	gameState->player.state = newState;
 }
 
-GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
+GAMEDLL void UpdateAndRenderGame(Controller *controller, Memory *memory,
+		PlatformCode *platformCode, f32 deltaTime)
 {
 	g_memory = memory;
 	g_log = platformCode->Log;

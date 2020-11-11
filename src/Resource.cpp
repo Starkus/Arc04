@@ -1,4 +1,4 @@
-RESOURCE_LOAD_MESH(ResourceLoadMesh)
+PLATFORMPROC const Resource *ResourceLoadMesh(const char *filename)
 {
 	Resource *result = CreateResource(filename);
 	result->type = RESOURCETYPE_MESH;
@@ -22,7 +22,7 @@ RESOURCE_LOAD_MESH(ResourceLoadMesh)
 	return result;
 }
 
-RESOURCE_LOAD_SKINNED_MESH(ResourceLoadSkinnedMesh)
+PLATFORMPROC const Resource *ResourceLoadSkinnedMesh(const char *filename)
 {
 	Resource *result = CreateResource(filename);
 	result->type = RESOURCETYPE_SKINNEDMESH;
@@ -50,7 +50,7 @@ RESOURCE_LOAD_SKINNED_MESH(ResourceLoadSkinnedMesh)
 	return result;
 }
 
-RESOURCE_LOAD_LEVEL_GEOMETRY_GRID(ResourceLoadLevelGeometryGrid)
+PLATFORMPROC const Resource *ResourceLoadLevelGeometryGrid(const char *filename)
 {
 	Resource *result = CreateResource(filename);
 	result->type = RESOURCETYPE_LEVELGEOMETRYGRID;
@@ -67,7 +67,7 @@ RESOURCE_LOAD_LEVEL_GEOMETRY_GRID(ResourceLoadLevelGeometryGrid)
 	return result;
 }
 
-RESOURCE_LOAD_POINTS(ResourceLoadPoints)
+PLATFORMPROC const Resource *ResourceLoadPoints(const char *filename)
 {
 	Resource *result = CreateResource(filename);
 	result->type = RESOURCETYPE_POINTS;
@@ -84,7 +84,7 @@ RESOURCE_LOAD_POINTS(ResourceLoadPoints)
 	return result;
 }
 
-RESOURCE_LOAD_SHADER(ResourceLoadShader)
+PLATFORMPROC const Resource *ResourceLoadShader(const char *filename)
 {
 	Resource *result = CreateResource(filename);
 	result->type = RESOURCETYPE_SHADER;
@@ -115,7 +115,7 @@ RESOURCE_LOAD_SHADER(ResourceLoadShader)
 	return result;
 }
 
-RESOURCE_LOAD_TEXTURE(ResourceLoadTexture)
+PLATFORMPROC const Resource *ResourceLoadTexture(const char *filename)
 {
 	Resource *result = CreateResource(filename);
 	result->type = RESOURCETYPE_TEXTURE;

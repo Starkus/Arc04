@@ -44,7 +44,7 @@ struct GLDeviceUniform
 static_assert(sizeof(GLDeviceUniform) <= sizeof(DeviceUniform),
 		"Size of GLDeviceUniform greater than handle");
 
-void SetUpDevice()
+PLATFORMPROC void SetUpDevice()
 {
 	//glEnable(GL_CULL_FACE);
 	glFrontFace(GL_CW);
@@ -52,13 +52,13 @@ void SetUpDevice()
 	glEnable(GL_DEPTH_TEST);
 }
 
-void ClearBuffers(v4 clearColor)
+PLATFORMPROC void ClearBuffers(v4 clearColor)
 {
 	glClearColor(clearColor.x, clearColor.y, clearColor.z, clearColor.w);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-DeviceUniform GetUniform(DeviceProgram program, const char *name)
+PLATFORMPROC DeviceUniform GetUniform(DeviceProgram program, const char *name)
 {
 	GLDeviceProgram *glProgram = (GLDeviceProgram *)&program;
 
@@ -69,39 +69,39 @@ DeviceUniform GetUniform(DeviceProgram program, const char *name)
 	return result;
 }
 
-void UseProgram(DeviceProgram program)
+PLATFORMPROC void UseProgram(DeviceProgram program)
 {
 	GLDeviceProgram *glProgram = (GLDeviceProgram *)&program;
 	glUseProgram(glProgram->program);
 }
 
-void UniformMat4(DeviceUniform uniform, u32 count, const f32 *buffer)
+PLATFORMPROC void UniformMat4(DeviceUniform uniform, u32 count, const f32 *buffer)
 {
 	GLDeviceUniform *glUniform = (GLDeviceUniform *)&uniform;
 	glUniformMatrix4fv(glUniform->location, count, false, buffer);
 }
 
-void UniformInt(DeviceUniform uniform, int n)
+PLATFORMPROC void UniformInt(DeviceUniform uniform, int n)
 {
 	GLDeviceUniform *glUniform = (GLDeviceUniform *)&uniform;
 	glUniform1i(glUniform->location, n);
 }
 
-void RenderIndexedMesh(DeviceMesh mesh)
+PLATFORMPROC void RenderIndexedMesh(DeviceMesh mesh)
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)&mesh;
 	glBindVertexArray(glMesh->vao);
 	glDrawElements(GL_TRIANGLES, glMesh->indexCount, GL_UNSIGNED_SHORT, NULL);
 }
 
-void RenderMesh(DeviceMesh mesh)
+PLATFORMPROC void RenderMesh(DeviceMesh mesh)
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)&mesh;
 	glBindVertexArray(glMesh->vao);
 	glDrawArrays(GL_TRIANGLES, 0, glMesh->vertexCount);
 }
 
-void RenderLines(DeviceMesh mesh)
+PLATFORMPROC void RenderLines(DeviceMesh mesh)
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)&mesh;
 	glBindVertexArray(glMesh->vao);
@@ -201,7 +201,7 @@ int GLEnableAttribs(u32 attribs, int first = 0)
 	return attribIdx;
 }
 
-void RenderMeshInstanced(DeviceMesh mesh, DeviceMesh positions, u32 meshAttribs,
+PLATFORMPROC void RenderMeshInstanced(DeviceMesh mesh, DeviceMesh positions, u32 meshAttribs,
 		u32 instAttribs)
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)&mesh;
@@ -226,7 +226,7 @@ void RenderMeshInstanced(DeviceMesh mesh, DeviceMesh positions, u32 meshAttribs,
 	glDrawArraysInstanced(GL_TRIANGLES, 0, glMesh->vertexCount, glPositions->vertexCount);
 }
 
-void RenderIndexedMeshInstanced(DeviceMesh mesh, DeviceMesh positions, u32 meshAttribs,
+PLATFORMPROC void RenderIndexedMeshInstanced(DeviceMesh mesh, DeviceMesh positions, u32 meshAttribs,
 		u32 instAttribs)
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)&mesh;
@@ -252,7 +252,7 @@ void RenderIndexedMeshInstanced(DeviceMesh mesh, DeviceMesh positions, u32 meshA
 	glDrawElementsInstanced(GL_TRIANGLES, glMesh->indexCount, GL_UNSIGNED_SHORT, NULL, glPositions->vertexCount);
 }
 
-DeviceMesh CreateDeviceMesh(int attribs)
+PLATFORMPROC DeviceMesh CreateDeviceMesh(int attribs)
 {
 	DeviceMesh result;
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)&result;
@@ -267,7 +267,7 @@ DeviceMesh CreateDeviceMesh(int attribs)
 	return result;
 }
 
-DeviceMesh CreateDeviceIndexedMesh(int attribs)
+PLATFORMPROC DeviceMesh CreateDeviceIndexedMesh(int attribs)
 {
 	DeviceMesh result;
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)&result;
@@ -283,7 +283,7 @@ DeviceMesh CreateDeviceIndexedMesh(int attribs)
 	return result;
 }
 
-DeviceTexture CreateDeviceTexture()
+PLATFORMPROC DeviceTexture CreateDeviceTexture()
 {
 	DeviceTexture result;
 	GLDeviceTexture *glTexture = (GLDeviceTexture *)&result;
@@ -292,7 +292,7 @@ DeviceTexture CreateDeviceTexture()
 	return result;
 }
 
-void SendMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, u32 stride, bool dynamic)
+PLATFORMPROC void SendMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, u32 stride, bool dynamic)
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)mesh;
 
@@ -304,7 +304,7 @@ void SendMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, u32 stride, b
 			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
 }
 
-void SendIndexedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, u32 stride,
+PLATFORMPROC void SendIndexedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, u32 stride,
 		void *indexData, u32 indexCount, bool dynamic)
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)mesh;
@@ -321,7 +321,7 @@ void SendIndexedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, u32 st
 			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
 }
 
-void SendTexture(DeviceTexture texture, const void *imageData, u32 width, u32 height, u32 components)
+PLATFORMPROC void SendTexture(DeviceTexture texture, const void *imageData, u32 width, u32 height, u32 components)
 {
 	GLDeviceTexture *glTexture = (GLDeviceTexture *)&texture;
 	glBindTexture(GL_TEXTURE_2D, glTexture->texture);
@@ -333,7 +333,7 @@ void SendTexture(DeviceTexture texture, const void *imageData, u32 width, u32 he
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 }
 
-void BindTexture(DeviceTexture texture, int slot)
+PLATFORMPROC void BindTexture(DeviceTexture texture, int slot)
 {
 	GLDeviceTexture *glTexture = (GLDeviceTexture *)&texture;
 
@@ -349,7 +349,7 @@ void BindTexture(DeviceTexture texture, int slot)
 	glBindTexture(GL_TEXTURE_2D, glTexture->texture);
 }
 
-DeviceShader CreateShader(ShaderType shaderType)
+PLATFORMPROC DeviceShader CreateShader(ShaderType shaderType)
 {
 	DeviceShader result;
 	GLDeviceShader *glShader = (GLDeviceShader *)&result;
@@ -366,7 +366,7 @@ DeviceShader CreateShader(ShaderType shaderType)
 	return result;
 }
 
-bool LoadShader(DeviceShader *shader, const GLchar *shaderSource)
+PLATFORMPROC bool LoadShader(DeviceShader *shader, const char *shaderSource)
 {
 	GLDeviceShader *glShader = (GLDeviceShader *)shader;
 
@@ -392,14 +392,14 @@ bool LoadShader(DeviceShader *shader, const GLchar *shaderSource)
 	return true;
 }
 
-void AttachShader(DeviceProgram program, DeviceShader shader)
+PLATFORMPROC void AttachShader(DeviceProgram program, DeviceShader shader)
 {
 	GLDeviceProgram *glProgram = (GLDeviceProgram *)&program;
 	GLDeviceShader *glShader = (GLDeviceShader *)&shader;
 	glAttachShader(glProgram->program, glShader->shader);
 }
 
-DeviceProgram CreateDeviceProgram()
+PLATFORMPROC DeviceProgram CreateDeviceProgram()
 {
 	DeviceProgram result;
 	GLDeviceProgram *glProgram = (GLDeviceProgram *)&result;
@@ -414,7 +414,7 @@ DeviceProgram CreateDeviceProgram()
 	return result;
 }
 
-bool LinkDeviceProgram(DeviceProgram program)
+PLATFORMPROC bool LinkDeviceProgram(DeviceProgram program)
 {
 	GLDeviceProgram *glProgram = (GLDeviceProgram *)&program;
 
@@ -452,7 +452,7 @@ void WipeDeviceProgram(DeviceProgram program)
 	}
 }
 
-void SetFillMode(RenderFillMode mode)
+PLATFORMPROC void SetFillMode(RenderFillMode mode)
 {
 	switch(mode)
 	{

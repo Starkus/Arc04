@@ -21,7 +21,7 @@ static_assert(sizeof(Win32SearchHandle) <= sizeof(PlatformSearchHandle),
 
 typedef HANDLE FileHandle;
 
-void Log(const char *format, ...)
+PLATFORMPROC void Log(const char *format, ...)
 {
 	char buffer[2048];
 	va_list args;
@@ -133,7 +133,7 @@ bool PlatformFileExists(const char *filename)
 	return Win32FileExists(filename);
 }
 
-bool PlatformReadEntireFile(const char *filename, u8 **fileBuffer, u64 *fileSize,
+PLATFORMPROC bool PlatformReadEntireFile(const char *filename, u8 **fileBuffer, u64 *fileSize,
 		void *(*allocFunc)(u64))
 {
 	char fullname[MAX_PATH];
@@ -183,6 +183,17 @@ u64 PlatformWriteToFile(FileHandle file, const void *buffer, u64 size)
 	ASSERT(writtenBytes == size);
 
 	return (u64)writtenBytes;
+}
+
+u64 PlatformPrintToFile(FileHandle file, const char *format, ...)
+{
+	va_list args;
+	va_start(args, format);
+	char buffer[2048];
+	vsprintf(buffer, format, args);
+	va_end(args);
+
+	return PlatformWriteToFile(file, buffer, strlen(buffer));
 }
 
 u64 PlatformFileSeek(FileHandle file, i64 shift, int mode)

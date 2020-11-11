@@ -27,6 +27,15 @@
 #include "PlatformCode.h"
 #include "Game.h"
 
+#define START_GAME(name) void name(Memory *memory, PlatformCode *platformCode)
+typedef START_GAME(StartGame_t);
+START_GAME(StartGameStub) { (void) memory, platformCode; }
+
+#define UPDATE_AND_RENDER_GAME(name) void name(Controller *controller, Memory *memory, \
+		PlatformCode *platformCode, f32 deltaTime)
+typedef UPDATE_AND_RENDER_GAME(UpdateAndRenderGame_t);
+UPDATE_AND_RENDER_GAME(UpdateAndRenderGameStub) { (void) controller, memory, platformCode, deltaTime; }
+
 DECLARE_ARRAY(Resource);
 DECLARE_ARRAY(FILETIME);
 
@@ -82,7 +91,7 @@ struct Win32Context
 };
 
 #ifdef USING_IMGUI
-PLATFORM_GET_IMGUI_CONTEXT(PlatformGetImguiContext)
+PLATFORMPROC ImGuiContext *PlatformGetImguiContext()
 {
 	return ImGui::GetCurrentContext();
 }
@@ -341,7 +350,7 @@ Resource *CreateResource(const char *filename)
 
 #include "Resource.cpp"
 
-GET_RESOURCE(GetResource)
+PLATFORMPROC const Resource *GetResource(const char *filename)
 {
 	for (u32 i = 0; i < g_resourceBank->resources.size; ++i)
 	{
@@ -353,6 +362,8 @@ GET_RESOURCE(GetResource)
 	}
 	return nullptr;
 }
+
+#include "PlatformCode.cpp" // @Todo: move this up once resource load is not done on platform code
 
 bool ReloadResource(Resource *resource)
 {
@@ -611,6 +622,8 @@ void Win32Start(HINSTANCE hInstance)
 
 	// Pass functions
 	PlatformCode platformCode;
+	FillPlatformCodeStruct(&platformCode);
+#if 0
 	platformCode.Log = Log;
 	platformCode.PlatformReadEntireFile = PlatformReadEntireFile;
 	platformCode.SetUpDevice = SetUpDevice;
@@ -636,7 +649,6 @@ void Win32Start(HINSTANCE hInstance)
 	platformCode.AttachShader = AttachShader;
 	platformCode.CreateDeviceProgram = CreateDeviceProgram;
 	platformCode.LinkDeviceProgram = LinkDeviceProgram;
-	platformCode.SetViewport = SetViewport;
 	platformCode.SetFillMode = SetFillMode;
 	platformCode.ResourceLoadMesh = ResourceLoadMesh;
 	platformCode.ResourceLoadSkinnedMesh = ResourceLoadSkinnedMesh;
@@ -647,6 +659,7 @@ void Win32Start(HINSTANCE hInstance)
 	platformCode.GetResource = GetResource;
 #ifdef USING_IMGUI
 	platformCode.PlatformGetImguiContext = PlatformGetImguiContext;
+#endif
 #endif
 
 	gameCode.StartGame(&memory, &platformCode);
