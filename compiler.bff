@@ -122,11 +122,3 @@ Compiler('Compiler_x64')
 ]
 
 .BuildTypes = { .DebugBuild, .TestBuild, .ReleaseBuild }
-
-CopyDir('Copy_Libs')
-{
-	.SourcePaths = .ExternalLibrariesPath
-	.Dest = .BinPath
-	.SourcePathsPattern = '*.dll'
-	.SourcePathsRecurse = false
-}

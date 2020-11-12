@@ -288,15 +288,13 @@ void PrintType(char *buffer, const Type *type)
 			stars);
 }
 
-DynamicArray_Token ParseFile(const char *filename)
+void ParseFile(const char *filename, DynamicArray_Token &tokens)
 {
 	char *fileBuffer;
 	u64 fileSize;
 	PlatformReadEntireFile(filename, (u8 **)&fileBuffer, &fileSize, MallocPlus1);
 	fileBuffer[fileSize] = 0;
 
-	DynamicArray_Token tokens;
-	DynamicArrayInit_Token(&tokens, 4096, malloc);
 	Tokenizer tokenizer = {};
 	tokenizer.cursor = fileBuffer;
 	while (true)
@@ -305,10 +303,39 @@ DynamicArray_Token ParseFile(const char *filename)
 		newToken.file = filename;
 		if (newToken.type == TOKEN_END_OF_FILE)
 			break;
-		tokens[DynamicArrayAdd_Token(&tokens, realloc)] = newToken;
-	}
+		else if (newToken.type == TOKEN_PREPROCESSOR_DIRECTIVE)
+		{
+			if (strncmp(newToken.begin, "#include", 8) == 0)
+			{
+				char *fileBegin = 0;
+				char *fileEnd = 0;
+				for (char *scan = newToken.begin; scan < newToken.begin + newToken.size; ++scan)
+				{
+					if (*scan == '"')
+					{
+						if (!fileBegin)
+						{
+							fileBegin = scan + 1;
+						}
+						else
+						{
+							fileEnd = scan;
+							break;
+						}
+					}
+				}
 
-	return tokens;
+				char fullname[MAX_PATH];
+				sprintf(fullname, "src/%.*s", (int)(fileEnd - fileBegin), fileBegin);
+				if (PlatformFileExists(fullname))
+				{
+					ParseFile(fullname, tokens);
+				}
+			}
+		}
+		else
+			tokens[DynamicArrayAdd_Token(&tokens, realloc)] = newToken;
+	}
 }
 
 void PrintStructs(DynamicArray_Token &tokens)
@@ -330,7 +357,190 @@ void PrintStructs(DynamicArray_Token &tokens)
 	}
 }
 
-int ExtractProcedures(DynamicArray_Token &tokens, DynamicArray_Procedure &procedures)
+int ReadProcedure(Token *curToken, Procedure *newProcedure)
+{
+	*newProcedure = {};
+
+	// Modifier?
+	if (strncmp(curToken->begin, "const", curToken->size) == 0)
+	{
+		newProcedure->returnType.isConst = true;
+
+		++curToken;
+		if (curToken->type != TOKEN_IDENTIFIER)
+		{
+			LOG("ERROR: Parsing platform procedure: expected parameter type! %s:%d\n",
+					curToken->file, curToken->line);
+			return 1;
+		}
+	}
+
+	if (curToken->type != TOKEN_IDENTIFIER)
+	{
+		LOG("ERROR: Parsing platform procedure: expected return type! %s:%d\n",
+				curToken->file, curToken->line);
+		return 1;
+	}
+	newProcedure->returnType.name = *curToken;
+
+	// Pointer?
+	++curToken;
+	while (curToken->type == '*')
+	{
+		++newProcedure->returnType.ptrLevels;
+		++curToken;
+	}
+
+	if (curToken->type != TOKEN_IDENTIFIER)
+	{
+		LOG("ERROR: Parsing platform procedure: expected procedure name! %s:%d\n",
+				curToken->file, curToken->line);
+		return 1;
+	}
+	newProcedure->name = *curToken;
+
+	++curToken;
+	if (curToken->type != '(')
+	{
+		LOG("ERROR: Parsing platform procedure: expected '('! %s:%d\n",
+				curToken->file, curToken->line);
+		return 1;
+	}
+
+	// Get params
+	for (;;)
+	{
+		Param newParam = {};
+
+		++curToken;
+		if (curToken->type == ')')
+			break;
+		else if (curToken->type == ',' && newProcedure->paramCount)
+			continue;
+
+		if (curToken->type == '.')
+		{
+			for (int i = 0; i < 2; ++i)
+			{
+				++curToken;
+				if (curToken->type != '.')
+				{
+					LOG("ERROR: Parsing platform procedure: syntax error! %s:%d\n",
+							curToken->file, curToken->line);
+					return 1;
+				}
+			}
+			newParam.isVarArgs = true;
+
+			ASSERT(newProcedure->paramCount < 16);
+			newProcedure->params[newProcedure->paramCount++] = newParam;
+
+			break;
+		}
+
+		if (curToken->type != TOKEN_IDENTIFIER)
+		{
+			LOG("ERROR: Parsing platform procedure: expected parameter type! %s:%d\n",
+					curToken->file, curToken->line);
+			return 1;
+		}
+
+		// Modifier?
+		if (strncmp(curToken->begin, "const", curToken->size) == 0)
+		{
+			newParam.type.isConst = true;
+
+			++curToken;
+			if (curToken->type != TOKEN_IDENTIFIER)
+			{
+				LOG("ERROR: Parsing platform procedure: expected parameter type! %s:%d\n",
+					curToken->file, curToken->line);
+				return 1;
+			}
+		}
+		newParam.type.name = *curToken;
+
+		// Pointer?
+		++curToken;
+		while (curToken->type == '*')
+		{
+			++newParam.type.ptrLevels;
+			++curToken;
+		}
+
+		// Parenthesis?
+		bool openedParenthesis = false;
+		if (curToken->type == '(')
+		{
+			openedParenthesis = true;
+			++curToken;
+		}
+
+		if (curToken->type == '*')
+		{
+			newParam.type.isFunction = true;
+			++curToken;
+		}
+
+		// Name
+		if (curToken->type != TOKEN_IDENTIFIER)
+		{
+			LOG("ERROR: Parsing platform procedure: expected parameter name! %s:%d\n",
+					curToken->file, curToken->line);
+			return 1;
+		}
+		newParam.name = *curToken;
+
+		if (openedParenthesis)
+		{
+			++curToken;
+			ASSERT(curToken->type == ')');
+		}
+
+		if (curToken->type == ')')
+		{
+			++curToken;
+		}
+
+		// Function pointer
+		if (newParam.type.isFunction)
+		{
+			if (curToken->type != '(')
+			{
+				LOG("ERROR: Parsing platform procedure: expected function pointer parameters! %s:%d\n",
+						curToken->file, curToken->line);
+			}
+			++curToken;
+
+			newParam.type.paramsBegin = curToken->begin;
+
+			while (curToken->type != ')')
+			{
+				if (curToken->type == TOKEN_IDENTIFIER)
+				{
+					newParam.type.paramsSize += curToken->size;
+				}
+				else if (curToken->type >= TOKEN_ASCII_BEGIN &&
+						curToken->type < TOKEN_ASCII_END)
+				{
+					++newParam.type.paramsSize;
+				}
+				else
+				{
+					ASSERT(false);
+				}
+				++curToken;
+			}
+		}
+
+		ASSERT(newProcedure->paramCount < 16);
+		newProcedure->params[newProcedure->paramCount++] = newParam;
+	}
+
+	return 0;
+}
+
+int ExtractPlatformProcedures(DynamicArray_Token &tokens, DynamicArray_Procedure &procedures)
 {
 	for (u32 tokenIdx = 0; tokenIdx < tokens.size; ++tokenIdx)
 	{
@@ -339,185 +549,11 @@ int ExtractProcedures(DynamicArray_Token &tokens, DynamicArray_Procedure &proced
 		{
 			if (strncmp(token->begin, "PLATFORMPROC", token->size) == 0)
 			{
-				Procedure newProcedure = {};
-
 				Token *curToken = &tokens[++tokenIdx];
-				// Modifier?
-				if (strncmp(curToken->begin, "const", curToken->size) == 0)
-				{
-					newProcedure.returnType.isConst = true;
-
-					curToken = &tokens[++tokenIdx];
-					if (curToken->type != TOKEN_IDENTIFIER)
-					{
-						LOG("ERROR: Parsing platform procedure: expected parameter type! %s:%d\n",
-								token->file, token->line);
-						return 1;
-					}
-				}
-
-				if (curToken->type != TOKEN_IDENTIFIER)
-				{
-					LOG("ERROR: Parsing platform procedure: expected return type! %s:%d\n",
-							token->file, token->line);
-					return 1;
-				}
-				newProcedure.returnType.name = *curToken;
-
-				// Pointer?
-				curToken = &tokens[++tokenIdx];
-				while (curToken->type == '*')
-				{
-					++newProcedure.returnType.ptrLevels;
-					curToken = &tokens[++tokenIdx];
-				}
-
-				if (curToken->type != TOKEN_IDENTIFIER)
-				{
-					LOG("ERROR: Parsing platform procedure: expected procedure name! %s:%d\n",
-							token->file, token->line);
-					return 1;
-				}
-				newProcedure.name = *curToken;
-
-				curToken = &tokens[++tokenIdx];
-				if (curToken->type != '(')
-				{
-					LOG("ERROR: Parsing platform procedure: expected '('! %s:%d\n",
-							token->file, token->line);
-					return 1;
-				}
-
-				// Get params
-				for (;;)
-				{
-					Param newParam = {};
-
-					curToken = &tokens[++tokenIdx];
-					if (curToken->type == ')')
-						break;
-					else if (curToken->type == ',' && newProcedure.paramCount)
-						continue;
-
-					if (curToken->type == '.')
-					{
-						for (int i = 0; i < 2; ++i)
-						{
-							curToken = &tokens[++tokenIdx];
-							if (curToken->type != '.')
-							{
-								LOG("ERROR: Parsing platform procedure: syntax error! %s:%d\n",
-										token->file, token->line);
-								return 1;
-							}
-						}
-						newParam.isVarArgs = true;
-
-						ASSERT(newProcedure.paramCount < 16);
-						newProcedure.params[newProcedure.paramCount++] = newParam;
-
-						break;
-					}
-
-					if (curToken->type != TOKEN_IDENTIFIER)
-					{
-						LOG("ERROR: Parsing platform procedure: expected parameter type! %s:%d\n",
-								token->file, token->line);
-						return 1;
-					}
-
-					// Modifier?
-					if (strncmp(curToken->begin, "const", curToken->size) == 0)
-					{
-						newParam.type.isConst = true;
-
-						curToken = &tokens[++tokenIdx];
-						if (curToken->type != TOKEN_IDENTIFIER)
-						{
-							LOG("ERROR: Parsing platform procedure: expected parameter type! %s:%d\n",
-								token->file, token->line);
-							return 1;
-						}
-					}
-					newParam.type.name = *curToken;
-
-					// Pointer?
-					curToken = &tokens[++tokenIdx];
-					while (curToken->type == '*')
-					{
-						++newParam.type.ptrLevels;
-						curToken = &tokens[++tokenIdx];
-					}
-
-					// Parenthesis?
-					bool openedParenthesis = false;
-					if (curToken->type == '(')
-					{
-						openedParenthesis = true;
-						curToken = &tokens[++tokenIdx];
-					}
-
-					if (curToken->type == '*')
-					{
-						newParam.type.isFunction = true;
-						curToken = &tokens[++tokenIdx];
-					}
-
-					// Name
-					if (curToken->type != TOKEN_IDENTIFIER)
-					{
-						LOG("ERROR: Parsing platform procedure: expected parameter name! %s:%d\n",
-								token->file, token->line);
-						return 1;
-					}
-					newParam.name = *curToken;
-
-					if (openedParenthesis)
-					{
-						curToken = &tokens[++tokenIdx];
-						ASSERT(curToken->type == ')');
-					}
-
-					if (curToken->type == ')')
-					{
-						curToken = &tokens[++tokenIdx];
-					}
-
-					// Function pointer
-					if (newParam.type.isFunction)
-					{
-						if (curToken->type != '(')
-						{
-							LOG("ERROR: Parsing platform procedure: expected function pointer parameters! %s:%d\n",
-									token->file, token->line);
-						}
-						curToken = &tokens[++tokenIdx];
-
-						newParam.type.paramsBegin = curToken->begin;
-
-						while (curToken->type != ')')
-						{
-							if (curToken->type == TOKEN_IDENTIFIER)
-							{
-								newParam.type.paramsSize += curToken->size;
-							}
-							else if (curToken->type >= TOKEN_ASCII_BEGIN &&
-									curToken->type < TOKEN_ASCII_END)
-							{
-								++newParam.type.paramsSize;
-							}
-							else
-							{
-								ASSERT(false);
-							}
-							curToken = &tokens[++tokenIdx];
-						}
-					}
-
-					ASSERT(newProcedure.paramCount < 16);
-					newProcedure.params[newProcedure.paramCount++] = newParam;
-				}
-
+				Procedure newProcedure;
+				int error = ReadProcedure(curToken, &newProcedure);
+				if (error)
+					return error;
 				procedures[DynamicArrayAdd_Procedure(&procedures, realloc)] = newProcedure;
 			}
 		}
@@ -595,38 +631,26 @@ void WritePlatformCodeFiles(DynamicArray_Procedure &procedures)
 
 int main(int argc, char **argv)
 {
-	(void)argc, argv;
+	if (argc == 1)
+		return 1;
 
 	AttachConsole(ATTACH_PARENT_PROCESS);
 	g_hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
 
+	LOG("%s - %s\n", argv[0], argv[1]);
 
 	DynamicArray_Procedure procedures;
 	DynamicArrayInit_Procedure(&procedures, 64, malloc);
 
-	const char *folder = "src/";
+	const char *inputfile = argv[1];
 
-	PlatformFindData findData;
-	PlatformSearchHandle searchHandle;
-	bool success = PlatformFindFirstFile(&searchHandle, folder, &findData);
-	if (!success)
-		return 0;
+	DynamicArray_Token tokens;
+	DynamicArrayInit_Token(&tokens, 4096, malloc);
+	ParseFile(inputfile, tokens);
 
-	do
-	{
-		const char *curFilename = PlatformGetCurrentFilename(&findData);
-		if (strcmp(curFilename, ".") == 0 || strcmp(curFilename, "..") == 0)
-			continue;
-
-		char fullname[MAX_PATH];
-		sprintf(fullname, "%s%s", folder, curFilename);
-
-		DynamicArray_Token tokens = ParseFile(fullname);
-		int error = ExtractProcedures(tokens, procedures);
-		if (error)
-			return error;
-	} while (PlatformFindNextFile(searchHandle, &findData));
-	PlatformFindClose(searchHandle);
+	int error = ExtractPlatformProcedures(tokens, procedures);
+	if (error)
+		return error;
 
 	WritePlatformCodeFiles(procedures);
 

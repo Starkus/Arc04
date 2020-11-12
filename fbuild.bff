@@ -32,13 +32,13 @@ Executable('Preprocessor')
 	.Libraries = {
 		'PreprocessorSource',
 	}
-	.PreBuildDependencies = 'Copy_Libs'
 }
 Exec('Preprocessor_Run')
 {
 	.ExecExecutable = 'Preprocessor'
 	.ExecInputPath = '$SourcePath$'
 	.ExecOutput = 'gen/PlatformCode.h'
+	.ExecArguments = 'src/Win32Platform.cpp'
 }
 
 ForEach(.BuildType in .BuildTypes)
@@ -72,7 +72,7 @@ ForEach(.BuildType in .BuildTypes)
 			'Win32PlatformSource_$BuildTypeName$',
 			'ImGuiSource_$BuildTypeName$',
 		}
-		.PreBuildDependencies = 'Copy_Libs'
+		.PreBuildDependencies = 'Preprocessor_Run'
 	}
 
 	// Add to all targets
@@ -95,7 +95,7 @@ ForEach(.BuildType in .BuildTypes)
 			'GameSource_$BuildTypeName$',
 			'ImGuiSource_$BuildTypeName$',
 		}
-		.PreBuildDependencies = 'Copy_Libs'
+		.PreBuildDependencies = 'Preprocessor_Run'
 	}
 
 	// Add to all targets
@@ -115,7 +115,6 @@ ForEach(.BuildType in .BuildTypes)
 		.Libraries = {
 			'BakerySource_$BuildTypeName$',
 		}
-		.PreBuildDependencies = 'Copy_Libs'
 	}
 
 	// Add to all targets
