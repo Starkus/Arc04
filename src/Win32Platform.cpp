@@ -23,18 +23,9 @@
 #include "Render.h"
 #include "Geometry.h"
 #include "Resource.h"
-#include "Platform.h"
 #include "PlatformCode.h"
+#include "Platform.h"
 #include "Game.h"
-
-#define START_GAME(name) void name(Memory *memory, PlatformCode *platformCode)
-typedef START_GAME(StartGame_t);
-START_GAME(StartGameStub) { (void) memory, platformCode; }
-
-#define UPDATE_AND_RENDER_GAME(name) void name(Controller *controller, Memory *memory, \
-		PlatformCode *platformCode, f32 deltaTime)
-typedef UPDATE_AND_RENDER_GAME(UpdateAndRenderGame_t);
-UPDATE_AND_RENDER_GAME(UpdateAndRenderGameStub) { (void) controller, memory, platformCode, deltaTime; }
 
 DECLARE_ARRAY(Resource);
 DECLARE_ARRAY(FILETIME);
@@ -44,8 +35,6 @@ struct ResourceBank
 	Array_Resource resources;
 	Array_FILETIME lastWriteTimes;
 };
-
-#define LOG(...) Log(__VA_ARGS__)
 
 HANDLE g_hStdout;
 Memory *g_memory;
@@ -89,13 +78,6 @@ struct Win32Context
 	HGLRC glContext;
 	HWND windowHandle;
 };
-
-#ifdef USING_IMGUI
-PLATFORMPROC ImGuiContext *PlatformGetImguiContext()
-{
-	return ImGui::GetCurrentContext();
-}
-#endif
 
 // XInput functions
 // XInputGetState
@@ -252,6 +234,7 @@ struct Win32GameCode
 	FILETIME lastWriteTime;
 
 	StartGame_t *StartGame;
+	InitGameModule_t *InitGameModule;
 	UpdateAndRenderGame_t *UpdateAndRenderGame;
 };
 
@@ -287,6 +270,8 @@ void Win32LoadGameCode(Win32GameCode *gameCode, const char *dllFilename, const c
 	ASSERT(gameCode->dll);
 
 	gameCode->StartGame = (StartGame_t *)GetProcAddress(gameCode->dll, "StartGame");
+	ASSERT(gameCode->StartGame);
+	gameCode->InitGameModule = (InitGameModule_t *)GetProcAddress(gameCode->dll, "InitGameModule");
 	ASSERT(gameCode->StartGame);
 	gameCode->UpdateAndRenderGame = (UpdateAndRenderGame_t *)GetProcAddress(gameCode->dll, "UpdateAndRenderGame");
 	ASSERT(gameCode->UpdateAndRenderGame);
@@ -623,46 +608,16 @@ void Win32Start(HINSTANCE hInstance)
 	// Pass functions
 	PlatformCode platformCode;
 	FillPlatformCodeStruct(&platformCode);
-#if 0
-	platformCode.Log = Log;
-	platformCode.PlatformReadEntireFile = PlatformReadEntireFile;
-	platformCode.SetUpDevice = SetUpDevice;
-	platformCode.ClearBuffers = ClearBuffers;
-	platformCode.GetUniform = GetUniform;
-	platformCode.UseProgram = UseProgram;
-	platformCode.UniformMat4 = UniformMat4;
-	platformCode.UniformInt = UniformInt;
-	platformCode.RenderIndexedMesh = RenderIndexedMesh;
-	platformCode.RenderMesh = RenderMesh;
-	platformCode.RenderMeshInstanced = RenderMeshInstanced;
-	platformCode.RenderIndexedMeshInstanced = RenderIndexedMeshInstanced;
-	platformCode.RenderLines = RenderLines;
-	platformCode.CreateDeviceMesh = CreateDeviceMesh;
-	platformCode.CreateDeviceIndexedMesh = CreateDeviceIndexedMesh;
-	platformCode.CreateDeviceTexture = CreateDeviceTexture;
-	platformCode.SendMesh = SendMesh;
-	platformCode.SendIndexedMesh = SendIndexedMesh;
-	platformCode.SendTexture = SendTexture;
-	platformCode.BindTexture = BindTexture;
-	platformCode.CreateShader = CreateShader;
-	platformCode.LoadShader = LoadShader;
-	platformCode.AttachShader = AttachShader;
-	platformCode.CreateDeviceProgram = CreateDeviceProgram;
-	platformCode.LinkDeviceProgram = LinkDeviceProgram;
-	platformCode.SetFillMode = SetFillMode;
-	platformCode.ResourceLoadMesh = ResourceLoadMesh;
-	platformCode.ResourceLoadSkinnedMesh = ResourceLoadSkinnedMesh;
-	platformCode.ResourceLoadLevelGeometryGrid = ResourceLoadLevelGeometryGrid;
-	platformCode.ResourceLoadPoints = ResourceLoadPoints;
-	platformCode.ResourceLoadShader = ResourceLoadShader;
-	platformCode.ResourceLoadTexture = ResourceLoadTexture;
-	platformCode.GetResource = GetResource;
-#ifdef USING_IMGUI
-	platformCode.PlatformGetImguiContext = PlatformGetImguiContext;
-#endif
+
+	PlatformContext platformContext = {};
+	platformContext.platformCode = &platformCode;
+	platformContext.memory = &memory;
+#if USING_IMGUI
+	platformContext.imguiContext = ImGui::GetCurrentContext();
 #endif
 
-	gameCode.StartGame(&memory, &platformCode);
+	gameCode.InitGameModule(platformContext);
+	gameCode.StartGame();
 
 	bool running = true;
 	while (running)
@@ -678,6 +633,7 @@ void Win32Start(HINSTANCE hInstance)
 		{
 			Win32UnloadGameCode(&gameCode);
 			Win32LoadGameCode(&gameCode, gameDllFilename, tempDllFilename);
+			gameCode.InitGameModule(platformContext);
 			gameCode.lastWriteTime = newDllWriteTime;
 		}
 
@@ -715,7 +671,7 @@ void Win32Start(HINSTANCE hInstance)
 		ImGui::NewFrame();
 #endif
 
-		gameCode.UpdateAndRenderGame(&controller, &memory, &platformCode, deltaTime);
+		gameCode.UpdateAndRenderGame(&controller, deltaTime);
 
 #ifdef USING_IMGUI
 		if (g_showConsole)

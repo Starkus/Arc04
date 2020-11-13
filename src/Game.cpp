@@ -20,15 +20,13 @@
 #include "Game.h"
 
 Memory *g_memory;
-void (*g_log)(const char *, ...);
 #if DEBUG_BUILD
 DebugContext *g_debugContext;
 #endif
 
-#define LOG(...) g_log(__VA_ARGS__)
-
 DECLARE_ARRAY(u32);
 
+#include "PlatformCodeLoad.cpp"
 #include "DebugDraw.cpp"
 #include "MemoryAlloc.cpp"
 #include "Collision.cpp"
@@ -43,16 +41,25 @@ DECLARE_ARRAY(u32);
 #define GAMEDLL NOMANGLE __attribute__((visibility("default")))
 #endif
 
-GAMEDLL void StartGame(Memory *memory, PlatformCode *platformCode)
+GAMEDLL INIT_GAME_MODULE(InitGameModule)
 {
 #ifdef USING_IMGUI
 	ImGui::SetAllocatorFunctions(BuddyAlloc, BuddyFree);
+	ImGui::SetCurrentContext(platformContext.imguiContext);
 #endif
 
-	g_memory = memory;
-	g_log = platformCode->Log;
+	// Handy global pointers
+	g_memory = platformContext.memory;
+#if DEBUG_BUILD
+	g_debugContext = (DebugContext *)((u8 *)g_memory->transientMem + sizeof(GameState));
+#endif
 
-	ASSERT(memory->transientMem == memory->transientPtr);
+	ImportPlatformCodeFromStruct(platformContext.platformCode);
+}
+
+GAMEDLL START_GAME(StartGame)
+{
+	ASSERT(g_memory->transientMem == g_memory->transientPtr);
 	GameState *gameState = (GameState *)TransientAlloc(sizeof(GameState));
 #if DEBUG_BUILD
 	g_debugContext = (DebugContext *)TransientAlloc(sizeof(DebugContext));
@@ -62,22 +69,22 @@ GAMEDLL void StartGame(Memory *memory, PlatformCode *platformCode)
 
 	// Initialize
 	{
-		platformCode->SetUpDevice();
+		SetUpDevice();
 
-		platformCode->ResourceLoadMesh("data/anvil.b");
-		platformCode->ResourceLoadMesh("data/cube.b");
-		platformCode->ResourceLoadMesh("data/sphere.b");
-		platformCode->ResourceLoadMesh("data/cylinder.b");
-		platformCode->ResourceLoadMesh("data/capsule.b");
-		platformCode->ResourceLoadMesh("data/level_graphics.b");
-		platformCode->ResourceLoadSkinnedMesh("data/Sparkus.b");
-		platformCode->ResourceLoadLevelGeometryGrid("data/level.b");
-		platformCode->ResourceLoadPoints("data/anvil_collision.b");
+		ResourceLoadMesh("data/anvil.b");
+		ResourceLoadMesh("data/cube.b");
+		ResourceLoadMesh("data/sphere.b");
+		ResourceLoadMesh("data/cylinder.b");
+		ResourceLoadMesh("data/capsule.b");
+		ResourceLoadMesh("data/level_graphics.b");
+		ResourceLoadSkinnedMesh("data/Sparkus.b");
+		ResourceLoadLevelGeometryGrid("data/level.b");
+		ResourceLoadPoints("data/anvil_collision.b");
 
-		const Resource *texAlb = platformCode->ResourceLoadTexture("data/sparkus_albedo.b");
-		const Resource *texNor = platformCode->ResourceLoadTexture("data/sparkus_normal.b");
-		platformCode->BindTexture(texAlb->texture.deviceTexture, 0);
-		platformCode->BindTexture(texNor->texture.deviceTexture, 1);
+		const Resource *texAlb = ResourceLoadTexture("data/sparkus_albedo.b");
+		const Resource *texNor = ResourceLoadTexture("data/sparkus_normal.b");
+		BindTexture(texAlb->texture.deviceTexture, 0);
+		BindTexture(texNor->texture.deviceTexture, 1);
 
 #if DEBUG_BUILD
 		// Debug geometry buffer
@@ -89,15 +96,15 @@ GAMEDLL void StartGame(Memory *memory, PlatformCode *platformCode)
 			dgb->debugCubeCount = 0;
 			dgb->triangleVertexCount = 0;
 			dgb->lineVertexCount = 0;
-			dgb->deviceMesh = platformCode->CreateDeviceMesh(attribs);
-			dgb->cubePositionsBuffer = platformCode->CreateDeviceMesh(attribs);
+			dgb->deviceMesh = CreateDeviceMesh(attribs);
+			dgb->cubePositionsBuffer = CreateDeviceMesh(attribs);
 		}
 
 		// Send the cube mesh that gets instanced
 		{
 			u8 *fileBuffer;
 			u64 fileSize;
-			bool success = platformCode->PlatformReadEntireFile("data/cube.b", &fileBuffer,
+			bool success = PlatformReadEntireFile("data/cube.b", &fileBuffer,
 					&fileSize, FrameAlloc);
 			ASSERT(success);
 
@@ -115,34 +122,34 @@ GAMEDLL void StartGame(Memory *memory, PlatformCode *platformCode)
 			}
 
 			int attribs = RENDERATTRIB_POSITION;
-			g_debugContext->debugGeometryBuffer.cubeMesh = platformCode->CreateDeviceIndexedMesh(attribs);
-			platformCode->SendIndexedMesh(&g_debugContext->debugGeometryBuffer.cubeMesh, positionBuffer,
+			g_debugContext->debugGeometryBuffer.cubeMesh = CreateDeviceIndexedMesh(attribs);
+			SendIndexedMesh(&g_debugContext->debugGeometryBuffer.cubeMesh, positionBuffer,
 					vertexCount, sizeof(v3), indexData, indexCount, false);
 		}
 #endif
 
 		// Shaders
-		const Resource *shaderRes = platformCode->ResourceLoadShader("data/shaders/shader_general.b");
+		const Resource *shaderRes = ResourceLoadShader("data/shaders/shader_general.b");
 		gameState->program = shaderRes->shader.programHandle;
 
-		const Resource *shaderSkinnedRes = platformCode->ResourceLoadShader("data/shaders/shader_skinned.b");
+		const Resource *shaderSkinnedRes = ResourceLoadShader("data/shaders/shader_skinned.b");
 		gameState->skinnedMeshProgram = shaderSkinnedRes->shader.programHandle;
 
 #if DEBUG_BUILD
-		const Resource *shaderDebugRes = platformCode->ResourceLoadShader("data/shaders/shader_debug.b");
+		const Resource *shaderDebugRes = ResourceLoadShader("data/shaders/shader_debug.b");
 		g_debugContext->debugDrawProgram = shaderDebugRes->shader.programHandle;
 
-		const Resource *shaderDebugCubesRes = platformCode->ResourceLoadShader("data/shaders/shader_debug_cubes.b");
+		const Resource *shaderDebugCubesRes = ResourceLoadShader("data/shaders/shader_debug_cubes.b");
 		g_debugContext->debugCubesProgram = shaderDebugCubesRes->shader.programHandle;
 #endif
 	}
 
 	// Init level
 	{
-		const Resource *levelGraphicsRes = platformCode->GetResource("data/level_graphics.b");
+		const Resource *levelGraphicsRes = GetResource("data/level_graphics.b");
 		gameState->levelGeometry.renderMesh = levelGraphicsRes;
 
-		const Resource *levelCollisionRes = platformCode->GetResource("data/level.b");
+		const Resource *levelCollisionRes = GetResource("data/level.b");
 		gameState->levelGeometry.geometryGrid = levelCollisionRes;
 	}
 
@@ -170,10 +177,10 @@ GAMEDLL void StartGame(Memory *memory, PlatformCode *platformCode)
 		Collider collider;
 		collider.type = COLLIDER_CONVEX_HULL;
 
-		const Resource *pointsRes = platformCode->GetResource("data/anvil_collision.b");
+		const Resource *pointsRes = GetResource("data/anvil_collision.b");
 		collider.convexHull.pointCloud = pointsRes;
 
-		const Resource *anvilRes = platformCode->GetResource("data/anvil.b");
+		const Resource *anvilRes = GetResource("data/anvil.b");
 
 		Entity *testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { -6.0f, 3.0f, 1.0f };
@@ -199,7 +206,7 @@ GAMEDLL void StartGame(Memory *memory, PlatformCode *platformCode)
 		testEntity->mesh = anvilRes;
 		testEntity->collider = collider;
 
-		const Resource *sphereRes = platformCode->GetResource("data/sphere.b");
+		const Resource *sphereRes = GetResource("data/sphere.b");
 		testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { -6.0f, 7.0f, 1.0f };
 		testEntity->fw = { 0.0f, 1.0f, 0.0f };
@@ -208,7 +215,7 @@ GAMEDLL void StartGame(Memory *memory, PlatformCode *platformCode)
 		testEntity->collider.sphere.radius = 1;
 		testEntity->collider.sphere.offset = {};
 
-		const Resource *cylinderRes = platformCode->GetResource("data/cylinder.b");
+		const Resource *cylinderRes = GetResource("data/cylinder.b");
 		testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { -3.0f, 7.0f, 1.0f };
 		testEntity->fw = { 0.0f, 1.0f, 0.0f };
@@ -218,7 +225,7 @@ GAMEDLL void StartGame(Memory *memory, PlatformCode *platformCode)
 		testEntity->collider.cylinder.height = 2;
 		testEntity->collider.cylinder.offset = {};
 
-		const Resource *capsuleRes = platformCode->GetResource("data/capsule.b");
+		const Resource *capsuleRes = GetResource("data/capsule.b");
 		testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { 0.0f, 7.0f, 2.0f };
 		testEntity->fw = { 0.0f, 1.0f, 0.0f };
@@ -232,27 +239,19 @@ GAMEDLL void StartGame(Memory *memory, PlatformCode *platformCode)
 
 void ChangeState(GameState *gameState, PlayerState newState, PlayerAnim newAnim)
 {
-	//LOG("Changed state: 0x%X -> 0x%X\n", gameState->player.state, newState);
+	//Log("Changed state: 0x%X -> 0x%X\n", gameState->player.state, newState);
 	gameState->animationIdx = newAnim;
 	gameState->animationTime = 0;
 	gameState->player.state = newState;
 }
 
-GAMEDLL void UpdateAndRenderGame(Controller *controller, Memory *memory,
-		PlatformCode *platformCode, f32 deltaTime)
+GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 {
-	g_memory = memory;
-	g_log = platformCode->Log;
-	GameState *gameState = (GameState *)memory->transientMem;
-#if DEBUG_BUILD
-	g_debugContext = (DebugContext *)((u8 *)memory->transientMem + sizeof(GameState));
-#endif
+	GameState *gameState = (GameState *)g_memory->transientMem;
 
 	deltaTime *= gameState->timeMultiplier;
 
 #ifdef USING_IMGUI
-	ImGui::SetCurrentContext(platformCode->PlatformGetImguiContext());
-	ImGui::SetAllocatorFunctions(BuddyAlloc, BuddyFree);
 
 #ifdef IMGUI_SHOW_DEMO
 	ImGui::ShowDemoWindow();
@@ -263,7 +262,7 @@ GAMEDLL void UpdateAndRenderGame(Controller *controller, Memory *memory,
 
 	if (deltaTime < 0 || deltaTime > 1)
 	{
-		LOG("WARNING: Delta time out of range! %f\n", deltaTime);
+		Log("WARNING: Delta time out of range! %f\n", deltaTime);
 		deltaTime = 1 / 60.0f;
 	}
 
@@ -397,7 +396,7 @@ GAMEDLL void UpdateAndRenderGame(Controller *controller, Memory *memory,
 					}
 					else
 					{
-						LOG("WARNING! Ignoring huge depenetration vector... something went wrong!\n");
+						Log("WARNING! Ignoring huge depenetration vector... something went wrong!\n");
 					}
 					break;
 				}
@@ -543,21 +542,21 @@ GAMEDLL void UpdateAndRenderGame(Controller *controller, Memory *memory,
 			view = Mat4Multiply(camPosMatrix, view);
 		}
 
-		platformCode->UseProgram(gameState->program);
-		DeviceUniform viewUniform = platformCode->GetUniform(gameState->program, "view");
-		platformCode->UniformMat4(viewUniform, 1, view.m);
-		DeviceUniform projUniform = platformCode->GetUniform(gameState->program, "projection");
-		platformCode->UniformMat4(projUniform, 1, proj.m);
+		UseProgram(gameState->program);
+		DeviceUniform viewUniform = GetUniform(gameState->program, "view");
+		UniformMat4(viewUniform, 1, view.m);
+		DeviceUniform projUniform = GetUniform(gameState->program, "projection");
+		UniformMat4(projUniform, 1, proj.m);
 
-		DeviceUniform albedoUniform = platformCode->GetUniform(gameState->program, "texAlbedo");
-		platformCode->UniformInt(albedoUniform, 0);
-		DeviceUniform normalUniform = platformCode->GetUniform(gameState->program, "texNormal");
-		platformCode->UniformInt(normalUniform, 1);
+		DeviceUniform albedoUniform = GetUniform(gameState->program, "texAlbedo");
+		UniformInt(albedoUniform, 0);
+		DeviceUniform normalUniform = GetUniform(gameState->program, "texNormal");
+		UniformInt(normalUniform, 1);
 
-		DeviceUniform modelUniform = platformCode->GetUniform(gameState->program, "model");
+		DeviceUniform modelUniform = GetUniform(gameState->program, "model");
 
 		const v4 clearColor = { 0.95f, 0.88f, 0.05f, 1.0f };
-		platformCode->ClearBuffers(clearColor);
+		ClearBuffers(clearColor);
 
 		// Entity
 		for (u32 entityIdx = 0; entityIdx < gameState->entityCount; ++entityIdx)
@@ -578,35 +577,35 @@ GAMEDLL void UpdateAndRenderGame(Controller *controller, Memory *memory,
 				up.x,		up.y,		up.z,		0.0f,
 				pos.x,		pos.y,		pos.z,		1.0f
 			};
-			platformCode->UniformMat4(modelUniform, 1, model.m);
+			UniformMat4(modelUniform, 1, model.m);
 
-			platformCode->RenderIndexedMesh(entity->mesh->mesh.deviceMesh);
+			RenderIndexedMesh(entity->mesh->mesh.deviceMesh);
 		}
 
 		// Level
 		{
 			LevelGeometry *level = &gameState->levelGeometry;
 
-			platformCode->UniformMat4(modelUniform, 1, MAT4_IDENTITY.m);
-			platformCode->RenderIndexedMesh(level->renderMesh->mesh.deviceMesh);
+			UniformMat4(modelUniform, 1, MAT4_IDENTITY.m);
+			RenderIndexedMesh(level->renderMesh->mesh.deviceMesh);
 		}
 
 		// Skinned meshes
-		platformCode->UseProgram(gameState->skinnedMeshProgram);
-		viewUniform = platformCode->GetUniform(gameState->skinnedMeshProgram, "view");
-		modelUniform = platformCode->GetUniform(gameState->skinnedMeshProgram, "model");
-		projUniform = platformCode->GetUniform(gameState->skinnedMeshProgram, "projection");
-		platformCode->UniformMat4(projUniform, 1, proj.m);
+		UseProgram(gameState->skinnedMeshProgram);
+		viewUniform = GetUniform(gameState->skinnedMeshProgram, "view");
+		modelUniform = GetUniform(gameState->skinnedMeshProgram, "model");
+		projUniform = GetUniform(gameState->skinnedMeshProgram, "projection");
+		UniformMat4(projUniform, 1, proj.m);
 
-		albedoUniform = platformCode->GetUniform(gameState->skinnedMeshProgram, "texAlbedo");
-		platformCode->UniformInt(albedoUniform, 0);
-		normalUniform = platformCode->GetUniform(gameState->skinnedMeshProgram, "texNormal");
-		platformCode->UniformInt(normalUniform, 1);
+		albedoUniform = GetUniform(gameState->skinnedMeshProgram, "texAlbedo");
+		UniformInt(albedoUniform, 0);
+		normalUniform = GetUniform(gameState->skinnedMeshProgram, "texNormal");
+		UniformInt(normalUniform, 1);
 
-		DeviceUniform jointsUniform = platformCode->GetUniform(gameState->skinnedMeshProgram, "joints");
-		platformCode->UniformMat4(viewUniform, 1, view.m);
+		DeviceUniform jointsUniform = GetUniform(gameState->skinnedMeshProgram, "joints");
+		UniformMat4(viewUniform, 1, view.m);
 		{
-			platformCode->UniformMat4(modelUniform, 1, MAT4_IDENTITY.m);
+			UniformMat4(modelUniform, 1, MAT4_IDENTITY.m);
 
 			mat4 joints[128];
 			for (int i = 0; i < 128; ++i)
@@ -614,7 +613,7 @@ GAMEDLL void UpdateAndRenderGame(Controller *controller, Memory *memory,
 				joints[i] = MAT4_IDENTITY;
 			}
 
-			const Resource *skinnedMeshRes = platformCode->GetResource("data/Sparkus.b");
+			const Resource *skinnedMeshRes = GetResource("data/Sparkus.b");
 			const ResourceSkinnedMesh *skinnedMesh = &skinnedMeshRes->skinnedMesh;
 
 			Animation *animation = &skinnedMesh->animations[gameState->animationIdx];
@@ -752,11 +751,11 @@ GAMEDLL void UpdateAndRenderGame(Controller *controller, Memory *memory,
 				up.x,		up.y,		up.z,		0.0f,
 				pos.x,		pos.y,		pos.z,		1.0f
 			};
-			platformCode->UniformMat4(modelUniform, 1, model.m);
+			UniformMat4(modelUniform, 1, model.m);
 
-			platformCode->UniformMat4(jointsUniform, 128, joints[0].m);
+			UniformMat4(jointsUniform, 128, joints[0].m);
 
-			platformCode->RenderIndexedMesh(skinnedMesh->deviceMesh);
+			RenderIndexedMesh(skinnedMesh->deviceMesh);
 		}
 
 #if DEBUG_BUILD
@@ -764,41 +763,41 @@ GAMEDLL void UpdateAndRenderGame(Controller *controller, Memory *memory,
 		{
 			DebugGeometryBuffer *dgb = &g_debugContext->debugGeometryBuffer;
 			if (g_debugContext->wireframeDebugDraws)
-				platformCode->SetFillMode(RENDER_LINE);
+				SetFillMode(RENDER_LINE);
 
-			platformCode->UseProgram(g_debugContext->debugDrawProgram);
-			viewUniform = platformCode->GetUniform(g_debugContext->debugDrawProgram, "view");
-			projUniform = platformCode->GetUniform(g_debugContext->debugDrawProgram, "projection");
-			platformCode->UniformMat4(projUniform, 1, proj.m);
-			platformCode->UniformMat4(viewUniform, 1, view.m);
+			UseProgram(g_debugContext->debugDrawProgram);
+			viewUniform = GetUniform(g_debugContext->debugDrawProgram, "view");
+			projUniform = GetUniform(g_debugContext->debugDrawProgram, "projection");
+			UniformMat4(projUniform, 1, proj.m);
+			UniformMat4(viewUniform, 1, view.m);
 
-			platformCode->SendMesh(&dgb->deviceMesh,
+			SendMesh(&dgb->deviceMesh,
 					dgb->triangleData,
 					dgb->triangleVertexCount, sizeof(DebugVertex), true);
 
-			platformCode->RenderMesh(dgb->deviceMesh);
+			RenderMesh(dgb->deviceMesh);
 
-			platformCode->SendMesh(&dgb->deviceMesh,
+			SendMesh(&dgb->deviceMesh,
 					dgb->lineData,
 					dgb->lineVertexCount, sizeof(DebugVertex), true);
-			platformCode->RenderLines(dgb->deviceMesh);
+			RenderLines(dgb->deviceMesh);
 
 			if (dgb->debugCubeCount)
 			{
-				platformCode->UseProgram(g_debugContext->debugCubesProgram);
-				viewUniform = platformCode->GetUniform(g_debugContext->debugDrawProgram, "view");
-				projUniform = platformCode->GetUniform(g_debugContext->debugDrawProgram, "projection");
-				platformCode->UniformMat4(projUniform, 1, proj.m);
-				platformCode->UniformMat4(viewUniform, 1, view.m);
+				UseProgram(g_debugContext->debugCubesProgram);
+				viewUniform = GetUniform(g_debugContext->debugDrawProgram, "view");
+				projUniform = GetUniform(g_debugContext->debugDrawProgram, "projection");
+				UniformMat4(projUniform, 1, proj.m);
+				UniformMat4(viewUniform, 1, view.m);
 
-				platformCode->SendMesh(&dgb->cubePositionsBuffer,
+				SendMesh(&dgb->cubePositionsBuffer,
 						dgb->debugCubes,
 						dgb->debugCubeCount, sizeof(DebugCube), true);
 
 				u32 meshAttribs = RENDERATTRIB_POSITION;
 				u32 instAttribs = RENDERATTRIB_POSITION | RENDERATTRIB_COLOR |
 					RENDERATTRIB_1CUSTOMV3 | RENDERATTRIB_2CUSTOMV3 | RENDERATTRIB_1CUSTOMF32;
-				platformCode->RenderIndexedMeshInstanced(dgb->cubeMesh, dgb->cubePositionsBuffer,
+				RenderIndexedMeshInstanced(dgb->cubeMesh, dgb->cubePositionsBuffer,
 						meshAttribs, instAttribs);
 			}
 
@@ -806,7 +805,7 @@ GAMEDLL void UpdateAndRenderGame(Controller *controller, Memory *memory,
 			dgb->triangleVertexCount = 0;
 			dgb->lineVertexCount = 0;
 
-			platformCode->SetFillMode(RENDER_FILL);
+			SetFillMode(RENDER_FILL);
 		}
 #endif
 	}

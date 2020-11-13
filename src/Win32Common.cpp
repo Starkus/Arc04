@@ -185,17 +185,6 @@ u64 PlatformWriteToFile(FileHandle file, const void *buffer, u64 size)
 	return (u64)writtenBytes;
 }
 
-u64 PlatformPrintToFile(FileHandle file, const char *format, ...)
-{
-	va_list args;
-	va_start(args, format);
-	char buffer[2048];
-	vsprintf(buffer, format, args);
-	va_end(args);
-
-	return PlatformWriteToFile(file, buffer, strlen(buffer));
-}
-
 u64 PlatformFileSeek(FileHandle file, i64 shift, int mode)
 {
 	LARGE_INTEGER lInt;

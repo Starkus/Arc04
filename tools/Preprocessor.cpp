@@ -561,72 +561,109 @@ int ExtractPlatformProcedures(DynamicArray_Token &tokens, DynamicArray_Procedure
 	return 0;
 }
 
+u64 PrintToFile(FileHandle file, const char *format, ...)
+{
+	va_list args;
+	va_start(args, format);
+	char buffer[2048];
+	vsprintf(buffer, format, args);
+	va_end(args);
+
+	return PlatformWriteToFile(file, buffer, strlen(buffer));
+}
+
+void PrintProcedureToFile(FileHandle file, Procedure *proc)
+{
+	char typeStr[256];
+	PrintType(typeStr, &proc->returnType);
+	PrintToFile(file, "%s(*%.*s)(", typeStr, proc->name.size, proc->name.begin);
+	for (int paramIdx = 0; paramIdx < proc->paramCount; ++paramIdx)
+	{
+		if (paramIdx)
+			PrintToFile(file, ", ");
+
+		if (proc->params[paramIdx].isVarArgs)
+		{
+			PrintToFile(file, "...");
+			continue;
+		}
+
+		Type *paramType = &proc->params[paramIdx].type;
+		PrintType(typeStr, paramType);
+
+		Token *name = &proc->params[paramIdx].name;
+
+		if (proc->params[paramIdx].type.isFunction)
+		{
+			PrintToFile(file, "%s(*%.*s)(%.*s)", typeStr, name->size, name->begin,
+					paramType->paramsSize,
+					paramType->paramsBegin);
+		}
+		else
+		{
+			PrintToFile(file, "%s%.*s", typeStr, name->size, name->begin);
+		}
+	}
+	PrintToFile(file, ");\n");
+}
+
 void WritePlatformCodeFiles(DynamicArray_Procedure &procedures)
 {
-#define LOGFILE(file, ...) do { LOG(__VA_ARGS__); PlatformPrintToFile(file, __VA_ARGS__); } while (false)
-
-	LOG("HEADER:\n");
+	// HEADER
 	FileHandle file = PlatformOpenForWrite("gen/PlatformCode.h");
 
-	LOGFILE(file, "struct PlatformCode\n{\n");
+	PrintToFile(file, "struct PlatformCode\n{\n");
 
 	for (u32 procIdx = 0; procIdx < procedures.size; ++procIdx)
 	{
 		Procedure *proc = &procedures[procIdx];
-
-		char typeStr[256];
-		PrintType(typeStr, &proc->returnType);
-		LOGFILE(file, "\t%s(*%.*s)(", typeStr, proc->name.size, proc->name.begin);
-		for (int paramIdx = 0; paramIdx < proc->paramCount; ++paramIdx)
-		{
-			if (paramIdx)
-				LOGFILE(file, ", ");
-
-			if (proc->params[paramIdx].isVarArgs)
-			{
-				LOGFILE(file, "...");
-				continue;
-			}
-
-			Type *paramType = &proc->params[paramIdx].type;
-			PrintType(typeStr, paramType);
-
-			Token *name = &proc->params[paramIdx].name;
-
-			if (proc->params[paramIdx].type.isFunction)
-			{
-				LOGFILE(file, "%s(*%.*s)(%.*s)", typeStr, name->size, name->begin,
-						paramType->paramsSize,
-						paramType->paramsBegin);
-			}
-			else
-			{
-				LOGFILE(file, "%s%.*s", typeStr, name->size, name->begin);
-			}
-		}
-		LOGFILE(file, ");\n");
+		PrintToFile(file, "\t");
+		PrintProcedureToFile(file, proc);
 	}
 
-	LOGFILE(file, "};\n");
+	PrintToFile(file, "};\n");
 	PlatformCloseFile(file);
 
-	LOG("SOURCE:\n");
+	// PLATFORM SOURCE
 	file = PlatformOpenForWrite("gen/PlatformCode.cpp");
 
-	LOGFILE(file, "inline void FillPlatformCodeStruct(PlatformCode *platformCode)\n{\n");
+	PrintToFile(file, "inline void FillPlatformCodeStruct(PlatformCode *platformCode)\n{\n");
 
 	for (u32 procIdx = 0; procIdx < procedures.size; ++procIdx)
 	{
 		Procedure *proc = &procedures[procIdx];
 
-		LOGFILE(file, "\tplatformCode->%.*s = %.*s;\n", proc->name.size, proc->name.begin,
+		PrintToFile(file, "\tplatformCode->%.*s = %.*s;\n", proc->name.size, proc->name.begin,
 				proc->name.size, proc->name.begin);
 	}
 
-	LOGFILE(file, "};\n");
+	PrintToFile(file, "};\n");
 	PlatformCloseFile(file);
 
-#undef LOGFILE
+	// GAME SOURCE
+	file = PlatformOpenForWrite("gen/PlatformCodeLoad.cpp");
+
+	PrintToFile(file, "// Global function pointers //\n");
+	for (u32 procIdx = 0; procIdx < procedures.size; ++procIdx)
+	{
+		Procedure *proc = &procedures[procIdx];
+		PrintProcedureToFile(file, proc);
+	}
+
+	PrintToFile(file, "//////////////////////////////////////////\n\n");
+
+	PrintToFile(file, "inline void ImportPlatformCodeFromStruct(PlatformCode *platformCode)\n{\n");
+
+	for (u32 procIdx = 0; procIdx < procedures.size; ++procIdx)
+	{
+		Procedure *proc = &procedures[procIdx];
+
+		PrintToFile(file, "\t%.*s = platformCode->%.*s;\n", proc->name.size, proc->name.begin,
+				proc->name.size, proc->name.begin);
+	}
+
+	PrintToFile(file, "};\n");
+	PlatformCloseFile(file);
 }
 
 int main(int argc, char **argv)

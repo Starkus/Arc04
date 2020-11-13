@@ -24,9 +24,9 @@
 #include "Render.h"
 #include "Geometry.h"
 #include "Resource.h"
-#include "Game.h"
 #include "Platform.h"
 #include "PlatformCode.h"
+#include "Game.h"
 
 #include "LinuxCommon.cpp"
 #include "OpenGLRender.cpp"
@@ -57,7 +57,7 @@ const char *gameLibName = "./bin/Game_debug.so";
 const char *gameLibName = "./bin/Game.so";
 #endif
 
-GET_RESOURCE(GetResource)
+PLATFORMPROC const Resource *GetResource(const char *filename)
 {
 	for (u32 i = 0; i < g_resources->size; ++i)
 	{
@@ -70,10 +70,13 @@ GET_RESOURCE(GetResource)
 	return nullptr;
 }
 
+#include "PlatformCode.cpp"
+
 int main(int argc, char **argv)
 {
 	(void) argc, argv;
 
+	InitGameModule_t *InitGameModule;
 	StartGame_t *StartGame;
 	UpdateAndRenderGame_t *UpdateAndRenderGame;
 	{
@@ -83,6 +86,8 @@ int main(int argc, char **argv)
 			printf("Couldn't load game library! Error %s\n", dlerror());
 			return 3;
 		}
+		InitGameModule = (InitGameModule_t*)dlsym(gameLib, "InitGameModule");
+		ASSERT(InitGameModule != nullptr);
 		StartGame = (StartGame_t*)dlsym(gameLib, "StartGame");
 		ASSERT(StartGame != nullptr);
 		UpdateAndRenderGame = (UpdateAndRenderGame_t*)dlsym(gameLib, "UpdateAndRenderGame");
@@ -149,41 +154,15 @@ int main(int argc, char **argv)
 	ArrayInit_Resource(&resources, 256, malloc);
 	g_resources = &resources;
 
-	PlatformCode platformCode = {};
-	platformCode.Log = Log;
-	platformCode.PlatformReadEntireFile = PlatformReadEntireFile;
-	platformCode.SetUpDevice = SetUpDevice;
-	platformCode.ClearBuffers = ClearBuffers;
-	platformCode.GetUniform = GetUniform;
-	platformCode.UseProgram = UseProgram;
-	platformCode.UniformMat4 = UniformMat4;
-	platformCode.UniformInt = UniformInt;
-	platformCode.RenderIndexedMesh = RenderIndexedMesh;
-	platformCode.RenderMesh = RenderMesh;
-	platformCode.RenderLines = RenderLines;
-	platformCode.CreateDeviceMesh = CreateDeviceMesh;
-	platformCode.CreateDeviceIndexedMesh = CreateDeviceIndexedMesh;
-	platformCode.CreateDeviceTexture = CreateDeviceTexture;
-	platformCode.SendMesh = SendMesh;
-	platformCode.SendIndexedMesh = SendIndexedMesh;
-	platformCode.SendTexture = SendTexture;
-	platformCode.BindTexture = BindTexture;
-	platformCode.CreateShader = CreateShader;
-	platformCode.LoadShader = LoadShader;
-	platformCode.AttachShader = AttachShader;
-	platformCode.CreateDeviceProgram = CreateDeviceProgram;
-	platformCode.LinkDeviceProgram = LinkDeviceProgram;
-	platformCode.SetViewport = SetViewport;
-	platformCode.SetFillMode = SetFillMode;
-	platformCode.ResourceLoadMesh = ResourceLoadMesh;
-	platformCode.ResourceLoadSkinnedMesh = ResourceLoadSkinnedMesh;
-	platformCode.ResourceLoadLevelGeometryGrid = ResourceLoadLevelGeometryGrid;
-	platformCode.ResourceLoadPoints = ResourceLoadPoints;
-	platformCode.ResourceLoadShader = ResourceLoadShader;
-	platformCode.ResourceLoadTexture = ResourceLoadTexture;
-	platformCode.GetResource = GetResource;
+	PlatformCode platformCode;
+	FillPlatformCodeStruct(&platformCode);
 
-	StartGame(&memory, &platformCode);
+	PlatformContext platformContext = {};
+	platformContext.platformCode = &platformCode;
+	platformContext.memory = &memory;
+
+	InitGameModule(platformContext);
+	StartGame();
 
 	Controller controller = {};
 
@@ -244,7 +223,7 @@ int main(int argc, char **argv)
 		XGetWindowAttributes(display, window, &windowAttr);
 		SetViewport(0, 0, windowAttr.width, windowAttr.height);
 
-		UpdateAndRenderGame(&controller, &memory, &platformCode, deltaTime);
+		UpdateAndRenderGame(&controller, deltaTime);
 
 		glXSwapBuffers(display, window);
 	}

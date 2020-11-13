@@ -1,5 +1,5 @@
 #if DEBUG_BUILD && defined(USING_IMGUI)
-#define VERBOSE_LOG(...) if (g_debugContext->verboseCollisionLogging) LOG(__VA_ARGS__)
+#define VERBOSE_LOG(...) if (g_debugContext->verboseCollisionLogging) Log(__VA_ARGS__)
 #else
 #define VERBOSE_LOG(...)
 #endif
@@ -544,7 +544,7 @@ GJKResult GJKTest(Entity *vA, Entity *vB)
 
 		if (iterations >= 30)
 		{
-			LOG("ERROR! GJK: Reached iteration limit!\n");
+			Log("ERROR! GJK: Reached iteration limit!\n");
 			//ASSERT(false);
 #if DEBUG_BUILD
 			g_debugContext->freezeGJKGeom = true;
@@ -690,17 +690,17 @@ GJKResult GJKTest(Entity *vA, Entity *vB)
 				// Assert normals point outside
 				if (V3Dot(d - a, abcNor) > 0)
 				{
-					LOG("ERROR: ABC normal facing inward! (dot=%f)\n",
+					Log("ERROR: ABC normal facing inward! (dot=%f)\n",
 							V3Dot(d - a, abcNor));
 				}
 				if (V3Dot(c - a, adbNor) > 0)
 				{
-					LOG("ERROR: ADB normal facing inward! (dot=%f)\n",
+					Log("ERROR: ADB normal facing inward! (dot=%f)\n",
 							V3Dot(d - a, abcNor));
 				}
 				if (V3Dot(b - a, acdNor) > 0)
 				{
-					LOG("ERROR: ACD normal facing inward! (dot=%f)\n",
+					Log("ERROR: ACD normal facing inward! (dot=%f)\n",
 							V3Dot(d - a, abcNor));
 				}
 
@@ -911,7 +911,7 @@ v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB)
 		if (leastDistance == INFINITY)
 		{
 			//ASSERT(false);
-			LOG("ERROR: EPA: Couldn't find closest feature!");
+			Log("ERROR: EPA: Couldn't find closest feature!");
 			// Collision is probably on the very edge, we don't need depenetration
 			return {};
 		}
@@ -953,13 +953,13 @@ v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB)
 #if DEBUG_BUILD
 		else if (V3Dot(testDir, newPoint - closestFeature.b) <= epsilon)
 		{
-			LOG("ERROR! EPA: Redundant check triggered (B)\n");
+			Log("ERROR! EPA: Redundant check triggered (B)\n");
 			//ASSERT(false);
 			break;
 		}
 		else if (V3Dot(testDir, newPoint - closestFeature.c) <= epsilon)
 		{
-			LOG("ERROR! EPA: Redundant check triggered (C)\n");
+			Log("ERROR! EPA: Redundant check triggered (C)\n");
 			//ASSERT(false);
 			break;
 		}
@@ -1013,7 +1013,7 @@ v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB)
 		VERBOSE_LOG("Presumably left a hole with %d edges\n", holeEdgesCount);
 		if (deletedFaces > 1 && holeEdgesCount >= deletedFaces * 3)
 		{
-			LOG("ERROR! EPA: Multiple holes were made on the polytope!\n");
+			Log("ERROR! EPA: Multiple holes were made on the polytope!\n");
 #if DEBUG_BUILD
 			if (!g_debugContext->freezePolytopeGeom && epaStep < DebugContext::epaMaxSteps - 1)
 			{

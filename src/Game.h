@@ -165,3 +165,59 @@ struct GameState
 	//int currentPolytopeStep;
 #endif
 };
+
+struct Button
+{
+	bool endedDown;
+	bool changed;
+};
+
+struct Controller
+{
+	v2 leftStick;
+	v2 rightStick;
+	union
+	{
+		struct
+		{
+			Button up;
+			Button down;
+			Button left;
+			Button right;
+			Button jump;
+			Button camUp;
+			Button camDown;
+			Button camLeft;
+			Button camRight;
+
+#if DEBUG_BUILD
+			Button debugUp;
+			Button debugDown;
+			Button debugLeft;
+			Button debugRight;
+#endif
+		};
+		Button b[13];
+	};
+};
+
+struct PlatformContext
+{
+	PlatformCode *platformCode;
+	Memory *memory;
+#if USING_IMGUI
+	ImGuiContext *imguiContext;
+#endif
+};
+
+#define INIT_GAME_MODULE(name) void name(PlatformContext platformContext)
+typedef INIT_GAME_MODULE(InitGameModule_t);
+INIT_GAME_MODULE(InitGameModuleStub) { (void) platformContext; }
+
+#define START_GAME(name) void name()
+typedef START_GAME(StartGame_t);
+START_GAME(StartGameStub) { }
+
+#define UPDATE_AND_RENDER_GAME(name) void name(Controller *controller, f32 deltaTime)
+typedef UPDATE_AND_RENDER_GAME(UpdateAndRenderGame_t);
+UPDATE_AND_RENDER_GAME(UpdateAndRenderGameStub) { (void) controller, deltaTime; }
