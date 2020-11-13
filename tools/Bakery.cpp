@@ -389,10 +389,8 @@ ErrorCode FindMetaFilesRecursive(const char *folder, Array_FileCacheEntry &cache
 			continue;
 
 		bool changed = DidFileChange(fullName, cache);
-		if (!changed)
-		{
-			changed = DidMetaDependenciesChange(fullName, folder, cache);
-		}
+		// Even if meta file changed, check dependencies to register new write times
+		changed = DidMetaDependenciesChange(fullName, folder, cache) || changed;
 
 		if (!changed)
 			continue;
@@ -424,7 +422,7 @@ int main(int argc, char **argv)
 	g_hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
 #endif
 
-	Memory memory;
+	Memory memory = {};
 	g_memory = &memory;
 
 	memory.stackMem = malloc(Memory::stackSize);
@@ -460,11 +458,5 @@ int main(int argc, char **argv)
 #endif
 	}
 
-	free(memory.stackMem);
-	free(memory.frameMem);
-
 	return error;
 }
-
-#undef FilePosition
-#undef FileAlign

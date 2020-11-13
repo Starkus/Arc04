@@ -1,0 +1,64 @@
+// Global function pointers //
+void (*Log)(const char *format, ...);
+bool (*PlatformReadEntireFile)(const char *filename, u8 **fileBuffer, u64 *fileSize, void *(*allocFunc)(u64));
+void (*SetUpDevice)();
+void (*ClearBuffers)(v4 clearColor);
+DeviceUniform (*GetUniform)(DeviceProgram program, const char *name);
+void (*UseProgram)(DeviceProgram program);
+void (*UniformMat4)(DeviceUniform uniform, u32 count, const f32 *buffer);
+void (*UniformInt)(DeviceUniform uniform, int n);
+void (*RenderIndexedMesh)(DeviceMesh mesh);
+void (*RenderMesh)(DeviceMesh mesh);
+void (*RenderLines)(DeviceMesh mesh);
+void (*RenderMeshInstanced)(DeviceMesh mesh, DeviceMesh positions, u32 meshAttribs, u32 instAttribs);
+void (*RenderIndexedMeshInstanced)(DeviceMesh mesh, DeviceMesh positions, u32 meshAttribs, u32 instAttribs);
+DeviceMesh (*CreateDeviceMesh)(int attribs);
+DeviceMesh (*CreateDeviceIndexedMesh)(int attribs);
+DeviceTexture (*CreateDeviceTexture)();
+void (*SendMesh)(DeviceMesh *mesh, void *vertexData, u32 vertexCount, u32 stride, bool dynamic);
+void (*SendIndexedMesh)(DeviceMesh *mesh, void *vertexData, u32 vertexCount, u32 stride, void *indexData, u32 indexCount, bool dynamic);
+void (*SendTexture)(DeviceTexture texture, const void *imageData, u32 width, u32 height, u32 components);
+void (*BindTexture)(DeviceTexture texture, int slot);
+DeviceShader (*CreateShader)(ShaderType shaderType);
+bool (*LoadShader)(DeviceShader *shader, const char *shaderSource);
+void (*AttachShader)(DeviceProgram program, DeviceShader shader);
+DeviceProgram (*CreateDeviceProgram)();
+bool (*LinkDeviceProgram)(DeviceProgram program);
+void (*WipeDeviceProgram)(DeviceProgram program);
+void (*SetFillMode)(RenderFillMode mode);
+const Resource *(*LoadResource)(ResourceType type, const char *filename);
+const Resource *(*GetResource)(const char *filename);
+//////////////////////////////////////////
+
+inline void ImportPlatformCodeFromStruct(PlatformCode *platformCode)
+{
+	Log = platformCode->Log;
+	PlatformReadEntireFile = platformCode->PlatformReadEntireFile;
+	SetUpDevice = platformCode->SetUpDevice;
+	ClearBuffers = platformCode->ClearBuffers;
+	GetUniform = platformCode->GetUniform;
+	UseProgram = platformCode->UseProgram;
+	UniformMat4 = platformCode->UniformMat4;
+	UniformInt = platformCode->UniformInt;
+	RenderIndexedMesh = platformCode->RenderIndexedMesh;
+	RenderMesh = platformCode->RenderMesh;
+	RenderLines = platformCode->RenderLines;
+	RenderMeshInstanced = platformCode->RenderMeshInstanced;
+	RenderIndexedMeshInstanced = platformCode->RenderIndexedMeshInstanced;
+	CreateDeviceMesh = platformCode->CreateDeviceMesh;
+	CreateDeviceIndexedMesh = platformCode->CreateDeviceIndexedMesh;
+	CreateDeviceTexture = platformCode->CreateDeviceTexture;
+	SendMesh = platformCode->SendMesh;
+	SendIndexedMesh = platformCode->SendIndexedMesh;
+	SendTexture = platformCode->SendTexture;
+	BindTexture = platformCode->BindTexture;
+	CreateShader = platformCode->CreateShader;
+	LoadShader = platformCode->LoadShader;
+	AttachShader = platformCode->AttachShader;
+	CreateDeviceProgram = platformCode->CreateDeviceProgram;
+	LinkDeviceProgram = platformCode->LinkDeviceProgram;
+	WipeDeviceProgram = platformCode->WipeDeviceProgram;
+	SetFillMode = platformCode->SetFillMode;
+	LoadResource = platformCode->LoadResource;
+	GetResource = platformCode->GetResource;
+};
