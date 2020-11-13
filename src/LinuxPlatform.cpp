@@ -33,6 +33,11 @@
 
 DECLARE_ARRAY(Resource);
 
+StartGame_t *StartGame;
+GameResourcePostLoad_t *GameResourcePostLoad;
+InitGameModule_t *InitGameModule;
+UpdateAndRenderGame_t *UpdateAndRenderGame;
+
 Memory *g_memory;
 Array_Resource *g_resources;
 
@@ -48,14 +53,21 @@ Resource *CreateResource(const char *filename)
 	return resource;
 }
 
-#include "BakeryInterop.cpp"
-#include "Resource.cpp"
+PLATFORMPROC const Resource *LoadResource(ResourceType type, const char *filename)
+{
+	Resource *newResource = CreateResource(filename);
 
-#if DEBUG_BUILD
-const char *gameLibName = "./bin/Game_debug.so";
-#else
-const char *gameLibName = "./bin/Game.so";
-#endif
+	u8 *fileBuffer;
+	u64 fileSize;
+	int error = PlatformReadEntireFile(filename, &fileBuffer, &fileSize, FrameAlloc);
+	if (error != 0)
+		return nullptr;
+
+	newResource->type = type;
+	GameResourcePostLoad(newResource, fileBuffer, true);
+
+	return newResource;
+}
 
 PLATFORMPROC const Resource *GetResource(const char *filename)
 {
@@ -72,13 +84,17 @@ PLATFORMPROC const Resource *GetResource(const char *filename)
 
 #include "PlatformCode.cpp"
 
+#if DEBUG_BUILD
+const char *gameLibName = "./bin/Game_debug.so";
+#else
+const char *gameLibName = "./bin/Game.so";
+#endif
+
 int main(int argc, char **argv)
 {
 	(void) argc, argv;
 
-	InitGameModule_t *InitGameModule;
-	StartGame_t *StartGame;
-	UpdateAndRenderGame_t *UpdateAndRenderGame;
+	// Load game code
 	{
 		void *gameLib = dlopen(gameLibName, RTLD_NOW);
 		if (gameLib == nullptr)
@@ -88,6 +104,8 @@ int main(int argc, char **argv)
 		}
 		InitGameModule = (InitGameModule_t*)dlsym(gameLib, "InitGameModule");
 		ASSERT(InitGameModule != nullptr);
+		GameResourcePostLoad = (GameResourcePostLoad_t*)dlsym(gameLib, "GameResourcePostLoad");
+		ASSERT(GameResourcePostLoad != nullptr);
 		StartGame = (StartGame_t*)dlsym(gameLib, "StartGame");
 		ASSERT(StartGame != nullptr);
 		UpdateAndRenderGame = (UpdateAndRenderGame_t*)dlsym(gameLib, "UpdateAndRenderGame");

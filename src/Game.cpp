@@ -31,6 +31,7 @@ DECLARE_ARRAY(u32);
 #include "MemoryAlloc.cpp"
 #include "Collision.cpp"
 #include "BakeryInterop.cpp"
+#include "Resource.cpp"
 #ifdef USING_IMGUI
 #include "Imgui.cpp"
 #endif
@@ -57,6 +58,44 @@ GAMEDLL INIT_GAME_MODULE(InitGameModule)
 	ImportPlatformCodeFromStruct(platformContext.platformCode);
 }
 
+GAMEDLL GAME_RESOURCE_POST_LOAD(GameResourcePostLoad)
+{
+	switch(resource->type)
+	{
+	case RESOURCETYPE_MESH:
+	{
+		ResourceLoadMesh(resource, fileBuffer, initialize);
+		return true;
+	} break;
+	case RESOURCETYPE_SKINNEDMESH:
+	{
+		ResourceLoadSkinnedMesh(resource, fileBuffer, initialize);
+		return true;
+	} break;
+	case RESOURCETYPE_LEVELGEOMETRYGRID:
+	{
+		ResourceLoadLevelGeometryGrid(resource, fileBuffer, initialize);
+		return true;
+	} break;
+	case RESOURCETYPE_POINTS:
+	{
+		ResourceLoadPoints(resource, fileBuffer, initialize);
+		return true;
+	} break;
+	case RESOURCETYPE_TEXTURE:
+	{
+		ResourceLoadTexture(resource, fileBuffer, initialize);
+		return true;
+	} break;
+	case RESOURCETYPE_SHADER:
+	{
+		ResourceLoadShader(resource, fileBuffer, initialize);
+		return true;
+	} break;
+	}
+	return false;
+}
+
 GAMEDLL START_GAME(StartGame)
 {
 	ASSERT(g_memory->transientMem == g_memory->transientPtr);
@@ -71,18 +110,18 @@ GAMEDLL START_GAME(StartGame)
 	{
 		SetUpDevice();
 
-		ResourceLoadMesh("data/anvil.b");
-		ResourceLoadMesh("data/cube.b");
-		ResourceLoadMesh("data/sphere.b");
-		ResourceLoadMesh("data/cylinder.b");
-		ResourceLoadMesh("data/capsule.b");
-		ResourceLoadMesh("data/level_graphics.b");
-		ResourceLoadSkinnedMesh("data/Sparkus.b");
-		ResourceLoadLevelGeometryGrid("data/level.b");
-		ResourceLoadPoints("data/anvil_collision.b");
+		LoadResource(RESOURCETYPE_MESH, "data/anvil.b");
+		LoadResource(RESOURCETYPE_MESH, "data/cube.b");
+		LoadResource(RESOURCETYPE_MESH, "data/sphere.b");
+		LoadResource(RESOURCETYPE_MESH, "data/cylinder.b");
+		LoadResource(RESOURCETYPE_MESH, "data/capsule.b");
+		LoadResource(RESOURCETYPE_MESH, "data/level_graphics.b");
+		LoadResource(RESOURCETYPE_SKINNEDMESH, "data/Sparkus.b");
+		LoadResource(RESOURCETYPE_LEVELGEOMETRYGRID, "data/level.b");
+		LoadResource(RESOURCETYPE_POINTS, "data/anvil_collision.b");
 
-		const Resource *texAlb = ResourceLoadTexture("data/sparkus_albedo.b");
-		const Resource *texNor = ResourceLoadTexture("data/sparkus_normal.b");
+		const Resource *texAlb = LoadResource(RESOURCETYPE_TEXTURE, "data/sparkus_albedo.b");
+		const Resource *texNor = LoadResource(RESOURCETYPE_TEXTURE, "data/sparkus_normal.b");
 		BindTexture(texAlb->texture.deviceTexture, 0);
 		BindTexture(texNor->texture.deviceTexture, 1);
 
@@ -129,17 +168,17 @@ GAMEDLL START_GAME(StartGame)
 #endif
 
 		// Shaders
-		const Resource *shaderRes = ResourceLoadShader("data/shaders/shader_general.b");
+		const Resource *shaderRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_general.b");
 		gameState->program = shaderRes->shader.programHandle;
 
-		const Resource *shaderSkinnedRes = ResourceLoadShader("data/shaders/shader_skinned.b");
+		const Resource *shaderSkinnedRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_skinned.b");
 		gameState->skinnedMeshProgram = shaderSkinnedRes->shader.programHandle;
 
 #if DEBUG_BUILD
-		const Resource *shaderDebugRes = ResourceLoadShader("data/shaders/shader_debug.b");
+		const Resource *shaderDebugRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_debug.b");
 		g_debugContext->debugDrawProgram = shaderDebugRes->shader.programHandle;
 
-		const Resource *shaderDebugCubesRes = ResourceLoadShader("data/shaders/shader_debug_cubes.b");
+		const Resource *shaderDebugCubesRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_debug_cubes.b");
 		g_debugContext->debugCubesProgram = shaderDebugCubesRes->shader.programHandle;
 #endif
 	}

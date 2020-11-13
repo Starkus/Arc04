@@ -157,13 +157,6 @@ struct GameState
 	DeviceProgram program, skinnedMeshProgram;
 	DeviceMesh anvilMesh, cubeMesh, sphereMesh, cylinderMesh, capsuleMesh;
 	SkinnedMesh skinnedMesh;
-
-	// Debug
-#if DEBUG_BUILD
-	//DeviceProgram debugDrawProgram, debugCubesProgram;
-	//DebugGeometryBuffer debugGeometryBuffer;
-	//int currentPolytopeStep;
-#endif
 };
 
 struct Button
@@ -213,6 +206,11 @@ struct PlatformContext
 #define INIT_GAME_MODULE(name) void name(PlatformContext platformContext)
 typedef INIT_GAME_MODULE(InitGameModule_t);
 INIT_GAME_MODULE(InitGameModuleStub) { (void) platformContext; }
+
+#define GAME_RESOURCE_POST_LOAD(name) bool name(Resource *resource, u8 *fileBuffer, \
+		bool initialize)
+typedef GAME_RESOURCE_POST_LOAD(GameResourcePostLoad_t);
+GAME_RESOURCE_POST_LOAD(GameResourcePostLoadStub) { (void)resource, fileBuffer, initialize; return false; }
 
 #define START_GAME(name) void name()
 typedef START_GAME(StartGame_t);

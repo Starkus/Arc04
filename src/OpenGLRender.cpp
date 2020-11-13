@@ -437,7 +437,7 @@ PLATFORMPROC bool LinkDeviceProgram(DeviceProgram program)
 	return true;
 }
 
-void WipeDeviceProgram(DeviceProgram program)
+PLATFORMPROC void WipeDeviceProgram(DeviceProgram program)
 {
 	GLDeviceProgram *glProgram = (GLDeviceProgram *)&program;
 
