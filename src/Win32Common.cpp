@@ -1,3 +1,7 @@
+#include <windows.h>
+#include <strsafe.h>
+HANDLE g_hStdout;
+
 struct Win32FileTime
 {
 	FILETIME lastWriteTime;

@@ -1,6 +1,11 @@
 #/bin/bash
 common_compiler="-Igen -Iexternal/include -lm -W -Wno-unused-value"
 debug_options="-O0 -g -DDEBUG_BUILD"
+
+# Build preprocessor
+clang -o bin/Preprocessor tools/Preprocessor.cpp $common_compiler $debug_options -Isrc -ldl
+bin/Preprocessor src/LinuxPlatform.cpp
+
 if [ -n "$1" ] && [ $1 == '-r' ]
 then
 	echo Building release

@@ -1,5 +1,3 @@
-#include <windows.h>
-#include <strsafe.h>
 #include <GL/gl.h>
 #include <GLES3/gl32.h>
 #include <GLES3/glext.h>
@@ -48,7 +46,6 @@ struct Win32GameCode
 	UpdateAndRenderGame_t *UpdateAndRenderGame;
 };
 
-HANDLE g_hStdout;
 Memory *g_memory;
 ResourceBank *g_resourceBank;
 #ifdef USING_IMGUI

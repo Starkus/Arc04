@@ -1,3 +1,16 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <dlfcn.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <linux/limits.h>
+#include <time.h>
+#include <errno.h>
+#include <dirent.h>
+
 struct LinuxFileTime
 {
 	time_t lastWriteTime;
@@ -22,7 +35,7 @@ static_assert(sizeof(LinuxFindData) <= sizeof(PlatformFindData),
 typedef int FileHandle;
 #define Sleep(...) sleep(__VA_ARGS__)
 
-void Log(const char *format, ...)
+PLATFORMPROC void Log(const char *format, ...)
 {
 	va_list args;
 	va_start(args, format);
@@ -59,7 +72,7 @@ int LinuxReadEntireFile(const char *filename, u8 **fileBuffer, u64 *fileSize, vo
 	return 0;
 }
 
-bool PlatformReadEntireFile(const char *filename, u8 **fileBuffer, u64 *fileSize,
+PLATFORMPROC bool PlatformReadEntireFile(const char *filename, u8 **fileBuffer, u64 *fileSize,
 		void *(*allocFunc)(u64))
 {
 	int error = LinuxReadEntireFile(filename, fileBuffer, fileSize, allocFunc);

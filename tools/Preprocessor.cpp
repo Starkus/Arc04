@@ -4,12 +4,11 @@
 #include "Platform.h"
 #include "Containers.h"
 
-#include <windows.h>
-#include <strsafe.h>
-HANDLE g_hStdout;
+#if TARGET_WINDOWS
 #include "Win32Common.cpp"
-
-#define LOG(...) Log(__VA_ARGS__)
+#else
+#include "LinuxCommon.cpp"
+#endif
 
 void *MallocPlus1(u64 size)
 {
@@ -194,7 +193,7 @@ Token ReadTokenAndAdvance(Tokenizer *tokenizer)
 			++tokenizer->cursor;
 		}
 		++tokenizer->cursor;
-		//LOG("String literal: \"%.*s\"\n", result.size, result.begin);
+		//Log("String literal: \"%.*s\"\n", result.size, result.begin);
 	}
 	else if (IsAlpha(*tokenizer->cursor))
 	{
@@ -205,7 +204,7 @@ Token ReadTokenAndAdvance(Tokenizer *tokenizer)
 			++result.size;
 			++tokenizer->cursor;
 		}
-		//LOG("Identifier: %.*s\n", result.size, result.begin);
+		//Log("Identifier: %.*s\n", result.size, result.begin);
 	}
 	else if (IsNumeric(*tokenizer->cursor))
 	{
@@ -240,14 +239,14 @@ Token ReadTokenAndAdvance(Tokenizer *tokenizer)
 				++tokenizer->cursor;
 			}
 		}
-		//LOG("Number: %.*s\n", result.size, result.begin);
+		//Log("Number: %.*s\n", result.size, result.begin);
 	}
 	else if (*tokenizer->cursor == '#')
 	{
 		result.type = TOKEN_PREPROCESSOR_DIRECTIVE;
 		result.begin = tokenizer->cursor;
 		result.size = EatRestOfLine(tokenizer);
-		//LOG("Preprocessor directive: %.*s\n", result.size, result.begin);
+		//Log("Preprocessor directive: %.*s\n", result.size, result.begin);
 	}
 	else if (*tokenizer->cursor >= TOKEN_ASCII_BEGIN && *tokenizer->cursor < TOKEN_ASCII_END)
 	{
@@ -264,11 +263,11 @@ Token ReadTokenAndAdvance(Tokenizer *tokenizer)
 
 #if 0
 	if (result.type == TOKEN_INVALID)
-		LOG("\\%.*s ", result.size, result.begin);
+		Log("\\%.*s ", result.size, result.begin);
 	else if (result.type >= TOKEN_ASCII_BEGIN && result.type < TOKEN_ASCII_END)
-		LOG("`%c ", result.type);
+		Log("`%c ", result.type);
 	else
-		LOG("@%.*s ", result.size, result.begin);
+		Log("@%.*s ", result.size, result.begin);
 #endif
 
 	return result;
@@ -349,9 +348,9 @@ void PrintStructs(DynamicArray_Token &tokens)
 			{
 				token = &tokens[++tokenIdx];
 				if (token->type == TOKEN_IDENTIFIER)
-					LOG("Found struct of name '%.*s'\n", token->size, token->begin);
+					Log("Found struct of name '%.*s'\n", token->size, token->begin);
 				else
-					LOG("Found annonymous struct\n");
+					Log("Found annonymous struct\n");
 			}
 		}
 	}
@@ -369,7 +368,7 @@ int ReadProcedure(Token *curToken, Procedure *newProcedure)
 		++curToken;
 		if (curToken->type != TOKEN_IDENTIFIER)
 		{
-			LOG("ERROR: Parsing platform procedure: expected parameter type! %s:%d\n",
+			Log("ERROR: Parsing platform procedure: expected parameter type! %s:%d\n",
 					curToken->file, curToken->line);
 			return 1;
 		}
@@ -377,7 +376,7 @@ int ReadProcedure(Token *curToken, Procedure *newProcedure)
 
 	if (curToken->type != TOKEN_IDENTIFIER)
 	{
-		LOG("ERROR: Parsing platform procedure: expected return type! %s:%d\n",
+		Log("ERROR: Parsing platform procedure: expected return type! %s:%d\n",
 				curToken->file, curToken->line);
 		return 1;
 	}
@@ -393,7 +392,7 @@ int ReadProcedure(Token *curToken, Procedure *newProcedure)
 
 	if (curToken->type != TOKEN_IDENTIFIER)
 	{
-		LOG("ERROR: Parsing platform procedure: expected procedure name! %s:%d\n",
+		Log("ERROR: Parsing platform procedure: expected procedure name! %s:%d\n",
 				curToken->file, curToken->line);
 		return 1;
 	}
@@ -402,7 +401,7 @@ int ReadProcedure(Token *curToken, Procedure *newProcedure)
 	++curToken;
 	if (curToken->type != '(')
 	{
-		LOG("ERROR: Parsing platform procedure: expected '('! %s:%d\n",
+		Log("ERROR: Parsing platform procedure: expected '('! %s:%d\n",
 				curToken->file, curToken->line);
 		return 1;
 	}
@@ -425,7 +424,7 @@ int ReadProcedure(Token *curToken, Procedure *newProcedure)
 				++curToken;
 				if (curToken->type != '.')
 				{
-					LOG("ERROR: Parsing platform procedure: syntax error! %s:%d\n",
+					Log("ERROR: Parsing platform procedure: syntax error! %s:%d\n",
 							curToken->file, curToken->line);
 					return 1;
 				}
@@ -440,7 +439,7 @@ int ReadProcedure(Token *curToken, Procedure *newProcedure)
 
 		if (curToken->type != TOKEN_IDENTIFIER)
 		{
-			LOG("ERROR: Parsing platform procedure: expected parameter type! %s:%d\n",
+			Log("ERROR: Parsing platform procedure: expected parameter type! %s:%d\n",
 					curToken->file, curToken->line);
 			return 1;
 		}
@@ -453,7 +452,7 @@ int ReadProcedure(Token *curToken, Procedure *newProcedure)
 			++curToken;
 			if (curToken->type != TOKEN_IDENTIFIER)
 			{
-				LOG("ERROR: Parsing platform procedure: expected parameter type! %s:%d\n",
+				Log("ERROR: Parsing platform procedure: expected parameter type! %s:%d\n",
 					curToken->file, curToken->line);
 				return 1;
 			}
@@ -485,7 +484,7 @@ int ReadProcedure(Token *curToken, Procedure *newProcedure)
 		// Name
 		if (curToken->type != TOKEN_IDENTIFIER)
 		{
-			LOG("ERROR: Parsing platform procedure: expected parameter name! %s:%d\n",
+			Log("ERROR: Parsing platform procedure: expected parameter name! %s:%d\n",
 					curToken->file, curToken->line);
 			return 1;
 		}
@@ -507,7 +506,7 @@ int ReadProcedure(Token *curToken, Procedure *newProcedure)
 		{
 			if (curToken->type != '(')
 			{
-				LOG("ERROR: Parsing platform procedure: expected function pointer parameters! %s:%d\n",
+				Log("ERROR: Parsing platform procedure: expected function pointer parameters! %s:%d\n",
 						curToken->file, curToken->line);
 			}
 			++curToken;
@@ -671,10 +670,12 @@ int main(int argc, char **argv)
 	if (argc == 1)
 		return 1;
 
+#if TARGET_WINDOWS
 	AttachConsole(ATTACH_PARENT_PROCESS);
 	g_hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
+#endif
 
-	LOG("%s - %s\n", argv[0], argv[1]);
+	Log("%s - %s\n", argv[0], argv[1]);
 
 	DynamicArray_Procedure procedures;
 	DynamicArrayInit_Procedure(&procedures, 64, malloc);
