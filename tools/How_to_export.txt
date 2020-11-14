@@ -1,0 +1,14 @@
+## SKINNED MESHES
+
+Blender's Collada exporter sucks, there's a few things we have to do to export the thing and get all
+relevant information:
+
+* Make empty vertex groups for all non deforming bones in the mesh. Otherwise the exporter ignores
+them for some things.
+
+* Bones that don't move and whose parents don't move don't get an animation channel. Hence, if you
+have a root bone for example that starts at a non-rest pose but doesn't move through the
+animation, the exporter ignores it completely and all that branch of joints gets messed up. We have
+to nudge it ever so slightly in some direction so it gets an animation channel and everything works.
+
+* Don't use _ on names (I should fix this...)

@@ -29,11 +29,23 @@ struct Collider
 	};
 };
 
+struct SkinnedMeshInstance
+{
+	int entityHandle;
+	const Resource *meshRes;
+	int animationIdx;
+	f32 animationTime;
+};
+
 struct Entity
 {
 	v3 pos;
 	v3 fw;
+
+	// @Todo: decide how to handle optional things.
 	const Resource *mesh;
+	SkinnedMeshInstance *skinnedMeshInstance;
+
 	Collider collider;
 };
 
@@ -150,8 +162,10 @@ struct GameState
 	LevelGeometry levelGeometry;
 	Player player;
 
-	int animationIdx;
-	f32 animationTime;
+	SkinnedMeshInstance skinnedMeshInstances[64];
+	u32 skinnedMeshCount;
+	//int animationIdx;
+	//f32 animationTime;
 
 	// @Cleanup: move to some Render Device Context or something?
 	DeviceProgram program, skinnedMeshProgram;

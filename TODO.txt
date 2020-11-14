@@ -1,8 +1,7 @@
 ## TODO
 
 # Next up?
-- IMPORTANT: Implement some transient allocator that allows freeing.
-- Import and draw textures
+- Raycast against colliders
 - BVH and octree for level triangles
 - Non axis aligned colliders
 - Decompose transform matrices at data-preprocess-time? For blending etc.

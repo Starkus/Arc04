@@ -1,0 +1,5 @@
+<meta type="SKINNED_MESH">
+  <geometry>Jumper.dae</geometry>
+  <controller>Jumper.dae</controller>
+  <animation loop="1">Jumper.dae</animation>
+</meta>

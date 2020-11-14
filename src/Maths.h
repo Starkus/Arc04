@@ -691,3 +691,17 @@ inline mat4 Mat4Compose(const v3 &translation, const v3 &scale, const v4 &rotati
 	m.m32 = translation.z;
 	return m;
 }
+
+inline mat4 Mat4ChangeOfBases(const v3 &fw, const v3 &up, const v3 &pos)
+{
+	const v3 right = V3Normalize(V3Cross(fw, up));
+	const v3 up2 = V3Cross(right, fw);
+	const mat4 result =
+	{
+		right.x,	right.y,	right.z,	0.0f,
+		fw.x,		fw.y,		fw.z,		0.0f,
+		up2.x,		up2.y,		up2.z,		0.0f,
+		pos.x,		pos.y,		pos.z,		1.0f
+	};
+	return result;
+}

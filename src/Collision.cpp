@@ -314,18 +314,7 @@ void GetAABB(Entity *entity, v3 *min, v3 *max)
 		*max = { -INFINITY, -INFINITY, -INFINITY };
 
 		// @Speed: inverse-transform direction, pick a point, and then transform only that point!
-		const v3 worldUp = { 0, 0, 1 };
-		const v3 pos = entity->pos;
-		const v3 fw = entity->fw;
-		const v3 right = V3Normalize(V3Cross(fw, worldUp));
-		const v3 up = V3Cross(right, fw);
-		mat4 modelMatrix =
-		{
-			right.x,	right.y,	right.z,	0.0f,
-			fw.x,		fw.y,		fw.z,		0.0f,
-			up.x,		up.y,		up.z,		0.0f,
-			pos.x,		pos.y,		pos.z,		1.0f
-		};
+		mat4 modelMatrix = Mat4ChangeOfBases(entity->fw, {0,0,1}, entity->pos);
 
 		const ResourcePointCloud *pointsRes = &c->convexHull.pointCloud->points;
 		u32 pointCount = pointsRes->pointCount;
@@ -390,26 +379,15 @@ v3 FurthestInDirection(Entity *entity, v3 dir)
 	{
 		f32 maxDist = -INFINITY;
 
-		const v3 worldUp = { 0, 0, 1 };
-		const v3 pos = entity->pos;
-		const v3 fw = entity->fw;
-		const v3 right = V3Normalize(V3Cross(fw, worldUp));
-		const v3 up = V3Cross(right, fw);
-		mat4 modelMatrix =
-		{
-			right.x,	right.y,	right.z,	0.0f,
-			fw.x,		fw.y,		fw.z,		0.0f,
-			up.x,		up.y,		up.z,		0.0f,
-			pos.x,		pos.y,		pos.z,		1.0f
-		};
+		mat4 modelMatrix = Mat4ChangeOfBases(entity->fw, {0,0,1}, entity->pos);
 
 		// Un-rotate direction
 		// @Speed: maybe do this with quaternions once decomposed transformations are a thing.
 		mat4 rotMatrixInv =
 		{
-			right.x,	fw.x,	up.x,	0,
-			right.y,	fw.y,	up.y,	0,
-			right.z,	fw.z,	up.z,	0,
+			modelMatrix.m00,	modelMatrix.m10,	modelMatrix.m20,	0,
+			modelMatrix.m01,	modelMatrix.m11,	modelMatrix.m21,	0,
+			modelMatrix.m02,	modelMatrix.m12,	modelMatrix.m22,	0,
 			0,			0,		0,		1
 		};
 		v4 locDir4 = Mat4TransformV4(rotMatrixInv, v4{ dir.x, dir.y, dir.z, 0 });

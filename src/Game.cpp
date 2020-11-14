@@ -105,6 +105,8 @@ GAMEDLL START_GAME(StartGame)
 #endif
 
 	gameState->timeMultiplier = 1.0f;
+	gameState->entityCount = 0;
+	gameState->skinnedMeshCount = 0;
 
 	// Initialize
 	{
@@ -117,6 +119,7 @@ GAMEDLL START_GAME(StartGame)
 		LoadResource(RESOURCETYPE_MESH, "data/capsule.b");
 		LoadResource(RESOURCETYPE_MESH, "data/level_graphics.b");
 		LoadResource(RESOURCETYPE_SKINNEDMESH, "data/Sparkus.b");
+		LoadResource(RESOURCETYPE_SKINNEDMESH, "data/Jumper.b");
 		LoadResource(RESOURCETYPE_LEVELGEOMETRYGRID, "data/level.b");
 		LoadResource(RESOURCETYPE_POINTS, "data/anvil_collision.b");
 
@@ -124,6 +127,9 @@ GAMEDLL START_GAME(StartGame)
 		const Resource *texNor = LoadResource(RESOURCETYPE_TEXTURE, "data/sparkus_normal.b");
 		BindTexture(texAlb->texture.deviceTexture, 0);
 		BindTexture(texNor->texture.deviceTexture, 1);
+
+		LoadResource(RESOURCETYPE_TEXTURE, "data/grid.b");
+		LoadResource(RESOURCETYPE_TEXTURE, "data/normal_plain.b");
 
 #if DEBUG_BUILD
 		// Debug geometry buffer
@@ -205,7 +211,14 @@ GAMEDLL START_GAME(StartGame)
 		playerEnt->collider.capsule.offset = { 0, 0, 1 };
 
 		gameState->player.state = PLAYERSTATE_IDLE;
-		gameState->animationIdx = PLAYERANIM_IDLE;
+
+		SkinnedMeshInstance *skinnedMeshInstance =
+			&gameState->skinnedMeshInstances[gameState->skinnedMeshCount++];
+		skinnedMeshInstance->entityHandle = gameState->entityCount - 1;
+		skinnedMeshInstance->meshRes = GetResource("data/Sparkus.b");
+		skinnedMeshInstance->animationIdx = PLAYERANIM_IDLE;
+		skinnedMeshInstance->animationTime = 0;
+		playerEnt->skinnedMeshInstance = skinnedMeshInstance;
 	}
 
 	// Init camera
@@ -273,14 +286,29 @@ GAMEDLL START_GAME(StartGame)
 		testEntity->collider.capsule.radius = 1;
 		testEntity->collider.capsule.height = 2;
 		testEntity->collider.capsule.offset = {};
+
+		testEntity = &gameState->entities[gameState->entityCount++];
+		testEntity->pos = { 3.0f, 4.0f, 0.0f };
+		testEntity->fw = { 0.0f, 1.0f, 0.0f };
+		testEntity->mesh = nullptr;
+		testEntity->collider.type = COLLIDER_SPHERE;
+		testEntity->collider.sphere.radius = 0.3f;
+		testEntity->collider.sphere.offset = { 0, 0, 1 };
+		SkinnedMeshInstance *skinnedMeshInstance =
+			&gameState->skinnedMeshInstances[gameState->skinnedMeshCount++];
+		skinnedMeshInstance->entityHandle = gameState->entityCount - 1;
+		skinnedMeshInstance->meshRes = GetResource("data/Jumper.b");
+		skinnedMeshInstance->animationIdx = 0;
+		skinnedMeshInstance->animationTime = 0;
+		testEntity->skinnedMeshInstance = skinnedMeshInstance;
 	}
 }
 
 void ChangeState(GameState *gameState, PlayerState newState, PlayerAnim newAnim)
 {
 	//Log("Changed state: 0x%X -> 0x%X\n", gameState->player.state, newState);
-	gameState->animationIdx = newAnim;
-	gameState->animationTime = 0;
+	gameState->player.entity->skinnedMeshInstance->animationIdx = newAnim;
+	gameState->player.entity->skinnedMeshInstance->animationTime = 0;
 	gameState->player.state = newState;
 }
 
@@ -597,6 +625,11 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		const v4 clearColor = { 0.95f, 0.88f, 0.05f, 1.0f };
 		ClearBuffers(clearColor);
 
+		const Resource *texAlb = GetResource("data/grid.b");
+		const Resource *texNor = GetResource("data/normal_plain.b");
+		BindTexture(texAlb->texture.deviceTexture, 0);
+		BindTexture(texNor->texture.deviceTexture, 1);
+
 		// Entity
 		for (u32 entityIdx = 0; entityIdx < gameState->entityCount; ++entityIdx)
 		{
@@ -604,18 +637,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			if (!entity->mesh)
 				continue;
 
-			const v3 pos = entity->pos;
-			const v3 fw = entity->fw;
-			const v3 right = V3Cross(entity->fw, {0,0,1});
-			const v3 up = V3Cross(right, fw);
-			// TODO pull out function?
-			const mat4 model =
-			{
-				right.x,	right.y,	right.z,	0.0f,
-				fw.x,		fw.y,		fw.z,		0.0f,
-				up.x,		up.y,		up.z,		0.0f,
-				pos.x,		pos.y,		pos.z,		1.0f
-			};
+			const mat4 model = Mat4ChangeOfBases(entity->fw, {0,0,1}, entity->pos);
 			UniformMat4(modelUniform, 1, model.m);
 
 			RenderIndexedMesh(entity->mesh->mesh.deviceMesh);
@@ -636,6 +658,11 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		projUniform = GetUniform(gameState->skinnedMeshProgram, "projection");
 		UniformMat4(projUniform, 1, proj.m);
 
+		const Resource *sparkusAlb = GetResource("data/sparkus_albedo.b");
+		const Resource *sparkusNor = GetResource("data/sparkus_normal.b");
+		BindTexture(sparkusAlb->texture.deviceTexture, 0);
+		BindTexture(sparkusNor->texture.deviceTexture, 1);
+
 		albedoUniform = GetUniform(gameState->skinnedMeshProgram, "texAlbedo");
 		UniformInt(albedoUniform, 0);
 		normalUniform = GetUniform(gameState->skinnedMeshProgram, "texNormal");
@@ -643,8 +670,12 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 		DeviceUniform jointsUniform = GetUniform(gameState->skinnedMeshProgram, "joints");
 		UniformMat4(viewUniform, 1, view.m);
+
+		for (u32 meshInstanceIdx = 0; meshInstanceIdx < gameState->skinnedMeshCount;
+				++meshInstanceIdx)
 		{
-			UniformMat4(modelUniform, 1, MAT4_IDENTITY.m);
+			SkinnedMeshInstance *skinnedMeshInstance =
+				&gameState->skinnedMeshInstances[meshInstanceIdx];
 
 			mat4 joints[128];
 			for (int i = 0; i < 128; ++i)
@@ -652,23 +683,25 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				joints[i] = MAT4_IDENTITY;
 			}
 
-			const Resource *skinnedMeshRes = GetResource("data/Sparkus.b");
+			const Resource *skinnedMeshRes = skinnedMeshInstance->meshRes;
 			const ResourceSkinnedMesh *skinnedMesh = &skinnedMeshRes->skinnedMesh;
 
-			Animation *animation = &skinnedMesh->animations[gameState->animationIdx];
+			Animation *animation = &skinnedMesh->animations[skinnedMeshInstance->animationIdx];
 
 			f32 lastTimestamp = animation->timestamps[animation->frameCount - 1];
+
+			f32 currentTime = skinnedMeshInstance->animationTime;
 
 			int currentFrame = -1;
 			for (u32 i = 0; i < animation->frameCount; ++i)
 			{
-				if (currentFrame == -1 && gameState->animationTime <= animation->timestamps[i])
+				if (currentFrame == -1 && currentTime <= animation->timestamps[i])
 					currentFrame = i - 1;
 			}
 			f32 prevStamp = animation->timestamps[currentFrame];
 			f32 nextStamp = animation->timestamps[currentFrame + 1];
 			f32 lerpWindow = nextStamp - prevStamp;
-			f32 lerpTime = gameState->animationTime - prevStamp;
+			f32 lerpTime = currentTime - prevStamp;
 			f32 lerpT = lerpTime / lerpWindow;
 
 			for (u32 jointIdx = 0; jointIdx < skinnedMesh->jointCount; ++jointIdx)
@@ -768,28 +801,19 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 				joints[jointIdx] = transform;
 			}
-			gameState->animationTime += deltaTime;
-			if (gameState->animationTime >= lastTimestamp)
+			currentTime += deltaTime;
+			if (currentTime >= lastTimestamp)
 			{
 				if (animation->loop)
-					gameState->animationTime = 0;
+					currentTime = 0;
 				else
-					gameState->animationTime = lastTimestamp;
+					currentTime = lastTimestamp;
 			}
+			skinnedMeshInstance->animationTime = currentTime;
 
-			Entity *player = gameState->player.entity;
-			const v3 pos = player->pos;
-			const v3 fw = player->fw;
-			const v3 right = V3Cross(player->fw, {0,0,1});
-			const v3 up = V3Cross(right, fw);
-			// TODO pull out function?
-			const mat4 model =
-			{
-				right.x,	right.y,	right.z,	0.0f,
-				fw.x,		fw.y,		fw.z,		0.0f,
-				up.x,		up.y,		up.z,		0.0f,
-				pos.x,		pos.y,		pos.z,		1.0f
-			};
+			// @Todo: actual, safe entity handle.
+			Entity *player = &gameState->entities[skinnedMeshInstance->entityHandle];
+			const mat4 model = Mat4ChangeOfBases(player->fw, {0,0,1}, player->pos);
 			UniformMat4(modelUniform, 1, model.m);
 
 			UniformMat4(jointsUniform, 128, joints[0].m);

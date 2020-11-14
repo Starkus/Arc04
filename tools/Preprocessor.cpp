@@ -20,11 +20,6 @@
 #include "LinuxCommon.cpp"
 #endif
 
-void *MallocPlus1(u64 size)
-{
-	return malloc(size + 1);
-}
-
 enum //TokenType
 {
 	TOKEN_INVALID,
@@ -271,15 +266,6 @@ Token ReadTokenAndAdvance(Tokenizer *tokenizer)
 		++tokenizer->cursor;
 	}
 
-#if 0
-	if (result.type == TOKEN_INVALID)
-		Log("\\%.*s ", result.size, result.begin);
-	else if (result.type >= TOKEN_ASCII_BEGIN && result.type < TOKEN_ASCII_END)
-		Log("`%c ", result.type);
-	else
-		Log("@%.*s ", result.size, result.begin);
-#endif
-
 	return result;
 }
 
@@ -299,6 +285,7 @@ void PrintType(char *buffer, const Type *type)
 
 void ParseFile(const char *filename, DynamicArray_Token &tokens)
 {
+	auto MallocPlus1 = [](u64 size) { return malloc(size + 1); };
 	char *fileBuffer;
 	u64 fileSize;
 	PlatformReadEntireFile(filename, (u8 **)&fileBuffer, &fileSize, MallocPlus1);
