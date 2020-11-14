@@ -1,3 +1,5 @@
+#include <windows.h>
+#include <strsafe.h>
 #include <GL/gl.h>
 #include <GLES3/gl32.h>
 #include <GLES3/glext.h>

@@ -5,8 +5,18 @@
 #include "Containers.h"
 
 #if TARGET_WINDOWS
+#include <windows.h>
+#include <strsafe.h>
 #include "Win32Common.cpp"
 #else
+#include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <linux/limits.h>
+#include <time.h>
+#include <errno.h>
+#include <dirent.h>
 #include "LinuxCommon.cpp"
 #endif
 

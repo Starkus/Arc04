@@ -35,7 +35,6 @@ Memory *g_memory;
 
 // Windows
 #if TARGET_WINDOWS
-HANDLE g_hStdout;
 #include "Win32Common.cpp"
 // Linux
 #else
