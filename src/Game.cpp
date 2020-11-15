@@ -349,7 +349,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			else if (controller->camRight.endedDown)
 				gameState->camYaw += camRotSpeed * deltaTime;
 
-			const f32 deadzone = 0.17f;
+			const f32 deadzone = 0.2f;
 			if (Abs(controller->rightStick.x) > deadzone)
 				gameState->camYaw -= controller->rightStick.x * camRotSpeed * deltaTime;
 			if (Abs(controller->rightStick.y) > deadzone)
@@ -372,7 +372,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 			if (inputDir.x + inputDir.y == 0)
 			{
-				const f32 deadzone = 0.17f;
+				const f32 deadzone = 0.2f;
 				if (Abs(controller->leftStick.x) > deadzone)
 					inputDir.x = (controller->leftStick.x - deadzone) / (1 - deadzone);
 				if (Abs(controller->leftStick.y) > deadzone)
@@ -511,6 +511,15 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					}
 				}
 			}
+
+			v3 dirr = player->entity->fw * 0 + v3{0,0,-15.2f};
+			v3 hitt;
+			if (RayColliderIntersection(origin, dirr, &gameState->entities[5], &hitt))
+				DrawDebugCubeAA(hitt, 0.03f, {0,1,0});
+			if (RayColliderIntersection(origin, dirr, &gameState->entities[6], &hitt))
+				DrawDebugCubeAA(hitt, 0.03f, {0,1,0});
+			if (RayColliderIntersection(origin, dirr, &gameState->entities[7], &hitt))
+				DrawDebugCubeAA(hitt, 0.03f, {0,1,0});
 		}
 
 		bool wasAirborne = player->state & PLAYERSTATEFLAG_AIRBORNE;
@@ -828,6 +837,8 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			if (g_debugContext->wireframeDebugDraws)
 				SetFillMode(RENDER_LINE);
 
+			DisableDepthTest();
+
 			UseProgram(g_debugContext->debugDrawProgram);
 			viewUniform = GetUniform(g_debugContext->debugDrawProgram, "view");
 			projUniform = GetUniform(g_debugContext->debugDrawProgram, "projection");
@@ -868,6 +879,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			dgb->triangleVertexCount = 0;
 			dgb->lineVertexCount = 0;
 
+			EnableDepthTest();
 			SetFillMode(RENDER_FILL);
 		}
 #endif

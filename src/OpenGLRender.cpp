@@ -52,6 +52,16 @@ PLATFORMPROC void SetUpDevice()
 	glEnable(GL_DEPTH_TEST);
 }
 
+PLATFORMPROC void EnableDepthTest()
+{
+	glEnable(GL_DEPTH_TEST);
+}
+
+PLATFORMPROC void DisableDepthTest()
+{
+	glDisable(GL_DEPTH_TEST);
+}
+
 PLATFORMPROC void ClearBuffers(v4 clearColor)
 {
 	glClearColor(clearColor.x, clearColor.y, clearColor.z, clearColor.w);
