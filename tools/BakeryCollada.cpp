@@ -914,7 +914,7 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 		PlatformWriteToFile(file, rawGeometry.positions.data, sizeof(v3) * positionCount);
 
 		u64 trianglesBlobOffset = FilePosition(file);
-		PlatformWriteToFile(file, rawGeometry.positions.data, sizeof(v3) * positionCount);
+		PlatformWriteToFile(file, triangles.data, sizeof(IndexTriangle) * triangleCount);
 
 		header.positionCount = positionCount;
 		header.positionsBlobOffset = positionsBlobOffset;

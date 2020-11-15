@@ -512,14 +512,20 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				}
 			}
 
-			v3 dirr = player->entity->fw * 0 + v3{0,0,-15.2f};
+			v3 dirr = player->entity->fw * 6 + v3{0,0,-1};
 			v3 hitt;
-			if (RayColliderIntersection(origin, dirr, &gameState->entities[5], &hitt))
+			v3 hitNor;
+			if (RayColliderIntersection(origin, dirr, &gameState->entities[5], &hitt, &hitNor))
 				DrawDebugCubeAA(hitt, 0.03f, {0,1,0});
-			if (RayColliderIntersection(origin, dirr, &gameState->entities[6], &hitt))
+			if (RayColliderIntersection(origin, dirr, &gameState->entities[6], &hitt, &hitNor))
 				DrawDebugCubeAA(hitt, 0.03f, {0,1,0});
-			if (RayColliderIntersection(origin, dirr, &gameState->entities[7], &hitt))
+			if (RayColliderIntersection(origin, dirr, &gameState->entities[7], &hitt, &hitNor))
 				DrawDebugCubeAA(hitt, 0.03f, {0,1,0});
+			if (RayColliderIntersection(origin, dirr, &gameState->entities[3], &hitt, &hitNor))
+				DrawDebugCubeAA(hitt, 0.03f, {0,1,0});
+
+			v3 asd[] = { hitt, hitt + hitNor };
+			DrawDebugLines(asd, 2, {0,1,1});
 		}
 
 		bool wasAirborne = player->state & PLAYERSTATEFLAG_AIRBORNE;
