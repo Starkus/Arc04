@@ -398,6 +398,11 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, const Entity *entity, v3 *
 
 		f32 td = Sqrt(radiusSqr - distSqr);
 		*hit = proj - unitDir * td;
+
+		// Limit reach
+		if (V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
+			return false;
+
 		*hitNor = (*hit - center) / c->sphere.radius;
 		return true;
 	} break;
@@ -420,12 +425,17 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, const Entity *entity, v3 *
 		if (distZ * Sign(rayDir.z) > 0)
 		{
 			// Check top/bottom face
-			v3 proj = rayOrigin + dirNormZ * distZ;
+			f32 factor = distZ / rayDir.z;
+			v3 proj = rayOrigin + rayDir * factor;
 
 			v3 opposite = proj - center;
 			f32 distSqr = (opposite.x * opposite.x) + (opposite.y * opposite.y);
 			if (distSqr <= radiusSqr)
 			{
+				// Limit reach
+				if (factor < 0 || factor > 1)
+					return false;
+
 				*hit = proj;
 				*hitNor = { 0, 0, -Sign(rayDir.z) };
 				return true;
@@ -453,6 +463,11 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, const Entity *entity, v3 *
 			return false;
 
 		*hit = proj;
+
+		// Limit reach
+		if (V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
+			return false;
+
 		*hitNor = (*hit - center) / c->cylinder.radius;
 		hitNor->z = 0;
 		return true;
@@ -480,6 +495,11 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, const Entity *entity, v3 *
 				if (sphereProj.z <= sphereCenter.z)
 				{
 					*hit = sphereProj;
+
+					// Limit reach
+					if (V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
+						return false;
+
 					*hitNor = (*hit - sphereCenter) / c->capsule.radius;
 					return true;
 				}
@@ -503,6 +523,11 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, const Entity *entity, v3 *
 				if (sphereProj.z >= sphereCenter.z)
 				{
 					*hit = sphereProj;
+
+					// Limit reach
+					if (V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
+						return false;
+
 					*hitNor = (*hit - sphereCenter) / c->capsule.radius;
 					return true;
 				}
@@ -538,6 +563,11 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, const Entity *entity, v3 *
 			return false;
 
 		*hit = proj;
+
+		// Limit reach
+		if (V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
+			return false;
+
 		*hitNor = (*hit - center) / c->capsule.radius;
 		hitNor->z = 0;
 		return true;

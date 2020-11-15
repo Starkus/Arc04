@@ -433,13 +433,9 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			}
 
 			player->entity->pos += player->vel * deltaTime;
-
-			// This is for consistent floor detection with colliders
-			if ((player->state & PLAYERSTATEFLAG_AIRBORNE) == 0)
-			{
-				player->entity->pos.z -= 0.02f;
-			}
 		}
+
+		const f32 groundRayDist = (player->state & PLAYERSTATEFLAG_AIRBORNE) ? 1.0f : 1.5f;
 
 		// Collision
 		bool touchedGround = false;
@@ -449,6 +445,21 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			Entity *entity = &gameState->entities[entityIndex];
 			if (entity != gameState->player.entity)
 			{
+				v3 origin = player->entity->pos + v3{ 0, 0, 1 };
+				v3 dir = { 0, 0, -groundRayDist };
+				v3 hit;
+				v3 hitNor;
+				if (RayColliderIntersection(origin, dir, entity, &hit, &hitNor))
+				{
+					if (hitNor.z > 0.7f)
+					{
+						player->entity->pos.z = hit.z;
+						DrawDebugCubeAA(hit, 0.03f, {0,1,0});
+						touchedGround = true;
+						break;
+					}
+				}
+
 				GJKResult gjkResult = GJKTest(player->entity, entity);
 				if (gjkResult.hit)
 				{
@@ -457,14 +468,12 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					if (V3Length(depenetration) < 2.0f)
 					{
 						player->entity->pos += depenetration;
-						// @Fix: handle velocity change upon hits properly
-						if (V3Normalize(depenetration).z > 0.9f)
-							touchedGround = true;
 					}
 					else
 					{
 						Log("WARNING! Ignoring huge depenetration vector... something went wrong!\n");
 					}
+
 					break;
 				}
 			}
@@ -473,7 +482,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		// Ray testing
 		{
 			v3 origin = player->entity->pos + v3{ 0, 0, 1 };
-			v3 dir = { 0, 0, -1.1f };
+			v3 dir = { 0, 0, -groundRayDist };
 			v3 hit;
 			Triangle triangle;
 			if (HitTest(gameState, origin, dir, &hit, &triangle))
@@ -511,21 +520,6 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					}
 				}
 			}
-
-			v3 dirr = player->entity->fw * 6 + v3{0,0,-1};
-			v3 hitt;
-			v3 hitNor;
-			if (RayColliderIntersection(origin, dirr, &gameState->entities[5], &hitt, &hitNor))
-				DrawDebugCubeAA(hitt, 0.03f, {0,1,0});
-			if (RayColliderIntersection(origin, dirr, &gameState->entities[6], &hitt, &hitNor))
-				DrawDebugCubeAA(hitt, 0.03f, {0,1,0});
-			if (RayColliderIntersection(origin, dirr, &gameState->entities[7], &hitt, &hitNor))
-				DrawDebugCubeAA(hitt, 0.03f, {0,1,0});
-			if (RayColliderIntersection(origin, dirr, &gameState->entities[3], &hitt, &hitNor))
-				DrawDebugCubeAA(hitt, 0.03f, {0,1,0});
-
-			v3 asd[] = { hitt, hitt + hitNor };
-			DrawDebugLines(asd, 2, {0,1,1});
 		}
 
 		bool wasAirborne = player->state & PLAYERSTATEFLAG_AIRBORNE;
