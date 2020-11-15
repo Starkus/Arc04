@@ -44,10 +44,10 @@ void ResourceLoadLevelGeometryGrid(Resource *resource, const u8 *fileBuffer, boo
 	ReadTriangleGeometry(fileBuffer, &resource->geometryGrid);
 }
 
-void ResourceLoadPoints(Resource *resource, const u8 *fileBuffer, bool initialize)
+void ResourceLoadCollisionMesh(Resource *resource, const u8 *fileBuffer, bool initialize)
 {
 	(void) initialize;
-	ReadPoints(fileBuffer, &resource->points);
+	ReadCollisionMesh(fileBuffer, &resource->collisionMesh);
 }
 
 void ResourceLoadShader(Resource *resource, const u8 *fileBuffer, bool initialize)

@@ -3,7 +3,7 @@ enum ResourceType
 	RESOURCETYPE_MESH,
 	RESOURCETYPE_SKINNEDMESH,
 	RESOURCETYPE_LEVELGEOMETRYGRID,
-	RESOURCETYPE_POINTS,
+	RESOURCETYPE_COLLISIONMESH,
 	RESOURCETYPE_SHADER,
 	RESOURCETYPE_TEXTURE
 };
@@ -30,13 +30,17 @@ struct ResourceGeometryGrid
 	v2 highCorner;
 	int cellsSide;
 	u32 *offsets;
-	Triangle *triangles;
+	u32 positionCount;
+	v3 *positions;
+	IndexTriangle *triangles;
 };
 
-struct ResourcePointCloud
+struct ResourceCollisionMesh
 {
-	v3 *pointData;
-	u32 pointCount;
+	v3 *positionData;
+	u32 positionCount;
+	IndexTriangle *triangleData;
+	u32 triangleCount;
 };
 
 struct ResourceShader
@@ -61,7 +65,7 @@ struct Resource
 		ResourceMesh mesh;
 		ResourceSkinnedMesh skinnedMesh;
 		ResourceGeometryGrid geometryGrid;
-		ResourcePointCloud points;
+		ResourceCollisionMesh collisionMesh;
 		ResourceShader shader;
 		ResourceTexture texture;
 	};

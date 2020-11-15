@@ -282,8 +282,9 @@ bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, 
 		cellY < 0 || cellY >= geometryGrid->cellsSide)
 		return false;
 
+	bool result = false;
 	v3 closestHit = {};
-	Triangle *closestTriangle = 0;
+	Triangle closestTriangle = {};
 	f32 closestSqrLen = INFINITY;
 
 	int offsetIdx = cellX + cellY * geometryGrid->cellsSide;
@@ -291,26 +292,34 @@ bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, 
 	u32 triEnd = geometryGrid->offsets[offsetIdx + 1];
 	for (u32 triIdx = triBegin; triIdx < triEnd; ++triIdx)
 	{
-		Triangle *curTriangle = &geometryGrid->triangles[triIdx];
+		IndexTriangle *curTriangle = &geometryGrid->triangles[triIdx];
+		Triangle tri =
+		{
+			geometryGrid->positions[curTriangle->a],
+			geometryGrid->positions[curTriangle->b],
+			geometryGrid->positions[curTriangle->c],
+			curTriangle->normal
+		};
 
 #if HITTEST_VISUAL_DEBUG
 		Vertex tri[] =
 		{
-			{curTriangle->a, {}, {}},
-			{curTriangle->b, {}, {}},
-			{curTriangle->c, {}, {}}
+			{tri.a, {}, {}},
+			{tri.b, {}, {}},
+			{tri.c, {}, {}}
 		};
 		DrawDebugTriangles(gameState, tri, 3);
 #endif
 
 		v3 thisHit;
-		if (RayTriangleIntersection(rayOrigin, rayDir, curTriangle, &thisHit))
+		if (RayTriangleIntersection(rayOrigin, rayDir, &tri, &thisHit))
 		{
 			f32 sqrLen = V3SqrLen(thisHit - rayOrigin);
 			if (sqrLen < closestSqrLen)
 			{
+				result = true;
 				closestHit = thisHit;
-				closestTriangle = curTriangle;
+				closestTriangle = tri;
 				closestSqrLen = sqrLen;
 			}
 		}
@@ -359,13 +368,12 @@ bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, 
 	DrawDebugTriangles(gameState, cellDebugTris, 24);
 #endif
 
-	if (closestTriangle)
+	if (result)
 	{
 		*hit = closestHit;
-		*triangle = *closestTriangle;
-		return true;
+		*triangle = closestTriangle;
 	}
-	return false;
+	return result;
 }
 
 bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, v3 *hit, Triangle *triangle)
@@ -492,12 +500,12 @@ void GetAABB(Entity *entity, v3 *min, v3 *max)
 		// @Speed: inverse-transform direction, pick a point, and then transform only that point!
 		mat4 modelMatrix = Mat4ChangeOfBases(entity->fw, {0,0,1}, entity->pos);
 
-		const ResourcePointCloud *pointsRes = &c->convexHull.pointCloud->points;
-		u32 pointCount = pointsRes->pointCount;
+		const ResourceCollisionMesh *collMeshRes = &c->convexHull.meshRes->collisionMesh;
+		u32 pointCount = collMeshRes->positionCount;
 
 		for (u32 i = 0; i < pointCount; ++i)
 		{
-			v3 p = pointsRes->pointData[i];
+			v3 p = collMeshRes->positionData[i];
 			v4 v = { p.x, p.y, p.z, 1.0f };
 			v = Mat4TransformV4(modelMatrix, v);
 
@@ -569,9 +577,9 @@ v3 FurthestInDirection(Entity *entity, v3 dir)
 		v4 locDir4 = Mat4TransformV4(rotMatrixInv, v4{ dir.x, dir.y, dir.z, 0 });
 		v3 locDir = { locDir4.x, locDir4.y, locDir4.z };
 
-		const ResourcePointCloud *pointsRes = &c->convexHull.pointCloud->points;
-		const u32 pointCount = pointsRes->pointCount;
-		const v3 *scan = pointsRes->pointData;
+		const ResourceCollisionMesh *collMeshRes = &c->convexHull.meshRes->collisionMesh;
+		const u32 pointCount = collMeshRes->positionCount;
+		const v3 *scan = collMeshRes->positionData;
 		for (u32 i = 0; i < pointCount; ++i)
 		{
 			v3 p = *scan++;

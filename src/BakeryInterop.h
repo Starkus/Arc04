@@ -43,13 +43,19 @@ struct BakeryTriangleDataHeader
 	v2 highCorner;
 	u32 cellsSide;
 	u64 offsetsBlobOffset;
+
+	u32 positionCount;
+	u64 positionsBlobOffset;
+
 	u64 trianglesBlobOffset;
 };
 
-struct BakeryPointsHeader
+struct BakeryCollisionMeshHeader
 {
-	u32 pointCount;
-	u64 pointsBlobOffset;
+	u32 positionCount;
+	u64 positionsBlobOffset;
+	u32 triangleCount;
+	u64 trianglesBlobOffset;
 };
 
 struct BakeryShaderHeader

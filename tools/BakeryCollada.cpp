@@ -803,8 +803,8 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 	case METATYPE_TRIANGLE_DATA:
 	{
 		// Make triangles
-		Array_Triangle triangles;
-		ArrayInit_Triangle(&triangles, rawGeometry.triangleCount, FrameAlloc);
+		Array_IndexTriangle triangles;
+		ArrayInit_IndexTriangle(&triangles, rawGeometry.triangleCount, FrameAlloc);
 
 		int attrCount = 1;
 		if (rawGeometry.normalsOffset >= 0)
@@ -814,21 +814,29 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 
 		for (int i = 0; i < rawGeometry.triangleCount; ++i)
 		{
-			Triangle *triangle = &triangles[triangles.size++];
+			IndexTriangle *triangle = &triangles[triangles.size++];
 
 			int ai = rawGeometry.triangleIndices[(i * 3 + 0) * attrCount + rawGeometry.verticesOffset];
 			int bi = rawGeometry.triangleIndices[(i * 3 + 2) * attrCount + rawGeometry.verticesOffset];
 			int ci = rawGeometry.triangleIndices[(i * 3 + 1) * attrCount + rawGeometry.verticesOffset];
 
-			triangle->a = rawGeometry.positions[ai];
-			triangle->b = rawGeometry.positions[bi];
-			triangle->c = rawGeometry.positions[ci];
+			ASSERT(ai < U16_MAX);
+			ASSERT(bi < U16_MAX);
+			ASSERT(ci < U16_MAX);
 
-			triangle->normal = V3Normalize(V3Cross(triangle->c - triangle->a, triangle->b - triangle->a));
+			triangle->a = (u16)ai;
+			triangle->b = (u16)bi;
+			triangle->c = (u16)ci;
+
+			const v3 ap = rawGeometry.positions[ai];
+			const v3 bp = rawGeometry.positions[bi];
+			const v3 cp = rawGeometry.positions[ci];
+
+			triangle->normal = V3Normalize(V3Cross(cp - ap, bp - ap));
 		}
 
 		GeometryGrid geometryGrid;
-		GenerateGeometryGrid(triangles, &geometryGrid);
+		GenerateGeometryGrid(rawGeometry.positions, triangles, &geometryGrid);
 
 		// Output
 		FileHandle file = PlatformOpenForWrite(outputName);
@@ -839,6 +847,10 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 		u32 offsetCount = geometryGrid.cellsSide * geometryGrid.cellsSide + 1;
 		PlatformWriteToFile(file, geometryGrid.offsets, sizeof(geometryGrid.offsets[0]) * offsetCount);
 
+		u64 positionsBlobOffset = FilePosition(file);
+		u32 positionCount = rawGeometry.positions.size;
+		PlatformWriteToFile(file, rawGeometry.positions.data, sizeof(v3) * positionCount);
+
 		u64 trianglesBlobOffset = FilePosition(file);
 		u32 triangleCount = geometryGrid.offsets[offsetCount - 1];
 		PlatformWriteToFile(file, geometryGrid.triangles, sizeof(Triangle) * triangleCount);
@@ -848,24 +860,68 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 		header.highCorner = geometryGrid.highCorner;
 		header.cellsSide = geometryGrid.cellsSide;
 		header.offsetsBlobOffset = offsetsBlobOffset;
+		header.positionCount = positionCount;
+		header.positionsBlobOffset = positionsBlobOffset;
 		header.trianglesBlobOffset = trianglesBlobOffset;
 		PlatformWriteToFile(file, &header, sizeof(header));
 
 		PlatformCloseFile(file);
 	} break;
-	case METATYPE_POINTS:
+	case METATYPE_COLLISION_MESH:
 	{
+		// Make triangles
+		Array_IndexTriangle triangles;
+		ArrayInit_IndexTriangle(&triangles, rawGeometry.triangleCount, FrameAlloc);
+
+		int attrCount = 1;
+		if (rawGeometry.normalsOffset >= 0)
+			++attrCount;
+		if (rawGeometry.uvsOffset >= 0)
+			++attrCount;
+
+		for (int i = 0; i < rawGeometry.triangleCount; ++i)
+		{
+			IndexTriangle *triangle = &triangles[triangles.size++];
+
+			int ai = rawGeometry.triangleIndices[(i * 3 + 0) * attrCount + rawGeometry.verticesOffset];
+			int bi = rawGeometry.triangleIndices[(i * 3 + 2) * attrCount + rawGeometry.verticesOffset];
+			int ci = rawGeometry.triangleIndices[(i * 3 + 1) * attrCount + rawGeometry.verticesOffset];
+
+			ASSERT(ai < U16_MAX);
+			ASSERT(bi < U16_MAX);
+			ASSERT(ci < U16_MAX);
+
+			triangle->a = (u16)ai;
+			triangle->b = (u16)bi;
+			triangle->c = (u16)ci;
+
+			const v3 ap = rawGeometry.positions[ai];
+			const v3 bp = rawGeometry.positions[bi];
+			const v3 cp = rawGeometry.positions[ci];
+
+			triangle->normal = V3Normalize(V3Cross(cp - ap, bp - ap));
+		}
+
 		// Output
 		FileHandle file = PlatformOpenForWrite(outputName);
 
-		const u32 pointCount = rawGeometry.positions.size;
+		const u32 positionCount = rawGeometry.positions.size;
+		const u32 triangleCount = rawGeometry.triangleCount;
 
-		BakeryPointsHeader header;
-		header.pointCount = pointCount;
-		header.pointsBlobOffset = sizeof(header);
+		BakeryCollisionMeshHeader header;
 
+		u64 positionsBlobOffset = PlatformFileSeek(file, sizeof(header), SEEK_SET);
+		PlatformWriteToFile(file, rawGeometry.positions.data, sizeof(v3) * positionCount);
+
+		u64 trianglesBlobOffset = FilePosition(file);
+		PlatformWriteToFile(file, rawGeometry.positions.data, sizeof(v3) * positionCount);
+
+		header.positionCount = positionCount;
+		header.positionsBlobOffset = positionsBlobOffset;
+		header.triangleCount = triangleCount;
+		header.trianglesBlobOffset = trianglesBlobOffset;
+		PlatformFileSeek(file, 0, SEEK_SET);
 		PlatformWriteToFile(file, &header, sizeof(header));
-		PlatformWriteToFile(file, rawGeometry.positions.data, sizeof(v3) * pointCount);
 
 		PlatformCloseFile(file);
 	} break;

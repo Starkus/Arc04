@@ -332,7 +332,7 @@ ErrorCode OutputSkinnedMesh(const char *filename,
 	return ERROR_OK;
 }
 
-void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
+void GenerateGeometryGrid(const Array_v3 &positions, const Array_IndexTriangle &triangles, GeometryGrid *geometryGrid)
 {
 	void *oldStackPtr = g_memory->stackPtr;
 
@@ -340,16 +340,13 @@ void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
 	v2 highCorner = { -INFINITY, -INFINITY };
 
 	// Get limits
-	for (u32 i = 0; i < triangles.size; ++i)
+	for (u32 i = 0; i < positions.size; ++i)
 	{
-		for (u32 j = 0; j < 3; ++j)
-		{
-			v3 p = triangles[i].corners[j];
-			if (p.x < lowCorner.x) lowCorner.x = p.x;
-			if (p.x > highCorner.x) highCorner.x = p.x;
-			if (p.y < lowCorner.y) lowCorner.y = p.y;
-			if (p.y > highCorner.y) highCorner.y = p.y;
-		}
+		v3 p = positions[i];
+		if (p.x < lowCorner.x) lowCorner.x = p.x;
+		if (p.x > highCorner.x) highCorner.x = p.x;
+		if (p.y < lowCorner.y) lowCorner.y = p.y;
+		if (p.y > highCorner.y) highCorner.y = p.y;
 	}
 
 	const int cellsSide = 4;
@@ -361,21 +358,22 @@ void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
 			highCorner.x, highCorner.y);
 
 	// Init buckets
-	DynamicArray_Triangle *cellBuckets = (DynamicArray_Triangle *)StackAlloc(sizeof(DynamicArray_Triangle) * cellCount);
+	DynamicArray_IndexTriangle *cellBuckets = (DynamicArray_IndexTriangle *)
+		StackAlloc(sizeof(DynamicArray_IndexTriangle) * cellCount);
 	for (int i = 0; i < cellCount; ++i)
 	{
-		DynamicArrayInit_Triangle(&cellBuckets[i], 256, StackAlloc);
+		DynamicArrayInit_IndexTriangle(&cellBuckets[i], 256, StackAlloc);
 	}
 	u32 totalTriangleCount = 0;
 
 	for (u32 triangleIdx = 0; triangleIdx < triangles.size; ++triangleIdx)
 	{
-		const Triangle *curTriangle = &triangles[triangleIdx];
+		const IndexTriangle *curTriangle = &triangles[triangleIdx];
 
 		v2 corners[3];
 		for (int i = 0; i < 3; ++i)
 		{
-			v3 worldP = curTriangle->corners[i];
+			v3 worldP = positions[curTriangle->corners[i]];
 
 			// Subtract epsilon from vertices on the high edge, since Floor(p) would give out of
 			// bounds indices.
@@ -423,8 +421,8 @@ void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
 				++scanX)
 			{
 				ASSERT(scanX >= 0 && scanX < cellsSide);
-				DynamicArray_Triangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
-				bucket[DynamicArrayAdd_Triangle(&bucket, StackRealloc)] = *curTriangle;
+				DynamicArray_IndexTriangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
+				bucket[DynamicArrayAdd_IndexTriangle(&bucket, StackRealloc)] = *curTriangle;
 				++totalTriangleCount;
 			}
 		}
@@ -459,8 +457,8 @@ void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
 				{
 					ASSERT(scanX >= 0 && scanX < cellsSide);
 
-					DynamicArray_Triangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
-					bucket[DynamicArrayAdd_Triangle(&bucket, StackRealloc)] = *curTriangle;
+					DynamicArray_IndexTriangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
+					bucket[DynamicArrayAdd_IndexTriangle(&bucket, StackRealloc)] = *curTriangle;
 					++totalTriangleCount;
 				}
 				curX1 = nextX1;
@@ -491,8 +489,8 @@ void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
 				++scanX)
 			{
 				ASSERT(scanX >= 0 && scanX < cellsSide);
-				DynamicArray_Triangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
-				bucket[DynamicArrayAdd_Triangle(&bucket, StackRealloc)] = *curTriangle;
+				DynamicArray_IndexTriangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
+				bucket[DynamicArrayAdd_IndexTriangle(&bucket, StackRealloc)] = *curTriangle;
 				++totalTriangleCount;
 			}
 		}
@@ -524,8 +522,8 @@ void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
 				{
 					ASSERT(scanX >= 0 && scanX < cellsSide);
 
-					DynamicArray_Triangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
-					bucket[DynamicArrayAdd_Triangle(&bucket, StackRealloc)] = *curTriangle;
+					DynamicArray_IndexTriangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
+					bucket[DynamicArrayAdd_IndexTriangle(&bucket, StackRealloc)] = *curTriangle;
 					++totalTriangleCount;
 				}
 				curX1 = nextX1;
@@ -540,7 +538,7 @@ void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
 	geometryGrid->highCorner = highCorner;
 	geometryGrid->cellsSide = cellsSide;
 	geometryGrid->offsets = (u32 *)FrameAlloc(sizeof(u32) * (cellCount + 1));
-	geometryGrid->triangles = (Triangle *)FrameAlloc(sizeof(Triangle) * totalTriangleCount);
+	geometryGrid->triangles = (IndexTriangle *)FrameAlloc(sizeof(IndexTriangle) * totalTriangleCount);
 
 	int triangleCount = 0;
 	for (int y = 0; y < cellsSide; ++y)
@@ -550,7 +548,7 @@ void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
 			int i = x + y * cellsSide;
 			geometryGrid->offsets[i] = (u32)triangleCount;
 
-			DynamicArray_Triangle &bucket = cellBuckets[i];
+			DynamicArray_IndexTriangle &bucket = cellBuckets[i];
 			for (u32 bucketIdx = 0; bucketIdx < bucket.size; ++bucketIdx)
 			{
 				geometryGrid->triangles[triangleCount++] = bucket[bucketIdx];

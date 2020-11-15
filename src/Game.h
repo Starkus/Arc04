@@ -13,7 +13,7 @@ struct Collider
 	{
 		struct
 		{
-			const Resource *pointCloud;
+			const Resource *meshRes;
 		} convexHull;
 		struct
 		{

@@ -232,7 +232,7 @@ ErrorCode ProcessMetaFile(const char *filename, const char *fullDataDir)
 	case METATYPE_MESH:
 	case METATYPE_SKINNED_MESH:
 	case METATYPE_TRIANGLE_DATA:
-	case METATYPE_POINTS:
+	case METATYPE_COLLISION_MESH:
 	{
 		ProcessMetaFileCollada(type, rootEl, filename, fullDataDir);
 	} break;

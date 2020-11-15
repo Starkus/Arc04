@@ -77,9 +77,9 @@ GAMEDLL GAME_RESOURCE_POST_LOAD(GameResourcePostLoad)
 		ResourceLoadLevelGeometryGrid(resource, fileBuffer, initialize);
 		return true;
 	} break;
-	case RESOURCETYPE_POINTS:
+	case RESOURCETYPE_COLLISIONMESH:
 	{
-		ResourceLoadPoints(resource, fileBuffer, initialize);
+		ResourceLoadCollisionMesh(resource, fileBuffer, initialize);
 		return true;
 	} break;
 	case RESOURCETYPE_TEXTURE:
@@ -121,7 +121,7 @@ GAMEDLL START_GAME(StartGame)
 		LoadResource(RESOURCETYPE_SKINNEDMESH, "data/Sparkus.b");
 		LoadResource(RESOURCETYPE_SKINNEDMESH, "data/Jumper.b");
 		LoadResource(RESOURCETYPE_LEVELGEOMETRYGRID, "data/level.b");
-		LoadResource(RESOURCETYPE_POINTS, "data/anvil_collision.b");
+		LoadResource(RESOURCETYPE_COLLISIONMESH, "data/anvil_collision.b");
 
 		const Resource *texAlb = LoadResource(RESOURCETYPE_TEXTURE, "data/sparkus_albedo.b");
 		const Resource *texNor = LoadResource(RESOURCETYPE_TEXTURE, "data/sparkus_normal.b");
@@ -229,8 +229,8 @@ GAMEDLL START_GAME(StartGame)
 		Collider collider;
 		collider.type = COLLIDER_CONVEX_HULL;
 
-		const Resource *pointsRes = GetResource("data/anvil_collision.b");
-		collider.convexHull.pointCloud = pointsRes;
+		const Resource *collMeshRes = GetResource("data/anvil_collision.b");
+		collider.convexHull.meshRes = collMeshRes;
 
 		const Resource *anvilRes = GetResource("data/anvil.b");
 

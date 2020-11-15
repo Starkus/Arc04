@@ -29,13 +29,29 @@ struct Triangle
 	v3 normal;
 };
 
+struct IndexTriangle
+{
+	union
+	{
+		struct
+		{
+			u16 a;
+			u16 b;
+			u16 c;
+		};
+		u16 corners[3];
+	};
+	v3 normal;
+};
+
 struct GeometryGrid
 {
 	v2 lowCorner;
 	v2 highCorner;
 	int cellsSide;
 	u32 *offsets;
-	Triangle *triangles;
+	v3 *positions;
+	IndexTriangle *triangles;
 };
 
 struct AnimationChannel
