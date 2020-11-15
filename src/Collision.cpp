@@ -312,9 +312,6 @@ bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, v3 *hit, Triangle *t
 
 bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, const Entity *entity, v3 *hit, v3 *hitNor)
 {
-	v3 ddrawVertices[] = { rayOrigin, rayOrigin + rayDir };
-	DrawDebugLines(ddrawVertices, 2, {0,1,0});
-
 	v3 unitDir = V3Normalize(rayDir);
 
 	const Collider *c = &entity->collider;

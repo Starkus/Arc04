@@ -46,7 +46,7 @@ static_assert(sizeof(GLDeviceUniform) <= sizeof(DeviceUniform),
 
 PLATFORMPROC void SetUpDevice()
 {
-	//glEnable(GL_CULL_FACE);
+	glEnable(GL_CULL_FACE);
 	glFrontFace(GL_CW);
 
 	glEnable(GL_DEPTH_TEST);

@@ -454,7 +454,6 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					if (hitNor.z > 0.7f)
 					{
 						player->entity->pos.z = hit.z;
-						DrawDebugCubeAA(hit, 0.03f, {0,1,0});
 						touchedGround = true;
 						break;
 					}

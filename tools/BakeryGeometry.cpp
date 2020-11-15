@@ -9,7 +9,7 @@ u32 HashRawVertex(const RawVertex &v)
 }
 
 ErrorCode ConstructSkinnedMesh(const RawGeometry *geometry, const WeightData *weightData,
-		DynamicArray_RawVertex &finalVertices, Array_u16 &finalIndices)
+		DynamicArray_RawVertex &finalVertices, DynamicArray_u16 &finalIndices)
 {
 	void *oldStackPtr = g_memory->stackPtr;
 
@@ -61,7 +61,7 @@ ErrorCode ConstructSkinnedMesh(const RawGeometry *geometry, const WeightData *we
 		const bool hasNormals = geometry->normalsOffset >= 0;
 		const int attrCount = 1 + hasUvs + hasNormals;
 
-		ArrayInit_u16(&finalIndices, geometry->triangleCount * 3, FrameAlloc);
+		DynamicArrayInit_u16(&finalIndices, geometry->triangleCount * 3, FrameAlloc);
 
 		// We make the number of buckets the next power of 2 after the count
 		// to minimize collisions with a reasonable amount of memory.
@@ -175,7 +175,7 @@ ErrorCode ConstructSkinnedMesh(const RawGeometry *geometry, const WeightData *we
 }
 
 ErrorCode OutputMesh(const char *filename, DynamicArray_RawVertex &finalVertices,
-		Array_u16 &finalIndices)
+		DynamicArray_u16 &finalIndices)
 {
 	// Output!
 	{
@@ -222,7 +222,7 @@ ErrorCode OutputMesh(const char *filename, DynamicArray_RawVertex &finalVertices
 }
 
 ErrorCode OutputSkinnedMesh(const char *filename,
-		DynamicArray_RawVertex &finalVertices, Array_u16 &finalIndices, Skeleton &skeleton,
+		DynamicArray_RawVertex &finalVertices, DynamicArray_u16 &finalIndices, Skeleton &skeleton,
 		DynamicArray_Animation &animations)
 {
 	void *oldStackPtr = g_memory->stackPtr;
@@ -405,12 +405,30 @@ void GenerateGeometryGrid(const Array_v3 &positions, const Array_IndexTriangle &
 			}
 		}
 
+		// If the whole triangle fits in a single row, just fill from left to right
+		if (Floor(corners[0].y) == Floor(corners[2].y))
+		{
+			int scanlineY = (int)Floor(corners[0].y);
+			f32 left = Min(corners[0].x, Min(corners[1].x, corners[2].x));
+			f32 right = Max(corners[0].x, Max(corners[1].x, corners[2].x));
+			for (int scanX = (int)Floor(left);
+				scanX <= (int)Floor(right);
+				++scanX)
+			{
+				ASSERT(scanX >= 0 && scanX < cellsSide);
+				DynamicArray_IndexTriangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
+				bucket[DynamicArrayAdd_IndexTriangle(&bucket, StackRealloc)] = *curTriangle;
+				++totalTriangleCount;
+			}
+			continue;
+		}
+
 		// We split the triangle into a flat-bottomed triangle and a flat-topped one, and rasterize
 		// them individually
 		f32 lerpT = (corners[1].y - corners[0].y) / (corners[2].y - corners[0].y);
 		v2 midPoint = corners[0] * (1.0f - lerpT) + corners[2] * lerpT;
 
-		// If the whole triangle fits in a single row, just fill from left to right
+		// If top half fits in one row, just scan left to right
 		if (Floor(corners[1].y) == Floor(corners[2].y))
 		{
 			int scanlineY = (int)Floor(corners[1].y);

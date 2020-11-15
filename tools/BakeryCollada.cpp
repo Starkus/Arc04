@@ -61,19 +61,19 @@ void ReadStringToInts(const char *text, int *buffer, int count)
 	}
 }
 
-ErrorCode ReadColladaGeometry(XMLElement *rootEl, const char *geometryId, RawGeometry *result)
+ErrorCode ReadColladaGeometry(XMLElement *rootEl, const char *geometryUrl, RawGeometry *result)
 {
 	*result = {};
 
 	XMLElement *geometryEl = rootEl->FirstChildElement("library_geometries")
 		->FirstChildElement("geometry");
 
-	if (geometryId)
+	if (geometryUrl && *geometryUrl)
 	{
 		bool found = false;
 		while (geometryEl)
 		{
-			if (strcmp(geometryEl->FindAttribute("name")->Value(), geometryId) == 0)
+			if (strcmp(geometryEl->FindAttribute("id")->Value(), geometryUrl) == 0)
 			{
 				found = true;
 				break;
@@ -82,7 +82,7 @@ ErrorCode ReadColladaGeometry(XMLElement *rootEl, const char *geometryId, RawGeo
 		}
 		if (!found)
 		{
-			Log("Error! couldn't find geometry with name \"%s\"\n", geometryId);
+			Log("Error! couldn't find geometry with name \"%s\"\n", geometryUrl);
 			return ERROR_NO_ELEMENT_WITH_ID;
 		}
 	}
@@ -680,6 +680,139 @@ ErrorCode ReadColladaFile(tinyxml2::XMLDocument *dataDoc, const char *dataFileNa
 	return ERROR_OK;
 }
 
+ErrorCode GetMergedSceneGeometry(XMLElement *sceneRootEl, DynamicArray_RawVertex &finalVertices,
+		DynamicArray_u16 &finalIndices)
+{
+	ErrorCode error;
+
+	finalVertices = {};
+	finalIndices = {};
+	DynamicArrayInit_RawVertex(&finalVertices, 4096, FrameAlloc);
+	DynamicArrayInit_u16(&finalIndices, 2048, FrameAlloc);
+
+	XMLElement *sceneEl = sceneRootEl->FirstChildElement("library_visual_scenes")
+		->FirstChildElement("visual_scene");
+	Log("Found visual scene %s\n", sceneEl->FindAttribute("id")->Value());
+	XMLElement *nodeEl = sceneEl->FirstChildElement("node");
+
+	DynamicArray_XMLElementPtr stack;
+	DynamicArrayInit_XMLElementPtr(&stack, 16, FrameAlloc);
+
+	DynamicArray_mat4 transformStack;
+	DynamicArrayInit_mat4(&transformStack, 16, FrameAlloc);
+
+	bool checkChildren = true;
+	while (nodeEl != nullptr)
+	{
+		mat4 transform = MAT4_IDENTITY;
+
+		const char *nodeType = nodeEl->FindAttribute("type")->Value();
+		if (checkChildren && strcmp(nodeType, "NODE") == 0)
+		{
+			const char *nodeName = nodeEl->FindAttribute("id")->Value();
+			Log("Node: %s\n", nodeName);
+
+			XMLElement *meshEl = nodeEl->FirstChildElement("instance_geometry");
+			if (meshEl)
+			{
+				const char *meshUrl = meshEl->FindAttribute("url")->Value();
+				Log("URL: %s\n", meshUrl);
+				++meshUrl; // Get rid of leading #
+
+				// Read transform matrix
+				XMLElement *matrixEl = nodeEl->FirstChildElement("matrix");
+				const char *matrixStr = matrixEl->FirstChild()->ToText()->Value();
+				ReadStringToFloats(matrixStr, (f32 *)&transform, 16);
+				transform = Mat4Transpose(transform);
+
+				RawGeometry nodeRawGeometry;
+				error = ReadColladaGeometry(sceneRootEl, meshUrl, &nodeRawGeometry);
+				if (error != ERROR_OK)
+					return error;
+
+				DynamicArray_RawVertex meshVertices = {};
+				DynamicArray_u16 meshIndices = {};
+				error = ConstructSkinnedMesh(&nodeRawGeometry, nullptr, meshVertices, meshIndices);
+				if (error != ERROR_OK)
+					return error;
+
+				mat4 worldTransform = transform;
+				for (u32 stackIdx = 0; stackIdx < transformStack.size; ++stackIdx)
+				{
+					worldTransform = Mat4Multiply(worldTransform, transformStack[stackIdx]);
+				}
+
+				u32 indexShift = finalVertices.size;
+				for (u32 vertIdx = 0; vertIdx < meshVertices.size; ++vertIdx)
+				{
+					RawVertex v = meshVertices[vertIdx];
+
+					v4 pos = { v.skinnedPos.pos.x, v.skinnedPos.pos.y, v.skinnedPos.pos.z, 1 };
+					pos = Mat4TransformV4(worldTransform, pos);
+
+					v4 nor = { v.normal.x, v.normal.y, v.normal.z, 0 };
+					nor = Mat4TransformV4(worldTransform, nor);
+
+					v.skinnedPos.pos = { pos.x, pos.y, pos.z };
+					v.normal = { nor.x, nor.y, nor.z };
+					v.normal = V3Normalize(v.normal);
+
+					finalVertices[DynamicArrayAdd_RawVertex(&finalVertices, FrameRealloc)] = v;
+				}
+
+				for (u32 indexIdx = 0; indexIdx < meshIndices.size; ++indexIdx)
+				{
+					u32 i = meshIndices[indexIdx];
+					i += indexShift;
+					ASSERT(i < U16_MAX);
+					finalIndices[DynamicArrayAdd_u16(&finalIndices, FrameRealloc)] = (u16)i;
+				}
+			}
+		}
+
+		if (checkChildren)
+		{
+			XMLElement *childEl = nodeEl->FirstChildElement("node");
+			if (childEl)
+			{
+				if (strcmp(nodeType, "NODE") == 0)
+				{
+					// Push joint to stack!
+					stack[DynamicArrayAdd_XMLElementPtr(&stack, FrameRealloc)] = nodeEl;
+					transformStack[DynamicArrayAdd_mat4(&transformStack, FrameRealloc)] = transform;
+				}
+
+				nodeEl = childEl;
+				continue;
+			}
+		}
+
+		XMLElement *siblingEl = nodeEl->NextSiblingElement("node");
+		if (siblingEl)
+		{
+			nodeEl = siblingEl;
+			checkChildren = true;
+			continue;
+		}
+
+		// Pop from stack!
+		if (stack.size == 0)
+			break;
+
+		nodeEl = stack[--stack.size];
+		--transformStack.size;
+		checkChildren = false;
+	}
+	return ERROR_OK;
+}
+
+void ToMeshUrl(char *dst, const char *src)
+{
+	sprintf(dst, "%s-mesh", src);
+	for (char *scan = dst; *scan; ++scan)
+		if (*scan == '.') *scan = '_';
+}
+
 ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *filename,
 		const char *fullDataDir)
 {
@@ -687,38 +820,62 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 	char outputName[MAX_PATH];
 	GetOutputFilename(filename, outputName);
 
-	tinyxml2::XMLDocument geometryDoc;
-	XMLElement *geometryRootEl;
-	RawGeometry rawGeometry;
-	{
-		XMLElement *geometryEl = rootEl->FirstChildElement("geometry");
-		const char *geomFile = geometryEl->FirstChild()->ToText()->Value();
-
-		const char *geomName = 0;
-		const XMLAttribute *nameAttr = geometryEl->FindAttribute("id");
-		if (nameAttr)
-		{
-			geomName = nameAttr->Value();
-		}
-
-		error = ReadColladaFile(&geometryDoc, geomFile, &geometryRootEl, fullDataDir);
-		if (error != ERROR_OK)
-			return error;
-
-		error = ReadColladaGeometry(geometryRootEl, geomName, &rawGeometry);
-		if (error != ERROR_OK)
-			return error;
-	}
-
 	switch(type)
 	{
 	case METATYPE_MESH:
 	{
 		DynamicArray_RawVertex finalVertices = {};
-		Array_u16 finalIndices = {};
-		error = ConstructSkinnedMesh(&rawGeometry, nullptr, finalVertices, finalIndices);
-		if (error != ERROR_OK)
-			return error;
+		DynamicArray_u16 finalIndices = {};
+
+		XMLElement *sceneEl = rootEl->FirstChildElement("scene");
+		if (sceneEl)
+		{
+			const char *sceneFile = sceneEl->FirstChild()->ToText()->Value();
+
+			tinyxml2::XMLDocument sceneDoc;
+			XMLElement *sceneRootEl;
+			error = ReadColladaFile(&sceneDoc, sceneFile, &sceneRootEl, fullDataDir);
+			if (error != ERROR_OK)
+				return error;
+
+			error = GetMergedSceneGeometry(sceneRootEl, finalVertices, finalIndices);
+			if (error != ERROR_OK)
+				return error;
+		}
+		else
+		{
+			XMLElement *geometryEl = rootEl->FirstChildElement("geometry");
+			if (!geometryEl)
+			{
+				Log("ERROR! No geometries specified on mesh meta!\n");
+				return ERROR_META_MISSING_MESH;
+			}
+
+			const char *geomFile = geometryEl->FirstChild()->ToText()->Value();
+
+			char geomUrl[256] = "";
+			const XMLAttribute *nameAttr = geometryEl->FindAttribute("id");
+			if (nameAttr)
+			{
+				const char *geomName = nameAttr->Value();
+				ToMeshUrl(geomUrl, geomName);
+			}
+
+			tinyxml2::XMLDocument geometryDoc;
+			XMLElement *geometryRootEl;
+			RawGeometry rawGeometry;
+			error = ReadColladaFile(&geometryDoc, geomFile, &geometryRootEl, fullDataDir);
+			if (error != ERROR_OK)
+				return error;
+
+			error = ReadColladaGeometry(geometryRootEl, geomUrl, &rawGeometry);
+			if (error != ERROR_OK)
+				return error;
+
+			error = ConstructSkinnedMesh(&rawGeometry, nullptr, finalVertices, finalIndices);
+			if (error != ERROR_OK)
+				return error;
+		}
 
 		// Output
 		error = OutputMesh(outputName, finalVertices, finalIndices);
@@ -727,6 +884,36 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 	} break;
 	case METATYPE_SKINNED_MESH:
 	{
+		RawGeometry rawGeometry;
+		{
+			XMLElement *geometryEl = rootEl->FirstChildElement("geometry");
+			if (!geometryEl)
+			{
+				Log("ERROR! No geometries specified on mesh meta!\n");
+				return ERROR_META_MISSING_MESH;
+			}
+
+			const char *geomFile = geometryEl->FirstChild()->ToText()->Value();
+
+			char geomUrl[256] = "";
+			const XMLAttribute *nameAttr = geometryEl->FindAttribute("id");
+			if (nameAttr)
+			{
+				const char *geomName = nameAttr->Value();
+				ToMeshUrl(geomUrl, geomName);
+			}
+
+			tinyxml2::XMLDocument geometryDoc;
+			XMLElement *geometryRootEl;
+			error = ReadColladaFile(&geometryDoc, geomFile, &geometryRootEl, fullDataDir);
+			if (error != ERROR_OK)
+				return error;
+
+			error = ReadColladaGeometry(geometryRootEl, geomUrl, &rawGeometry);
+			if (error != ERROR_OK)
+				return error;
+		}
+
 		tinyxml2::XMLDocument controllerDoc;
 		XMLElement *controllerRootEl;
 		{
@@ -790,7 +977,7 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 		}
 
 		DynamicArray_RawVertex finalVertices = {};
-		Array_u16 finalIndices = {};
+		DynamicArray_u16 finalIndices = {};
 		error = ConstructSkinnedMesh(&rawGeometry, &weightData, finalVertices, finalIndices);
 		if (error != ERROR_OK)
 			return error;
@@ -802,41 +989,60 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 	} break;
 	case METATYPE_TRIANGLE_DATA:
 	{
+		DynamicArray_RawVertex finalVertices = {};
+		DynamicArray_u16 finalIndices = {};
+
+		XMLElement *sceneEl = rootEl->FirstChildElement("scene");
+		if (!sceneEl)
+		{
+			Log("ERROR! Level geometry meta missing 'scene' node\n");
+			return ERROR_META_MISSING_SCENE;
+		}
+
+		const char *sceneFile = sceneEl->FirstChild()->ToText()->Value();
+
+		tinyxml2::XMLDocument sceneDoc;
+		XMLElement *sceneRootEl;
+		error = ReadColladaFile(&sceneDoc, sceneFile, &sceneRootEl, fullDataDir);
+		if (error != ERROR_OK)
+			return error;
+
+		error = GetMergedSceneGeometry(sceneRootEl, finalVertices, finalIndices);
+		if (error != ERROR_OK)
+			return error;
+
 		// Make triangles
+		Array_v3 positions;
+		ArrayInit_v3(&positions, finalVertices.size, FrameAlloc);
 		Array_IndexTriangle triangles;
-		ArrayInit_IndexTriangle(&triangles, rawGeometry.triangleCount, FrameAlloc);
+		ArrayInit_IndexTriangle(&triangles, finalIndices.size / 3, FrameAlloc);
 
-		int attrCount = 1;
-		if (rawGeometry.normalsOffset >= 0)
-			++attrCount;
-		if (rawGeometry.uvsOffset >= 0)
-			++attrCount;
+		for (u32 i = 0; i < finalVertices.size; ++i)
+		{
+			positions[positions.size++] = finalVertices[i].skinnedPos.pos;
+		}
 
-		for (int i = 0; i < rawGeometry.triangleCount; ++i)
+		for (u32 i = 0; i < finalIndices.size / 3; ++i)
 		{
 			IndexTriangle *triangle = &triangles[triangles.size++];
 
-			int ai = rawGeometry.triangleIndices[(i * 3 + 0) * attrCount + rawGeometry.verticesOffset];
-			int bi = rawGeometry.triangleIndices[(i * 3 + 2) * attrCount + rawGeometry.verticesOffset];
-			int ci = rawGeometry.triangleIndices[(i * 3 + 1) * attrCount + rawGeometry.verticesOffset];
+			u16 ai = finalIndices[i * 3 + 0];
+			u16 bi = finalIndices[i * 3 + 1];
+			u16 ci = finalIndices[i * 3 + 2];
 
-			ASSERT(ai < U16_MAX);
-			ASSERT(bi < U16_MAX);
-			ASSERT(ci < U16_MAX);
+			triangle->a = ai;
+			triangle->b = bi;
+			triangle->c = ci;
 
-			triangle->a = (u16)ai;
-			triangle->b = (u16)bi;
-			triangle->c = (u16)ci;
-
-			const v3 ap = rawGeometry.positions[ai];
-			const v3 bp = rawGeometry.positions[bi];
-			const v3 cp = rawGeometry.positions[ci];
+			const v3 ap = positions[ai];
+			const v3 bp = positions[bi];
+			const v3 cp = positions[ci];
 
 			triangle->normal = V3Normalize(V3Cross(cp - ap, bp - ap));
 		}
 
 		GeometryGrid geometryGrid;
-		GenerateGeometryGrid(rawGeometry.positions, triangles, &geometryGrid);
+		GenerateGeometryGrid(positions, triangles, &geometryGrid);
 
 		// Output
 		FileHandle file = PlatformOpenForWrite(outputName);
@@ -848,8 +1054,8 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 		PlatformWriteToFile(file, geometryGrid.offsets, sizeof(geometryGrid.offsets[0]) * offsetCount);
 
 		u64 positionsBlobOffset = FilePosition(file);
-		u32 positionCount = rawGeometry.positions.size;
-		PlatformWriteToFile(file, rawGeometry.positions.data, sizeof(v3) * positionCount);
+		u32 positionCount = positions.size;
+		PlatformWriteToFile(file, positions.data, sizeof(v3) * positionCount);
 
 		u64 trianglesBlobOffset = FilePosition(file);
 		u32 triangleCount = geometryGrid.offsets[offsetCount - 1];
@@ -869,6 +1075,36 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 	} break;
 	case METATYPE_COLLISION_MESH:
 	{
+		RawGeometry rawGeometry;
+		{
+			XMLElement *geometryEl = rootEl->FirstChildElement("geometry");
+			if (!geometryEl)
+			{
+				Log("ERROR! No geometries specified on mesh meta!\n");
+				return ERROR_META_MISSING_MESH;
+			}
+
+			const char *geomFile = geometryEl->FirstChild()->ToText()->Value();
+
+			char geomUrl[256] = "";
+			const XMLAttribute *nameAttr = geometryEl->FindAttribute("id");
+			if (nameAttr)
+			{
+				const char *geomName = nameAttr->Value();
+				ToMeshUrl(geomUrl, geomName);
+			}
+
+			tinyxml2::XMLDocument geometryDoc;
+			XMLElement *geometryRootEl;
+			error = ReadColladaFile(&geometryDoc, geomFile, &geometryRootEl, fullDataDir);
+			if (error != ERROR_OK)
+				return error;
+
+			error = ReadColladaGeometry(geometryRootEl, geomUrl, &rawGeometry);
+			if (error != ERROR_OK)
+				return error;
+		}
+
 		// Make triangles
 		Array_IndexTriangle triangles;
 		ArrayInit_IndexTriangle(&triangles, rawGeometry.triangleCount, FrameAlloc);
