@@ -147,6 +147,10 @@ struct DebugContext
 	DebugVertex *polytopeSteps[epaMaxSteps];
 	int polytopeStepCounts[epaMaxSteps];
 	v3 epaNewPoint[epaMaxSteps];
+
+	// Editor
+	int selectedEntityIdx;
+	DeviceProgram editorSelectedProgram;
 };
 #endif
 

@@ -339,7 +339,10 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, const Entity *entity, v3 *
 				localRayOrigin.z, 1 });
 		localRayOrigin = { localRayOrigin4.x, localRayOrigin4.y, localRayOrigin4.z };
 
-		const ResourceCollisionMesh *collMeshRes = &c->convexHull.meshRes->collisionMesh;
+		const Resource *res = c->convexHull.meshRes;
+		if (!res)
+			return false;
+		const ResourceCollisionMesh *collMeshRes = &res->collisionMesh;
 
 		const u32 triangleCount = collMeshRes->triangleCount;
 		const v3 *positions = collMeshRes->positionData;
@@ -591,7 +594,11 @@ void GetAABB(Entity *entity, v3 *min, v3 *max)
 		// @Speed: inverse-transform direction, pick a point, and then transform only that point!
 		mat4 modelMatrix = Mat4ChangeOfBases(entity->fw, {0,0,1}, entity->pos);
 
-		const ResourceCollisionMesh *collMeshRes = &c->convexHull.meshRes->collisionMesh;
+		const Resource *res = c->convexHull.meshRes;
+		if (!res)
+			return;
+		const ResourceCollisionMesh *collMeshRes = &res->collisionMesh;
+
 		u32 pointCount = collMeshRes->positionCount;
 
 		for (u32 i = 0; i < pointCount; ++i)
@@ -668,7 +675,11 @@ v3 FurthestInDirection(Entity *entity, v3 dir)
 		v4 locDir4 = Mat4TransformV4(rotMatrixInv, v4{ dir.x, dir.y, dir.z, 0 });
 		v3 locDir = { locDir4.x, locDir4.y, locDir4.z };
 
-		const ResourceCollisionMesh *collMeshRes = &c->convexHull.meshRes->collisionMesh;
+		const Resource *res = c->convexHull.meshRes;
+		if (!res)
+			return {};
+		const ResourceCollisionMesh *collMeshRes = &res->collisionMesh;
+
 		const u32 pointCount = collMeshRes->positionCount;
 		const v3 *scan = collMeshRes->positionData;
 		for (u32 i = 0; i < pointCount; ++i)

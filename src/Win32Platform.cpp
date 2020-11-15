@@ -156,87 +156,89 @@ bool ProcessKeyboard(Controller *controller)
 	{
 		switch (message.message)
 		{
-			case WM_QUIT:
+		case WM_QUIT:
+		{
+			return true;
+		} break;
+		case WM_SYSKEYDOWN:
+		case WM_SYSKEYUP:
+		case WM_KEYDOWN:
+		case WM_KEYUP:
+		{
+			const bool isDown = (message.lParam & (1 << 31)) == 0;
+			const bool wasDown = (message.lParam & (1 << 30)) != 0;
+
+			auto checkButton = [&isDown, &wasDown](Button &button)
 			{
-				return true;
-			} break;
-			case WM_SYSKEYDOWN:
-			case WM_SYSKEYUP:
-			case WM_KEYDOWN:
-			case WM_KEYUP:
+				if (wasDown != isDown)
+				{
+					button.endedDown = isDown;
+					button.changed = true;
+				}
+			};
+
+			Controller *c = controller;
+			switch (message.wParam)
 			{
-				const bool isDown = (message.lParam & (1 << 31)) == 0;
-				const bool wasDown = (message.lParam & (1 << 30)) != 0;
+				case 'Q':
+					return true;
+				case VK_OEM_3:
+					if (isDown && !wasDown)
+						g_showConsole = !g_showConsole;
+					break;
+				case 'W':
+					checkButton(c->up);
+					break;
+				case 'A':
+					checkButton(c->left);
+					break;
+				case 'S':
+					checkButton(c->down);
+					break;
+				case 'D':
+					checkButton(c->right);
+					break;
 
-				auto checkButton = [&isDown, &wasDown](Button &button)
-				{
-					if (wasDown != isDown)
-					{
-						button.endedDown = isDown;
-						button.changed = true;
-					}
-				};
+				case VK_SPACE:
+					checkButton(c->jump);
+					break;
 
-				Controller *c = controller;
-				switch (message.wParam)
-				{
-					case 'Q':
-						return true;
-					case VK_OEM_3:
-						if (isDown && !wasDown)
-							g_showConsole = !g_showConsole;
-						break;
-					case 'W':
-						checkButton(c->up);
-						break;
-					case 'A':
-						checkButton(c->left);
-						break;
-					case 'S':
-						checkButton(c->down);
-						break;
-					case 'D':
-						checkButton(c->right);
-						break;
-
-					case VK_SPACE:
-						checkButton(c->jump);
-						break;
-
-					case VK_UP:
-						checkButton(c->camUp);
-						break;
-					case VK_DOWN:
-						checkButton(c->camDown);
-						break;
-					case VK_LEFT:
-						checkButton(c->camLeft);
-						break;
-					case VK_RIGHT:
-						checkButton(c->camRight);
-						break;
+				case VK_UP:
+					checkButton(c->camUp);
+					break;
+				case VK_DOWN:
+					checkButton(c->camDown);
+					break;
+				case VK_LEFT:
+					checkButton(c->camLeft);
+					break;
+				case VK_RIGHT:
+					checkButton(c->camRight);
+					break;
 
 #if DEBUG_BUILD
-					case 'H':
-						checkButton(c->debugUp);
-						break;
-					case 'J':
-						checkButton(c->debugDown);
-						break;
-					case 'K':
-						checkButton(c->debugUp);
-						break;
-					case 'L':
-						checkButton(c->debugDown);
-						break;
+				case 'H':
+					checkButton(c->debugUp);
+					break;
+				case 'J':
+					checkButton(c->debugDown);
+					break;
+				case 'K':
+					checkButton(c->debugUp);
+					break;
+				case 'L':
+					checkButton(c->debugDown);
+					break;
 #endif
-				}
-			} break;
-			default:
-			{
-				TranslateMessage(&message);
-				DispatchMessage(&message);
-			} break;
+			}
+			TranslateMessage(&message);
+			DispatchMessage(&message);
+		} break;
+		default:
+		{
+			TranslateMessage(&message);
+			DispatchMessage(&message);
+		} break;
 		}
 	}
 	return false;

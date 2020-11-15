@@ -1,11 +1,19 @@
 #include <stddef.h>
 #include <memory.h>
 
-#ifdef USING_IMGUI
+#define IMGUI_SHOW_DEMO
+
+#if USING_IMGUI
 #include <imgui/imgui.h>
 #ifdef IMGUI_SHOW_DEMO
 #include <imgui/imgui_demo.cpp> // @Todo: remove
 #endif
+#endif
+
+#if defined(USING_IMGUI) && DEBUG_BUILD
+#define EDITOR_PRESENT 1
+#else
+#define EDITOR_PRESENT 0
 #endif
 
 #include "General.h"
@@ -186,6 +194,9 @@ GAMEDLL START_GAME(StartGame)
 
 		const Resource *shaderDebugCubesRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_debug_cubes.b");
 		g_debugContext->debugCubesProgram = shaderDebugCubesRes->shader.programHandle;
+
+		const Resource *shaderEditorSelectedRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_editor_selected.b");
+		g_debugContext->editorSelectedProgram = shaderEditorSelectedRes->shader.programHandle;
 #endif
 	}
 
@@ -325,6 +336,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 #endif
 
 	ImguiShowDebugWindow(gameState);
+	ImguiShowEditWindow(gameState);
 #endif
 
 	if (deltaTime < 0 || deltaTime > 1)
@@ -879,6 +891,34 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			dgb->lineVertexCount = 0;
 
 			EnableDepthTest();
+			SetFillMode(RENDER_FILL);
+		}
+
+		// Selected entity
+		{
+			SetFillMode(RENDER_LINE);
+
+			UseProgram(g_debugContext->editorSelectedProgram);
+			viewUniform = GetUniform(g_debugContext->editorSelectedProgram, "view");
+			UniformMat4(viewUniform, 1, view.m);
+			projUniform = GetUniform(g_debugContext->editorSelectedProgram, "projection");
+			UniformMat4(projUniform, 1, proj.m);
+			modelUniform = GetUniform(g_debugContext->editorSelectedProgram, "model");
+
+			static f32 t = 0;
+			t += deltaTime;
+			DeviceUniform timeUniform = GetUniform(g_debugContext->editorSelectedProgram, "time");
+			UniformFloat(timeUniform, t);
+
+			Entity *entity = &gameState->entities[g_debugContext->selectedEntityIdx];
+			if (entity->mesh)
+			{
+				const mat4 model = Mat4ChangeOfBases(entity->fw, {0,0,1}, entity->pos);
+				UniformMat4(modelUniform, 1, model.m);
+
+				RenderIndexedMesh(entity->mesh->mesh.deviceMesh);
+			}
+
 			SetFillMode(RENDER_FILL);
 		}
 #endif

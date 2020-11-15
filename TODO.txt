@@ -1,11 +1,17 @@
 ## TODO
 
 # Next up?
-- Raycast against colliders
-- BVH and octree for level triangles
+- Pick up entities with cursor
+- Entity system that allows deleting (compact array + sparse array of indices?)
+- Design how to link entities with 'components' (mesh to render, collider, etc.)
+- Materials... bind textures/programs depending on mesh.
+- Raycast against AABBs before colliders.
+- BVH for entities
 - Non axis aligned colliders
 - Decompose transform matrices at data-preprocess-time? For blending etc.
-- Import scenes/levels from .dae
+- Stop using fw vector as orientation and use quaternions like sane people.
+- Import scenes/levels from .dae? We already do geometry but should we import more things?
+- Particle systems
 
 # Low priority/later
 - Try to build in linux/with different render backend

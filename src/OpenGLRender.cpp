@@ -97,6 +97,12 @@ PLATFORMPROC void UniformInt(DeviceUniform uniform, int n)
 	glUniform1i(glUniform->location, n);
 }
 
+PLATFORMPROC void UniformFloat(DeviceUniform uniform, f32 n)
+{
+	GLDeviceUniform *glUniform = (GLDeviceUniform *)&uniform;
+	glUniform1f(glUniform->location, n);
+}
+
 PLATFORMPROC void RenderIndexedMesh(DeviceMesh mesh)
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)&mesh;

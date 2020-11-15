@@ -70,3 +70,112 @@ void ImguiShowDebugWindow(GameState *gameState)
 #endif
 }
 
+void ImguiShowEditWindow(GameState *gameState)
+{
+#if USING_IMGUI
+	ImGui::SetNextWindowPos(ImVec2(1161, 306), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(ImVec2(253, 229), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowCollapsed(false, ImGuiCond_FirstUseEver);
+
+	if (!ImGui::Begin("Edit", nullptr, 0))
+	{
+		ImGui::End();
+		return;
+	}
+
+	ImGui::InputInt("Entity", &g_debugContext->selectedEntityIdx);
+	if (g_debugContext->selectedEntityIdx < 0)
+		g_debugContext->selectedEntityIdx = 0;
+	else if (g_debugContext->selectedEntityIdx >= (int)gameState->entityCount)
+		g_debugContext->selectedEntityIdx = gameState->entityCount - 1;
+	Entity *selectedEntity = &gameState->entities[g_debugContext->selectedEntityIdx];
+
+	ImGui::Separator();
+
+	ImGui::DragFloat3("Position", selectedEntity->pos.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
+	ImGui::DragFloat3("Fw", selectedEntity->fw.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
+	selectedEntity->fw = V3Normalize(selectedEntity->fw);
+
+	ImGui::Separator();
+
+	static char meshResInputName[128] = "";
+	ImGui::InputText("Mesh resource", meshResInputName, IM_ARRAYSIZE(meshResInputName));
+	//if (ImGui::Button("Apply"))
+	{
+		const Resource *res = GetResource(meshResInputName);
+		if (res)
+		{
+			selectedEntity->mesh = res;
+		}
+	}
+
+	ImGui::Separator();
+
+	{
+		const char* items[] = { "COLLIDER_CONVEX_HULL", "COLLIDER_SPHERE", "COLLIDER_CYLINDER", "COLLIDER_CAPSULE" };
+		int itemCurrentIdx = (int)selectedEntity->collider.type;
+		const char* comboLabel = items[itemCurrentIdx];
+		if (ImGui::BeginCombo("Type", comboLabel))
+		{
+			for (int n = 0; n < IM_ARRAYSIZE(items); n++)
+			{
+				const bool isSelected = (itemCurrentIdx == n);
+				if (ImGui::Selectable(items[n], isSelected))
+					itemCurrentIdx = n;
+
+				// Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+				if (isSelected)
+					ImGui::SetItemDefaultFocus();
+			}
+			ImGui::EndCombo();
+		}
+		if (selectedEntity->collider.type != (ColliderType)itemCurrentIdx)
+		{
+			selectedEntity->collider.type = (ColliderType)itemCurrentIdx;
+			if (selectedEntity->collider.type == COLLIDER_CONVEX_HULL)
+			{
+				selectedEntity->collider.convexHull.meshRes = 0;
+			}
+		}
+	}
+	Collider *collider = &selectedEntity->collider;
+	switch (collider->type)
+	{
+	case COLLIDER_CONVEX_HULL:
+	{
+		static char colMeshResInputName[128] = "";
+		ImGui::InputText("Collision mesh resource", colMeshResInputName, IM_ARRAYSIZE(colMeshResInputName));
+		//if (ImGui::Button("Apply2"))
+		{
+			const Resource *res = GetResource(colMeshResInputName);
+			if (res)
+			{
+				collider->convexHull.meshRes = res;
+			}
+		}
+	} break;
+	case COLLIDER_SPHERE:
+	{
+		ImGui::DragFloat3("Offset", collider->sphere.offset.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
+		ImGui::InputFloat("Radius", &collider->sphere.radius);
+	} break;
+	case COLLIDER_CYLINDER:
+	{
+		ImGui::DragFloat3("Offset", collider->cylinder.offset.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
+		ImGui::InputFloat("Radius", &collider->cylinder.radius);
+		ImGui::InputFloat("Height", &collider->cylinder.height);
+	} break;
+	case COLLIDER_CAPSULE:
+	{
+		ImGui::DragFloat3("Offset", collider->capsule.offset.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
+		ImGui::InputFloat("Radius", &collider->capsule.radius);
+		ImGui::InputFloat("Height", &collider->capsule.height);
+	} break;
+	}
+
+	ImGui::End();
+#else
+	(void)gameState;
+#endif
+}
+
