@@ -104,24 +104,45 @@ void ReadTriangleGeometry(const u8 *fileBuffer, ResourceGeometryGrid *geometryGr
 	geometryGrid->lowCorner = header->lowCorner;
 	geometryGrid->highCorner = header->highCorner;
 	geometryGrid->cellsSide = header->cellsSide;
+	geometryGrid->positionCount = header->positionCount;
 
 	u32 offsetCount = header->cellsSide * header->cellsSide + 1;
 	u64 offsetBlobSize = sizeof(u32) * offsetCount;
 	geometryGrid->offsets = (u32 *)TransientAlloc(offsetBlobSize);
 	memcpy(geometryGrid->offsets, fileBuffer + header->offsetsBlobOffset, offsetBlobSize);
 
+	u32 positionCount = header->positionCount;
+	u64 positionsBlobSize = sizeof(v3) * positionCount;
+	geometryGrid->positions = (v3 *)TransientAlloc(positionsBlobSize);
+	memcpy(geometryGrid->positions, fileBuffer + header->positionsBlobOffset, positionsBlobSize);
+
 	u32 triangleCount = geometryGrid->offsets[offsetCount - 1];
 	u64 trianglesBlobSize = sizeof(Triangle) * triangleCount;
-	geometryGrid->triangles = (Triangle *)TransientAlloc(trianglesBlobSize);
+	geometryGrid->triangles = (IndexTriangle *)TransientAlloc(trianglesBlobSize);
 	memcpy(geometryGrid->triangles, fileBuffer + header->trianglesBlobOffset, trianglesBlobSize);
 }
 
-void ReadPoints(const u8 *fileBuffer, ResourcePointCloud *pointCloud)
+void ReadCollisionMesh(const u8 *fileBuffer, ResourceCollisionMesh *collisionMesh)
 {
-	BakeryPointsHeader *header = (BakeryPointsHeader *)fileBuffer;
+	BakeryCollisionMeshHeader *header = (BakeryCollisionMeshHeader *)fileBuffer;
 
-	pointCloud->pointCount = header->pointCount;
+	collisionMesh->positionCount = header->positionCount;
+	collisionMesh->positionData = (v3 *)TransientAlloc(sizeof(v3) * collisionMesh->positionCount);
+	memcpy(collisionMesh->positionData, fileBuffer + header->positionsBlobOffset, sizeof(v3) *
+			collisionMesh->positionCount);
 
-	pointCloud->pointData = (v3 *)TransientAlloc(sizeof(v3) * pointCloud->pointCount);
-	memcpy(pointCloud->pointData, fileBuffer + header->pointsBlobOffset, sizeof(v3) * pointCloud->pointCount);
+	collisionMesh->triangleCount = header->triangleCount;
+	u64 trianglesBlobSize = sizeof(IndexTriangle) * collisionMesh->triangleCount;
+	collisionMesh->triangleData = (IndexTriangle *)TransientAlloc(trianglesBlobSize);
+	memcpy(collisionMesh->triangleData, fileBuffer + header->trianglesBlobOffset, trianglesBlobSize);
+}
+
+void ReadImage(const u8* fileBuffer, const u8 **imageData, u32 *width, u32 *height, u32 *components)
+{
+	BakeryImageHeader *header = (BakeryImageHeader *)fileBuffer;
+
+	*width = header->width;
+	*height = header->height;
+	*components = header->components;
+	*imageData = fileBuffer + header->dataBlobOffset;
 }

@@ -1,8 +1,10 @@
 bin
 build
+gen
 *.exe
 *.pdb
 *.obj
+*.ini
 
 *.b
 

@@ -1,38 +1,24 @@
-RESOURCE_LOAD_MESH(ResourceLoadMesh)
+void ResourceLoadMesh(Resource *resource, const u8 *fileBuffer, bool initialize)
 {
-	Resource *result = CreateResource(filename);
-	result->type = RESOURCETYPE_MESH;
-
-	u8 *fileBuffer;
-	u64 fileSize;
-	bool success = PlatformReadEntireFile(filename, &fileBuffer, &fileSize, FrameAlloc);
-	ASSERT(success);
-
 	Vertex *vertexData;
 	u16 *indexData;
 	u32 vertexCount;
 	u32 indexCount;
 	ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
 
-	int attribs = RENDERATTRIB_POSITION | RENDERATTRIB_UV | RENDERATTRIB_NORMAL;
-	result->mesh.deviceMesh = CreateDeviceIndexedMesh(attribs);
-	SendIndexedMesh(&result->mesh.deviceMesh, vertexData, vertexCount, sizeof(Vertex),
-			indexData, indexCount, false);
+	if (initialize)
+	{
+		int attribs = RENDERATTRIB_POSITION | RENDERATTRIB_UV | RENDERATTRIB_NORMAL;
+		resource->mesh.deviceMesh = CreateDeviceIndexedMesh(attribs);
+	}
 
-	return result;
+	SendIndexedMesh(&resource->mesh.deviceMesh, vertexData, vertexCount, sizeof(Vertex),
+			indexData, indexCount, false);
 }
 
-RESOURCE_LOAD_SKINNED_MESH(ResourceLoadSkinnedMesh)
+void ResourceLoadSkinnedMesh(Resource *resource, const u8 *fileBuffer, bool initialize)
 {
-	Resource *result = CreateResource(filename);
-	result->type = RESOURCETYPE_SKINNEDMESH;
-
-	ResourceSkinnedMesh *skinnedMesh = &result->skinnedMesh;
-
-	u8 *fileBuffer;
-	u64 fileSize;
-	bool success = PlatformReadEntireFile(filename, &fileBuffer, &fileSize, FrameAlloc);
-	ASSERT(success);
+	ResourceSkinnedMesh *skinnedMesh = &resource->skinnedMesh;
 
 	SkinnedVertex *vertexData;
 	u16 *indexData;
@@ -40,77 +26,64 @@ RESOURCE_LOAD_SKINNED_MESH(ResourceLoadSkinnedMesh)
 	u32 indexCount;
 	ReadSkinnedMesh(fileBuffer, skinnedMesh, &vertexData, &indexData, &vertexCount, &indexCount);
 
-	int attribs = RENDERATTRIB_POSITION | RENDERATTRIB_UV | RENDERATTRIB_NORMAL |
-		RENDERATTRIB_INDICES | RENDERATTRIB_WEIGHTS;
+	if (initialize)
+	{
+		int attribs = RENDERATTRIB_POSITION | RENDERATTRIB_UV | RENDERATTRIB_NORMAL |
+			RENDERATTRIB_INDICES | RENDERATTRIB_WEIGHTS;
+		skinnedMesh->deviceMesh = CreateDeviceIndexedMesh(attribs);
+	}
+
 	// @Broken: This allocs things on transient memory and never frees them
-	skinnedMesh->deviceMesh = CreateDeviceIndexedMesh(attribs);
 	SendIndexedMesh(&skinnedMesh->deviceMesh, vertexData, vertexCount, sizeof(SkinnedVertex),
 			indexData, indexCount, false);
-
-	return result;
 }
 
-RESOURCE_LOAD_LEVEL_GEOMETRY_GRID(ResourceLoadLevelGeometryGrid)
+void ResourceLoadLevelGeometryGrid(Resource *resource, const u8 *fileBuffer, bool initialize)
 {
-	Resource *result = CreateResource(filename);
-	result->type = RESOURCETYPE_LEVELGEOMETRYGRID;
-
-	ResourceGeometryGrid *geometryGrid = &result->geometryGrid;
-
-	u8 *fileBuffer;
-	u64 fileSize;
-	bool success = PlatformReadEntireFile(filename, &fileBuffer, &fileSize, FrameAlloc);
-	ASSERT(success);
-
-	ReadTriangleGeometry(fileBuffer, geometryGrid);
-
-	return result;
+	(void) initialize;
+	ReadTriangleGeometry(fileBuffer, &resource->geometryGrid);
 }
 
-RESOURCE_LOAD_POINTS(ResourceLoadPoints)
+void ResourceLoadCollisionMesh(Resource *resource, const u8 *fileBuffer, bool initialize)
 {
-	Resource *result = CreateResource(filename);
-	result->type = RESOURCETYPE_POINTS;
-
-	ResourcePointCloud *pointCloud = &result->points;
-
-	u8 *fileBuffer;
-	u64 fileSize;
-	bool success = PlatformReadEntireFile(filename, &fileBuffer, &fileSize, FrameAlloc);
-	ASSERT(success);
-
-	ReadPoints(fileBuffer, pointCloud);
-
-	return result;
+	(void) initialize;
+	ReadCollisionMesh(fileBuffer, &resource->collisionMesh);
 }
 
-RESOURCE_LOAD_SHADER(ResourceLoadShader)
+void ResourceLoadShader(Resource *resource, const u8 *fileBuffer, bool initialize)
 {
-	Resource *result = CreateResource(filename);
-	result->type = RESOURCETYPE_SHADER;
-
-	ResourceShader *shader = &result->shader;
-
-	u8 *fileBuffer;
-	u64 fileSize;
-	bool success = PlatformReadEntireFile(filename, &fileBuffer, &fileSize, FrameAlloc);
-	ASSERT(success);
+	ResourceShader *shader = &resource->shader;
 
 	const char *vertexSource, *fragmentSource;
 	ReadBakeryShader(fileBuffer, &vertexSource, &fragmentSource);
 
-	DeviceProgram programHandle = CreateDeviceProgram();
+	if (initialize)
+		shader->programHandle = CreateDeviceProgram();
+	else
+		WipeDeviceProgram(shader->programHandle);
 
 	DeviceShader vertexShaderHandle = CreateShader(SHADERTYPE_VERTEX);
 	LoadShader(&vertexShaderHandle, vertexSource);
-	AttachShader(programHandle, vertexShaderHandle);
+	AttachShader(shader->programHandle, vertexShaderHandle);
 
 	DeviceShader fragmentShaderHandle = CreateShader(SHADERTYPE_FRAGMENT);
 	LoadShader(&fragmentShaderHandle, fragmentSource);
-	AttachShader(programHandle, fragmentShaderHandle);
+	AttachShader(shader->programHandle, fragmentShaderHandle);
 
-	LinkDeviceProgram(programHandle);
+	LinkDeviceProgram(shader->programHandle);
+}
 
-	shader->programHandle = programHandle;
-	return result;
+void ResourceLoadTexture(Resource *resource, const u8 *fileBuffer, bool initialize)
+{
+	const u8 *imageData;
+	ReadImage(fileBuffer, &imageData, &resource->texture.width, &resource->texture.height,
+			&resource->texture.components);
+
+	if (initialize)
+	{
+		resource->texture.deviceTexture = CreateDeviceTexture();
+	}
+
+	SendTexture(resource->texture.deviceTexture, imageData, resource->texture.width,
+			resource->texture.height, resource->texture.components);
 }

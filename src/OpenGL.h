@@ -1,7 +1,4 @@
-//#include <GL/gl.h>
 #include <GLES3/gl32.h>
-//#include <GLES3/glext.h>
-//#include <GLES3/wglext.h>
 
 #if defined(__MINGW32__) && defined(GL_NO_STDCALL) || defined(UNDER_CE)
 #define GLAPIENTRY 
@@ -39,6 +36,7 @@ typedef void (GLAPIENTRY *glBlitFramebufferProc)(GLint srcX0, GLint srcY0, GLint
 typedef void (GLAPIENTRY *glGenTexturesProc)(GLsizei n, GLuint *textures);
 typedef void (GLAPIENTRY *glDeleteTexturesProc)(GLsizei n, GLuint *textures);
 typedef void (GLAPIENTRY *glBindTextureProc)(GLenum target, GLuint texture);
+typedef void (GLAPIENTRY *glBindSamplerProc)(GLenum target, GLuint sampler);
 typedef void (GLAPIENTRY *glTexImage2DProc)(GLenum target, GLint level, GLint internalFormat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data);
 typedef void (GLAPIENTRY *glGenerateMipmapProc)(GLenum target);
 typedef void (GLAPIENTRY *glTexParameteriProc)(GLenum target, GLenum pname, GLint param);
@@ -65,6 +63,7 @@ typedef void (GLAPIENTRY *glGetProgramInfoLogProc)(GLuint program, GLsizei maxLe
 typedef void (GLAPIENTRY *glUseProgramProc)(GLuint program);
 typedef void (GLAPIENTRY *glBindAttribLocationProc)(GLuint program, GLuint index, const GLchar *name);
 typedef GLint (GLAPIENTRY *glGetUniformLocationProc)(GLuint program, const GLchar *name);
+typedef GLint (GLAPIENTRY *glGetAttribLocationProc)(GLuint program, const GLchar *name);
 typedef void (GLAPIENTRY *glUniform1iProc)(GLint location, GLint v0);
 typedef void (GLAPIENTRY *glUniform1fProc)(GLint location, GLfloat v0);
 typedef void (GLAPIENTRY *glUniform2fProc)(GLint location, GLfloat v0, GLfloat v1);
@@ -92,6 +91,10 @@ typedef void (GLAPIENTRY *glDrawArraysProc)(GLenum mode, GLint first, GLsizei co
 typedef void (GLAPIENTRY *glDrawArraysInstancedProc)(GLenum mode, GLint first, GLsizei count, GLsizei primcount);
 typedef void (GLAPIENTRY *glDrawElementsProc)(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices);
 typedef void (GLAPIENTRY *glDrawElementsInstancedProc)(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices, GLsizei primcount);
+typedef void (GLAPIENTRY *glDrawElementsBaseVertexProc)(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices, GLint basevertex);
+
+typedef void (GLAPIENTRY *glBlendEquationProc)(GLenum mode);
+typedef void (GLAPIENTRY *glBlendEquationSeparateProc)(GLenum modeRGB, GLenum modeAlpha);
 
 typedef void (GLAPIENTRY *glDebugOutputProc)(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam);
 typedef void (GLAPIENTRY *glDebugMessageCallbackProc)(glDebugOutputProc callback, void *userParam);
@@ -120,6 +123,7 @@ GL_DeclareProc(glBlitFramebuffer);
 GL_DeclareProc(glGenTextures);
 GL_DeclareProc(glDeleteTextures);
 GL_DeclareProc(glBindTexture);
+GL_DeclareProc(glBindSampler);
 GL_DeclareProc(glTexImage2D);
 GL_DeclareProc(glGenerateMipmap);
 GL_DeclareProc(glTexParameteri);
@@ -143,6 +147,7 @@ GL_DeclareProc(glGetProgramInfoLog);
 GL_DeclareProc(glUseProgram);
 GL_DeclareProc(glBindAttribLocation);
 GL_DeclareProc(glGetUniformLocation);
+GL_DeclareProc(glGetAttribLocation);
 GL_DeclareProc(glUniformMatrix4fv);
 GL_DeclareProc(glUniform1i);
 GL_DeclareProc(glUniform1f);
@@ -167,6 +172,9 @@ GL_DeclareProc(glDrawArrays);
 GL_DeclareProc(glDrawArraysInstanced);
 GL_DeclareProc(glDrawElements);
 GL_DeclareProc(glDrawElementsInstanced);
+GL_DeclareProc(glDrawElementsBaseVertex);
+GL_DeclareProc(glBlendEquation);
+GL_DeclareProc(glBlendEquationSeparate);
 #undef GL_DeclareProc
 
 #define glGetError glGetErrorPointer
@@ -191,6 +199,7 @@ GL_DeclareProc(glDrawElementsInstanced);
 #define glGenTextures glGenTexturesPointer
 #define glDeleteTextures glDeleteTexturesPointer
 #define glBindTexture glBindTexturePointer
+#define glBindSampler glBindSamplerPointer
 #define glTexImage2D glTexImage2DPointer
 #define glGenerateMipmap glGenerateMipmapPointer
 #define glTexParameteri glTexParameteriPointer
@@ -214,6 +223,7 @@ GL_DeclareProc(glDrawElementsInstanced);
 #define glUseProgram glUseProgramPointer
 #define glBindAttribLocation glBindAttribLocationPointer
 #define glGetUniformLocation glGetUniformLocationPointer
+#define glGetAttribLocation glGetAttribLocationPointer
 #define glUniformMatrix4fv glUniformMatrix4fvPointer
 #define glUniform1i glUniform1iPointer
 #define glUniform1f glUniform1fPointer
@@ -238,3 +248,6 @@ GL_DeclareProc(glDrawElementsInstanced);
 #define glDrawArraysInstanced glDrawArraysInstancedPointer
 #define glDrawElements glDrawElementsPointer
 #define glDrawElementsInstanced glDrawElementsInstancedPointer
+#define glDrawElementsBaseVertex glDrawElementsBaseVertexPointer
+#define glBlendEquation glBlendEquationPointer
+#define glBlendEquationSeparate glBlendEquationSeparatePointer

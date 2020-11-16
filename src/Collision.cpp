@@ -1,13 +1,7 @@
-#if EPA_LOGGING
-#define EPALOG(...) platformCode->Log(__VA_ARGS__)
+#if DEBUG_BUILD && defined(USING_IMGUI)
+#define VERBOSE_LOG(...) if (g_debugContext->verboseCollisionLogging) Log(__VA_ARGS__)
 #else
-#define EPALOG(...)
-#endif
-
-#if EPA_ERROR_LOGGING
-#define EPAERROR(...) platformCode->Log(__VA_ARGS__)
-#else
-#define EPAERROR(...)
+#define VERBOSE_LOG(...)
 #endif
 
 struct GJKResult
@@ -29,29 +23,17 @@ struct EPAEdge
 	v3 b;
 };
 
-#if GJK_VISUAL_DEBUGGING
-bool g_writeGJKGeom = true;
-Vertex *g_GJKSteps[64];
-int g_GJKStepCounts[64];
-v3 g_GJKNewPoint[64];
-#endif
-
-#if EPA_VISUAL_DEBUGGING
-bool g_writePolytopeGeom = true;
-Vertex *g_polytopeSteps[16];
-int g_polytopeStepCounts[16];
-v3 g_epaNewPoint[16];
-
-void GenPolytopeMesh(EPAFace *polytopeData, int faceCount, Vertex *buffer)
+#if DEBUG_BUILD
+void GenPolytopeMesh(EPAFace *polytopeData, int faceCount, DebugVertex *buffer)
 {
 	for (int faceIdx = 0; faceIdx < faceCount; ++faceIdx)
 	{
 		EPAFace *face = &polytopeData[faceIdx];
 		v3 normal = V3Normalize(V3Cross(face->c - face->a, face->b - face->a));
 		normal = normal * 0.5f + v3{ 0.5f, 0.5f, 0.5f };
-		buffer[faceIdx * 3 + 0] = { face->a, {}, normal };
-		buffer[faceIdx * 3 + 1] = { face->b, {}, normal };
-		buffer[faceIdx * 3 + 2] = { face->c, {}, normal };
+		buffer[faceIdx * 3 + 0] = { face->a, normal };
+		buffer[faceIdx * 3 + 1] = { face->b, normal };
+		buffer[faceIdx * 3 + 2] = { face->c, normal };
 	}
 }
 #endif
@@ -124,8 +106,9 @@ bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, 
 		cellY < 0 || cellY >= geometryGrid->cellsSide)
 		return false;
 
+	bool result = false;
 	v3 closestHit = {};
-	Triangle *closestTriangle = 0;
+	Triangle closestTriangle = {};
 	f32 closestSqrLen = INFINITY;
 
 	int offsetIdx = cellX + cellY * geometryGrid->cellsSide;
@@ -133,26 +116,34 @@ bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, 
 	u32 triEnd = geometryGrid->offsets[offsetIdx + 1];
 	for (u32 triIdx = triBegin; triIdx < triEnd; ++triIdx)
 	{
-		Triangle *curTriangle = &geometryGrid->triangles[triIdx];
+		IndexTriangle *curTriangle = &geometryGrid->triangles[triIdx];
+		Triangle tri =
+		{
+			geometryGrid->positions[curTriangle->a],
+			geometryGrid->positions[curTriangle->b],
+			geometryGrid->positions[curTriangle->c],
+			curTriangle->normal
+		};
 
 #if HITTEST_VISUAL_DEBUG
 		Vertex tri[] =
 		{
-			{curTriangle->a, {}, {}},
-			{curTriangle->b, {}, {}},
-			{curTriangle->c, {}, {}}
+			{tri.a, {}, {}},
+			{tri.b, {}, {}},
+			{tri.c, {}, {}}
 		};
 		DrawDebugTriangles(gameState, tri, 3);
 #endif
 
 		v3 thisHit;
-		if (RayTriangleIntersection(rayOrigin, rayDir, curTriangle, &thisHit))
+		if (RayTriangleIntersection(rayOrigin, rayDir, &tri, &thisHit))
 		{
 			f32 sqrLen = V3SqrLen(thisHit - rayOrigin);
 			if (sqrLen < closestSqrLen)
 			{
+				result = true;
 				closestHit = thisHit;
-				closestTriangle = curTriangle;
+				closestTriangle = tri;
 				closestSqrLen = sqrLen;
 			}
 		}
@@ -201,13 +192,12 @@ bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, 
 	DrawDebugTriangles(gameState, cellDebugTris, 24);
 #endif
 
-	if (closestTriangle)
+	if (result)
 	{
 		*hit = closestHit;
-		*triangle = *closestTriangle;
-		return true;
+		*triangle = closestTriangle;
 	}
-	return false;
+	return result;
 }
 
 bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, v3 *hit, Triangle *triangle)
@@ -320,7 +310,277 @@ bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, v3 *hit, Triangle *t
 	return false;
 }
 
-void GetAABB(GameState *gameState, Entity *entity, v3 *min, v3 *max)
+bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, const Entity *entity, v3 *hit, v3 *hitNor)
+{
+	v3 unitDir = V3Normalize(rayDir);
+
+	const Collider *c = &entity->collider;
+	ColliderType type = c->type;
+	switch(type)
+	{
+	case COLLIDER_CONVEX_HULL:
+	{
+		mat4 modelMatrix = Mat4ChangeOfBases(entity->fw, {0,0,1}, entity->pos);
+
+		// Un-rotate direction
+		// @Speed: maybe do this with quaternions once decomposed transformations are a thing.
+		mat4 rotMatrixInv =
+		{
+			modelMatrix.m00,	modelMatrix.m10,	modelMatrix.m20,	0,
+			modelMatrix.m01,	modelMatrix.m11,	modelMatrix.m21,	0,
+			modelMatrix.m02,	modelMatrix.m12,	modelMatrix.m22,	0,
+			0,			0,		0,		1
+		};
+		v4 localRayDir4 = Mat4TransformV4(rotMatrixInv, v4{ rayDir.x, rayDir.y, rayDir.z, 0 });
+		v3 localRayDir = { localRayDir4.x, localRayDir4.y, localRayDir4.z };
+
+		v3 localRayOrigin = rayOrigin - entity->pos;
+		v4 localRayOrigin4 = Mat4TransformV4(rotMatrixInv, v4{ localRayOrigin.x, localRayOrigin.y,
+				localRayOrigin.z, 1 });
+		localRayOrigin = { localRayOrigin4.x, localRayOrigin4.y, localRayOrigin4.z };
+
+		const Resource *res = c->convexHull.meshRes;
+		if (!res)
+			return false;
+		const ResourceCollisionMesh *collMeshRes = &res->collisionMesh;
+
+		const u32 triangleCount = collMeshRes->triangleCount;
+		const v3 *positions = collMeshRes->positionData;
+
+		bool result = false;
+		for (u32 triangleIdx = 0; triangleIdx < triangleCount; ++triangleIdx)
+		{
+			const IndexTriangle *indexTri = &collMeshRes->triangleData[triangleIdx];
+			Triangle tri =
+			{
+				positions[indexTri->a],
+				positions[indexTri->b],
+				positions[indexTri->c],
+				indexTri->normal
+			};
+
+			if (V3Dot(localRayDir, tri.normal) > 0)
+				continue;
+
+			v3 currHit;
+			if (RayTriangleIntersection(localRayOrigin, localRayDir, &tri, &currHit))
+			{
+				*hit = currHit;
+				*hitNor = tri.normal;
+				result = true;
+			}
+		}
+
+		if (result)
+		{
+			v4 r4 = { hit->x, hit->y, hit->z, 1 };
+			r4 = Mat4TransformV4(modelMatrix, r4);
+			*hit = v3{ r4.x, r4.y, r4.z };
+		}
+
+		return result;
+	} break;
+	case COLLIDER_SPHERE:
+	{
+		v3 center = entity->pos + c->sphere.offset;
+
+		v3 towards = center - rayOrigin;
+		f32 dot = V3Dot(unitDir, towards);
+		if (dot <= 0)
+			return false;
+
+		v3 proj = rayOrigin + unitDir * dot;
+
+		f32 distSqr = V3SqrLen(proj - center);
+		f32 radiusSqr = c->sphere.radius * c->sphere.radius;
+		if (distSqr > radiusSqr)
+			return false;
+
+		f32 td = Sqrt(radiusSqr - distSqr);
+		*hit = proj - unitDir * td;
+
+		// Limit reach
+		if (V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
+			return false;
+
+		*hitNor = (*hit - center) / c->sphere.radius;
+		return true;
+	} break;
+	case COLLIDER_CYLINDER:
+	{
+		v3 center = entity->pos + c->cylinder.offset;
+
+		v3 towards = center - rayOrigin;
+		// @Incomplete: won't work with non axis aligned cylinders
+		towards.z = 0;
+
+		f32 dirLat = Sqrt(unitDir.x * unitDir.x + unitDir.y * unitDir.y);
+		v3 dirNormXY = unitDir / dirLat;
+		v3 dirNormZ = unitDir / unitDir.z;
+		f32 radiusSqr = c->cylinder.radius * c->cylinder.radius;
+
+		// This is bottom instead of top when ray points upwards
+		f32 top = center.z - c->cylinder.height * 0.5f * Sign(rayDir.z);
+		f32 distZ = top - rayOrigin.z;
+		if (distZ * Sign(rayDir.z) > 0)
+		{
+			// Check top/bottom face
+			f32 factor = distZ / rayDir.z;
+			v3 proj = rayOrigin + rayDir * factor;
+
+			v3 opposite = proj - center;
+			f32 distSqr = (opposite.x * opposite.x) + (opposite.y * opposite.y);
+			if (distSqr <= radiusSqr)
+			{
+				// Limit reach
+				if (factor < 0 || factor > 1)
+					return false;
+
+				*hit = proj;
+				*hitNor = { 0, 0, -Sign(rayDir.z) };
+				return true;
+			}
+		}
+
+		// Otherwise check cylinder wall
+		f32 dot = V3Dot(dirNormXY, towards);
+		if (dot <= c->cylinder.radius)
+			return false;
+
+		v3 proj = rayOrigin + dirNormXY * dot;
+
+		v3 opposite = proj - center;
+		f32 distSqr = (opposite.x * opposite.x) + (opposite.y * opposite.y);
+		if (distSqr > radiusSqr)
+			return false;
+
+		f32 td = Sqrt(radiusSqr - distSqr);
+		proj = proj - dirNormXY * td;
+
+		// @Incomplete: won't work with non axis aligned cylinders
+		f32 distUp = Abs(proj.z - center.z);
+		if (distUp > c->cylinder.height * 0.5f)
+			return false;
+
+		*hit = proj;
+
+		// Limit reach
+		if (V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
+			return false;
+
+		*hitNor = (*hit - center) / c->cylinder.radius;
+		hitNor->z = 0;
+		return true;
+	} break;
+	case COLLIDER_CAPSULE:
+	{
+		v3 center = entity->pos + c->capsule.offset;
+
+		// Lower sphere
+		v3 sphereCenter = center;
+		sphereCenter.z -= c->capsule.height * 0.5f;
+
+		v3 towards = sphereCenter - rayOrigin;
+		f32 dot = V3Dot(unitDir, towards);
+		if (dot > 0)
+		{
+			v3 proj = rayOrigin + unitDir * dot;
+
+			f32 distSqr = V3SqrLen(proj - sphereCenter);
+			f32 radiusSqr = c->capsule.radius * c->capsule.radius;
+			if (distSqr <= radiusSqr)
+			{
+				f32 td = Sqrt(radiusSqr - distSqr);
+				v3 sphereProj = proj - unitDir * td;
+				if (sphereProj.z <= sphereCenter.z)
+				{
+					*hit = sphereProj;
+
+					// Limit reach
+					if (V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
+						return false;
+
+					*hitNor = (*hit - sphereCenter) / c->capsule.radius;
+					return true;
+				}
+			}
+		}
+
+		// Upper sphere
+		sphereCenter.z += c->capsule.height;
+		towards = sphereCenter - rayOrigin;
+		dot = V3Dot(unitDir, towards);
+		if (dot > 0)
+		{
+			v3 proj = rayOrigin + unitDir * dot;
+
+			f32 distSqr = V3SqrLen(proj - sphereCenter);
+			f32 radiusSqr = c->capsule.radius * c->capsule.radius;
+			if (distSqr <= radiusSqr)
+			{
+				f32 td = Sqrt(radiusSqr - distSqr);
+				v3 sphereProj = proj - unitDir * td;
+				if (sphereProj.z >= sphereCenter.z)
+				{
+					*hit = sphereProj;
+
+					// Limit reach
+					if (V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
+						return false;
+
+					*hitNor = (*hit - sphereCenter) / c->capsule.radius;
+					return true;
+				}
+			}
+		}
+
+		// Side
+		towards = center - rayOrigin;
+		// @Incomplete: won't work with non axis aligned cylinders
+		towards.z = 0;
+
+		f32 dirLat = Sqrt(unitDir.x * unitDir.x + unitDir.y * unitDir.y);
+		v3 dirNormXY = unitDir / dirLat;
+		f32 radiusSqr = c->capsule.radius * c->capsule.radius;
+
+		dot = V3Dot(dirNormXY, towards);
+		if (dot <= c->capsule.radius)
+			return false;
+
+		v3 proj = rayOrigin + dirNormXY * dot;
+
+		v3 opposite = proj - center;
+		f32 distSqr = (opposite.x * opposite.x) + (opposite.y * opposite.y);
+		if (distSqr > radiusSqr)
+			return false;
+
+		f32 td = Sqrt(radiusSqr - distSqr);
+		proj = proj - dirNormXY * td;
+
+		// @Incomplete: won't work with non axis aligned cylinders
+		f32 distUp = Abs(proj.z - center.z);
+		if (distUp > c->capsule.height * 0.5f)
+			return false;
+
+		*hit = proj;
+
+		// Limit reach
+		if (V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
+			return false;
+
+		*hitNor = (*hit - center) / c->capsule.radius;
+		hitNor->z = 0;
+		return true;
+	} break;
+	default:
+	{
+		ASSERT(false);
+	}
+	}
+	return false;
+}
+
+void GetAABB(Entity *entity, v3 *min, v3 *max)
 {
 	Collider *c = &entity->collider;
 	ColliderType type = c->type;
@@ -332,25 +592,18 @@ void GetAABB(GameState *gameState, Entity *entity, v3 *min, v3 *max)
 		*max = { -INFINITY, -INFINITY, -INFINITY };
 
 		// @Speed: inverse-transform direction, pick a point, and then transform only that point!
-		const v3 worldUp = { 0, 0, 1 };
-		const v3 pos = entity->pos;
-		const v3 fw = entity->fw;
-		const v3 right = V3Normalize(V3Cross(fw, worldUp));
-		const v3 up = V3Cross(right, fw);
-		mat4 modelMatrix =
-		{
-			right.x,	right.y,	right.z,	0.0f,
-			fw.x,		fw.y,		fw.z,		0.0f,
-			up.x,		up.y,		up.z,		0.0f,
-			pos.x,		pos.y,		pos.z,		1.0f
-		};
+		mat4 modelMatrix = Mat4ChangeOfBases(entity->fw, {0,0,1}, entity->pos);
 
-		const ResourcePointCloud *pointsRes = &c->convexHull.pointCloud->points;
-		u32 pointCount = pointsRes->pointCount;
+		const Resource *res = c->convexHull.meshRes;
+		if (!res)
+			return;
+		const ResourceCollisionMesh *collMeshRes = &res->collisionMesh;
+
+		u32 pointCount = collMeshRes->positionCount;
 
 		for (u32 i = 0; i < pointCount; ++i)
 		{
-			v3 p = pointsRes->pointData[i];
+			v3 p = collMeshRes->positionData[i];
 			v4 v = { p.x, p.y, p.z, 1.0f };
 			v = Mat4TransformV4(modelMatrix, v);
 
@@ -388,13 +641,16 @@ void GetAABB(GameState *gameState, Entity *entity, v3 *min, v3 *max)
 	}
 	}
 
-	DrawDebugWiredBox(gameState, *min, *max);
+#if DEBUG_BUILD
+	if (g_debugContext->drawAABBs)
+	{
+		DrawDebugWiredBox(*min, *max);
+	}
+#endif
 }
 
-v3 FurthestInDirection(GameState *gameState, Entity *entity, v3 dir)
+v3 FurthestInDirection(Entity *entity, v3 dir)
 {
-	void *oldStackPtr = g_memory->stackPtr;
-
 	v3 result = {};
 
 	Collider *c = &entity->collider;
@@ -405,46 +661,42 @@ v3 FurthestInDirection(GameState *gameState, Entity *entity, v3 dir)
 	{
 		f32 maxDist = -INFINITY;
 
-		// @Speed: inverse-transform direction, pick a point, and then transform only that point!
-		const v3 worldUp = { 0, 0, 1 };
-		const v3 pos = entity->pos;
-		const v3 fw = entity->fw;
-		const v3 right = V3Normalize(V3Cross(fw, worldUp));
-		const v3 up = V3Cross(right, fw);
-		mat4 modelMatrix =
+		mat4 modelMatrix = Mat4ChangeOfBases(entity->fw, {0,0,1}, entity->pos);
+
+		// Un-rotate direction
+		// @Speed: maybe do this with quaternions once decomposed transformations are a thing.
+		mat4 rotMatrixInv =
 		{
-			right.x,	right.y,	right.z,	0.0f,
-			fw.x,		fw.y,		fw.z,		0.0f,
-			up.x,		up.y,		up.z,		0.0f,
-			pos.x,		pos.y,		pos.z,		1.0f
+			modelMatrix.m00,	modelMatrix.m10,	modelMatrix.m20,	0,
+			modelMatrix.m01,	modelMatrix.m11,	modelMatrix.m21,	0,
+			modelMatrix.m02,	modelMatrix.m12,	modelMatrix.m22,	0,
+			0,			0,		0,		1
 		};
+		v4 locDir4 = Mat4TransformV4(rotMatrixInv, v4{ dir.x, dir.y, dir.z, 0 });
+		v3 locDir = { locDir4.x, locDir4.y, locDir4.z };
 
-		const ResourcePointCloud *pointsRes = &c->convexHull.pointCloud->points;
-		u32 pointCount = pointsRes->pointCount;
-		v3 *points = (v3 *)StackAlloc(pointCount * sizeof(v3));
+		const Resource *res = c->convexHull.meshRes;
+		if (!res)
+			return {};
+		const ResourceCollisionMesh *collMeshRes = &res->collisionMesh;
 
-		// Compute all points
-		{
-			for (u32 i = 0; i < pointCount; ++i)
-			{
-				v3 p = pointsRes->pointData[i];
-				v4 v = { p.x, p.y, p.z, 1.0f };
-				v = Mat4TransformV4(modelMatrix, v);
-				points[i] = { v.x, v.y, v.z };
-			}
-		}
-
-		const v3 *scan = points;
+		const u32 pointCount = collMeshRes->positionCount;
+		const v3 *scan = collMeshRes->positionData;
 		for (u32 i = 0; i < pointCount; ++i)
 		{
 			v3 p = *scan++;
-			f32 dot = V3Dot(p, dir);
+			f32 dot = V3Dot(p, locDir);
 			if (dot > maxDist)
 			{
 				maxDist = dot;
 				result = p;
 			}
 		}
+
+		// Transform point to world coordinates and return as result
+		v4 r4 = { result.x, result.y, result.z, 1 };
+		r4 = Mat4TransformV4(modelMatrix, r4);
+		result = v3{ r4.x, r4.y, r4.z };
 	} break;
 	case COLLIDER_SPHERE:
 	{
@@ -455,29 +707,15 @@ v3 FurthestInDirection(GameState *gameState, Entity *entity, v3 dir)
 		result = entity->pos + c->cylinder.offset;
 
 		f32 halfH = c->cylinder.height * 0.5f;
-		f32 lat = Sqrt(dir.x * dir.x + dir.y * dir.y);
-		if (lat == 0)
+		if (dir.z != 0)
 		{
-			// If direction is parallel to cylinder the answer is trivial
 			result.z += Sign(dir.z) * halfH;
 		}
-		else
+		if (dir.x != 0 || dir.y != 0)
 		{
-			// Project dir into cylinder wall
-			v3 d = dir / lat;
-			d = d * c->cylinder.radius;
-
-			// Crop d if it goes out the top/bottom
-			if (d.z > halfH)
-			{
-				d.z = halfH;
-			}
-			else if (d.z < -halfH)
-			{
-				d.z = -halfH;
-			}
-
-			result += d;
+			f32 lat = Sqrt(dir.x * dir.x + dir.y * dir.y);
+			result.x += dir.x / lat * c->cylinder.radius;
+			result.y += dir.y / lat * c->cylinder.radius;
 		}
 	} break;
 	case COLLIDER_CAPSULE:
@@ -498,14 +736,11 @@ v3 FurthestInDirection(GameState *gameState, Entity *entity, v3 dir)
 			d = d * c->capsule.radius;
 
 			// If it goes out the top, return furthest point from top sphere
-			if (d.z > halfH)
+			if (d.z > 0)
 				result += v3{ 0, 0, halfH } + V3Normalize(dir) * c->capsule.radius;
 			// Analogue for bottom
-			else if (d.z < -halfH)
-				result += v3{ 0, 0, -halfH } + V3Normalize(dir) * c->capsule.radius;
-			// Else just return the vector projected to the wall
 			else
-				result += d;
+				result += v3{ 0, 0, -halfH } + V3Normalize(dir) * c->capsule.radius;
 		}
 	} break;
 	default:
@@ -514,26 +749,28 @@ v3 FurthestInDirection(GameState *gameState, Entity *entity, v3 dir)
 	}
 	}
 
-	DrawDebugCubeAA(gameState, result, 0.04f, {0,1,1});
+#if DEBUG_BUILD
+	if (g_debugContext->drawSupports)
+		DrawDebugCubeAA(result, 0.04f, {0,1,1});
+#endif
 
-	StackFree(oldStackPtr);
 	return result;
 }
 
-inline v3 GJKSupport(GameState *gameState, Entity *vA, Entity *vB, v3 dir)
+inline v3 GJKSupport(Entity *vA, Entity *vB, v3 dir)
 {
-	v3 va = FurthestInDirection(gameState, vA, dir);
-	v3 vb = FurthestInDirection(gameState, vB, -dir);
+	v3 va = FurthestInDirection(vA, dir);
+	v3 vb = FurthestInDirection(vB, -dir);
 	return va - vb;
 }
 
-GJKResult GJKTest(GameState *gameState, Entity *vA, Entity *vB, PlatformCode *platformCode)
+GJKResult GJKTest(Entity *vA, Entity *vB)
 {
-#if GJK_VISUAL_DEBUGGING
-	if (g_GJKSteps[0] == nullptr)
+#if DEBUG_BUILD
+	if (g_debugContext->GJKSteps[0] == nullptr)
 	{
-		for (int i = 0; i < ArrayCount(g_GJKSteps); ++i)
-			g_GJKSteps[i] = (Vertex *)malloc(sizeof(Vertex) * 12);
+		for (u32 i = 0; i < ArrayCount(g_debugContext->GJKSteps); ++i)
+			g_debugContext->GJKSteps[i] = (DebugVertex *)TransientAlloc(sizeof(DebugVertex) * 12);
 	}
 #endif
 
@@ -541,9 +778,9 @@ GJKResult GJKTest(GameState *gameState, Entity *vA, Entity *vB, PlatformCode *pl
 	result.hit = true;
 
 	v3 minA, maxA;
-	GetAABB(gameState, vA, &minA, &maxA);
+	GetAABB(vA, &minA, &maxA);
 	v3 minB, maxB;
-	GetAABB(gameState, vB, &minB, &maxB);
+	GetAABB(vB, &minB, &maxB);
 	if ((minA.x > maxB.x || minB.x > maxA.x) ||
 		(minA.y > maxB.y || minB.y > maxA.y) ||
 		(minA.z > maxB.z || minB.z > maxA.z))
@@ -555,40 +792,42 @@ GJKResult GJKTest(GameState *gameState, Entity *vA, Entity *vB, PlatformCode *pl
 	int foundPointsCount = 1;
 	v3 testDir = { 0, 1, 0 }; // Random initial test direction
 
-	result.points[0] = GJKSupport(gameState, vB, vA, testDir);
+	result.points[0] = GJKSupport(vB, vA, testDir);
 	testDir = -result.points[0];
 
 	for (int iterations = 0; result.hit && foundPointsCount < 4; ++iterations)
 	{
-#if GJK_VISUAL_DEBUGGING
+#if DEBUG_BUILD
 		int i_ = iterations;
-		if (g_writeGJKGeom)
+		if (!g_debugContext->freezeGJKGeom)
 		{
-			g_GJKStepCounts[i_] = 0;
+			g_debugContext->GJKStepCounts[i_] = 0;
+			g_debugContext->gjkStepCount = i_ + 1;
 		}
 #endif
 
-		if (iterations >= 50)
+		if (iterations >= 30)
 		{
-			EPAERROR("GJK ERROR! Reached iteration limit!\n");
+			Log("ERROR! GJK: Reached iteration limit!\n");
 			//ASSERT(false);
-#if GJK_VISUAL_DEBUGGING
-			g_writeGJKGeom = false;
+#if DEBUG_BUILD
+			g_debugContext->freezeGJKGeom = true;
 #endif
+			result.hit = false;
 			break;
 		}
 
-		v3 a = GJKSupport(gameState, vB, vA, testDir);
+		v3 a = GJKSupport(vB, vA, testDir);
 		if (V3Dot(testDir, a) < 0)
 		{
 			result.hit = false;
 			break;
 		}
 
-#if GJK_VISUAL_DEBUGGING
-		if (g_writeGJKGeom && iterations)
+#if DEBUG_BUILD
+		if ((!g_debugContext->freezeGJKGeom) && iterations)
 		{
-			g_GJKNewPoint[iterations - 1] = a;
+			g_debugContext->GJKNewPoint[iterations - 1] = a;
 		}
 #endif
 
@@ -612,16 +851,16 @@ GJKResult GJKTest(GameState *gameState, Entity *vA, Entity *vB, PlatformCode *pl
 				v3 abNor = V3Cross(nor, ab);
 				v3 acNor = V3Cross(ac, nor);
 
-#if GJK_VISUAL_DEBUGGING
-				if (g_writeGJKGeom)
+#if DEBUG_BUILD
+				if (!g_debugContext->freezeGJKGeom)
 				{
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ a, v2{}, v3{1,0,0} };
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ b, v2{}, v3{1,0,0} };
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ c, v2{}, v3{1,0,0} };
-					ASSERT(g_GJKStepCounts[i_] == 3);
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ a, v3{1,0,0} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ b, v3{1,0,0} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ c, v3{1,0,0} };
+					ASSERT(g_debugContext->GJKStepCounts[i_] == 3);
 				}
 #endif
 
@@ -677,55 +916,55 @@ GJKResult GJKTest(GameState *gameState, Entity *vA, Entity *vB, PlatformCode *pl
 				const v3 adbNor = V3Cross(ab, ad);
 				const v3 acdNor = V3Cross(ad, ac);
 
-#if GJK_VISUAL_DEBUGGING
-				if (g_writeGJKGeom)
+#if DEBUG_BUILD
+				if (!g_debugContext->freezeGJKGeom)
 				{
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ b, v2{}, v3{1,0,0} };
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ d, v2{}, v3{1,0,0} };
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ c, v2{}, v3{1,0,0} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ b, v3{1,0,0} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ d, v3{1,0,0} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ c, v3{1,0,0} };
 
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ a, v2{}, v3{0,1,0} };
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ b, v2{}, v3{0,1,0} };
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ c, v2{}, v3{0,1,0} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ a, v3{0,1,0} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ b, v3{0,1,0} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ c, v3{0,1,0} };
 
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ a, v2{}, v3{0,0,1} };
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ d, v2{}, v3{0,0,1} };
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ b, v2{}, v3{0,0,1} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ a, v3{0,0,1} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ d, v3{0,0,1} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ b, v3{0,0,1} };
 
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ a, v2{}, v3{1,0,1} };
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ c, v2{}, v3{1,0,1} };
-					g_GJKSteps[i_][g_GJKStepCounts[i_]++] =
-						{ d, v2{}, v3{1,0,1} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ a, v3{1,0,1} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ c, v3{1,0,1} };
+					g_debugContext->GJKSteps[i_][g_debugContext->GJKStepCounts[i_]++] =
+						{ d, v3{1,0,1} };
 
-					ASSERT(g_GJKStepCounts[i_] == 3 * 4);
+					ASSERT(g_debugContext->GJKStepCounts[i_] == 3 * 4);
 				}
 #endif
 
 				// Assert normals point outside
 				if (V3Dot(d - a, abcNor) > 0)
 				{
-					EPAERROR("EPA ERROR: ABC normal facing inward! (dot=%f)\n",
+					Log("ERROR: ABC normal facing inward! (dot=%f)\n",
 							V3Dot(d - a, abcNor));
 				}
 				if (V3Dot(c - a, adbNor) > 0)
 				{
-					EPAERROR("EPA ERROR: ADB normal facing inward! (dot=%f)\n",
+					Log("ERROR: ADB normal facing inward! (dot=%f)\n",
 							V3Dot(d - a, abcNor));
 				}
 				if (V3Dot(b - a, acdNor) > 0)
 				{
-					EPAERROR("EPA ERROR: ACD normal facing inward! (dot=%f)\n",
+					Log("ERROR: ACD normal facing inward! (dot=%f)\n",
 							V3Dot(d - a, abcNor));
 				}
 
@@ -858,17 +1097,17 @@ GJKResult GJKTest(GameState *gameState, Entity *vA, Entity *vB, PlatformCode *pl
 	return result;
 }
 
-v3 ComputeDepenetration(GameState *gameState, GJKResult gjkResult, Entity *vA, Entity *vB, PlatformCode *platformCode)
+v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB)
 {
-#if EPA_VISUAL_DEBUGGING
-	if (g_polytopeSteps[0] == nullptr)
+#if DEBUG_BUILD
+	if (g_debugContext->polytopeSteps[0] == nullptr)
 	{
-		for (int i = 0; i < ArrayCount(g_polytopeSteps); ++i)
-			g_polytopeSteps[i] = (Vertex *)malloc(sizeof(Vertex) * 256);
+		for (u32 i = 0; i < ArrayCount(g_debugContext->polytopeSteps); ++i)
+			g_debugContext->polytopeSteps[i] = (DebugVertex *)TransientAlloc(sizeof(DebugVertex) * 256);
 	}
 #endif
 
-	EPALOG("\n\nNew EPA calculation\n");
+	VERBOSE_LOG("\n\nNew EPA calculation\n");
 
 	// By now we should have the tetrahedron from GJK
 	// TODO dynamic array?
@@ -897,12 +1136,13 @@ v3 ComputeDepenetration(GameState *gameState, GJKResult gjkResult, Entity *vA, E
 	{
 		ASSERT(epaStep < maxIterations - 1);
 
-#if EPA_VISUAL_DEBUGGING
+#if DEBUG_BUILD
 		// Save polytope for debug visualization
-		if (g_writePolytopeGeom)
+		if (!g_debugContext->freezePolytopeGeom && epaStep < DebugContext::epaMaxSteps)
 		{
-			GenPolytopeMesh(polytope, polytopeCount, g_polytopeSteps[epaStep]);
-			g_polytopeStepCounts[epaStep] = polytopeCount;
+			GenPolytopeMesh(polytope, polytopeCount, g_debugContext->polytopeSteps[epaStep]);
+			g_debugContext->polytopeStepCounts[epaStep] = polytopeCount;
+			g_debugContext->epaStepCount = epaStep + 1;
 		}
 #endif
 
@@ -910,7 +1150,7 @@ v3 ComputeDepenetration(GameState *gameState, GJKResult gjkResult, Entity *vA, E
 		EPAFace newClosestFeature = {};
 		int validFacesFound = 0;
 		f32 leastDistance = INFINITY;
-		EPALOG("Looking for closest feature\n");
+		VERBOSE_LOG("Looking for closest feature\n");
 		for (int faceIdx = 0; faceIdx < polytopeCount; ++faceIdx)
 		{
 			EPAFace *face = &polytope[faceIdx];
@@ -935,9 +1175,9 @@ v3 ComputeDepenetration(GameState *gameState, GJKResult gjkResult, Entity *vA, E
 		if (leastDistance == INFINITY)
 		{
 			//ASSERT(false);
-			EPAERROR("EPA ERROR: Couldn't find closest feature!");
+			Log("ERROR: EPA: Couldn't find closest feature!");
 			// Collision is probably on the very edge, we don't need depenetration
-			break;
+			return {};
 		}
 		else if (leastDistance <= lastLeastDistance + 0.0001f)
 		{
@@ -945,25 +1185,25 @@ v3 ComputeDepenetration(GameState *gameState, GJKResult gjkResult, Entity *vA, E
 			// the Minkowski difference
 			// TODO do we really need two exit conditions? Something must be wrong with
 			// the other one!
-			EPALOG("Ending because couldn't get any further away from the outer edge");
+			VERBOSE_LOG("Ending because couldn't get any further away from the outer edge");
 			break;
 		}
 		else
 		{
 			closestFeature = newClosestFeature;
 			lastLeastDistance = leastDistance;
-			EPALOG("Picked face with distance %.02f out of %d faces\n", leastDistance,
+			VERBOSE_LOG("Picked face with distance %.02f out of %d faces\n", leastDistance,
 					validFacesFound);
 		}
 
 		// Expand polytope!
 		v3 testDir = V3Cross(closestFeature.c - closestFeature.a, closestFeature.b - closestFeature.a);
-		v3 newPoint = GJKSupport(gameState, vB, vA, testDir);
-		EPALOG("Found new point { %.02f, %.02f. %.02f } while looking in direction { %.02f, %.02f. %.02f }\n",
+		v3 newPoint = GJKSupport(vB, vA, testDir);
+		VERBOSE_LOG("Found new point { %.02f, %.02f. %.02f } while looking in direction { %.02f, %.02f. %.02f }\n",
 				newPoint.x, newPoint.y, newPoint.z, testDir.x, testDir.y, testDir.z);
-#if EPA_VISUAL_DEBUGGING
-		if (g_writePolytopeGeom)
-			g_epaNewPoint[epaStep] = newPoint;
+#if DEBUG_BUILD
+		if (!g_debugContext->freezePolytopeGeom && epaStep < DebugContext::epaMaxSteps)
+			g_debugContext->epaNewPoint[epaStep] = newPoint;
 #endif
 		// Without a little epsilon here we can sometimes pick a point that's already part of the
 		// polytope, resulting in weird artifacts later on. I guess we could manually check for that
@@ -971,21 +1211,23 @@ v3 ComputeDepenetration(GameState *gameState, GJKResult gjkResult, Entity *vA, E
 		const f32 epsilon = 0.000001f;
 		if (V3Dot(testDir, newPoint - closestFeature.a) <= epsilon)
 		{
-			EPALOG("Done! Couldn't find a closer point\n");
+			VERBOSE_LOG("Done! Couldn't find a closer point\n");
 			break;
 		}
+#if DEBUG_BUILD
 		else if (V3Dot(testDir, newPoint - closestFeature.b) <= epsilon)
 		{
-			EPAERROR("EPA ERROR! Redundant check triggered (B)\n");
-			ASSERT(false);
+			Log("ERROR! EPA: Redundant check triggered (B)\n");
+			//ASSERT(false);
 			break;
 		}
 		else if (V3Dot(testDir, newPoint - closestFeature.c) <= epsilon)
 		{
-			EPAERROR("EPA ERROR! Redundant check triggered (C)\n");
-			ASSERT(false);
+			Log("ERROR! EPA: Redundant check triggered (C)\n");
+			//ASSERT(false);
 			break;
 		}
+#endif
 		EPAEdge holeEdges[256];
 		int holeEdgesCount = 0;
 		int oldPolytopeCount = polytopeCount;
@@ -1031,18 +1273,18 @@ v3 ComputeDepenetration(GameState *gameState, GJKResult gjkResult, Entity *vA, E
 			polytope[faceIdx] = polytope[--polytopeCount];
 		}
 		int deletedFaces = oldPolytopeCount - polytopeCount;
-		EPALOG("Deleted %d faces which were facing new point\n", deletedFaces);
-		EPALOG("Presumably left a hole with %d edges\n", holeEdgesCount);
+		VERBOSE_LOG("Deleted %d faces which were facing new point\n", deletedFaces);
+		VERBOSE_LOG("Presumably left a hole with %d edges\n", holeEdgesCount);
 		if (deletedFaces > 1 && holeEdgesCount >= deletedFaces * 3)
 		{
-			EPAERROR("EPA ERROR! Multiple holes were made on the polytope!\n");
-#if EPA_VISUAL_DEBUGGING
-			if (g_writePolytopeGeom)
+			Log("ERROR! EPA: Multiple holes were made on the polytope!\n");
+#if DEBUG_BUILD
+			if (!g_debugContext->freezePolytopeGeom && epaStep < DebugContext::epaMaxSteps - 1)
 			{
-				GenPolytopeMesh(polytope, polytopeCount, g_polytopeSteps[epaStep + 1]);
-				g_polytopeStepCounts[epaStep + 1] = polytopeCount;
-				g_epaNewPoint[epaStep + 1] = newPoint;
-				g_writePolytopeGeom = false;
+				GenPolytopeMesh(polytope, polytopeCount, g_debugContext->polytopeSteps[epaStep + 1]);
+				g_debugContext->polytopeStepCounts[epaStep + 1] = polytopeCount;
+				g_debugContext->epaNewPoint[epaStep + 1] = newPoint;
+				g_debugContext->freezePolytopeGeom = true;
 			}
 #endif
 		}
@@ -1055,7 +1297,7 @@ v3 ComputeDepenetration(GameState *gameState, GJKResult gjkResult, Entity *vA, E
 			EPAFace newFace = { holeEdge.a, holeEdge.b, newPoint };
 			polytope[polytopeCount++] = newFace;
 		}
-		EPALOG("Added %d faces to fill the hole. Polytope now has %d faces\n",
+		VERBOSE_LOG("Added %d faces to fill the hole. Polytope now has %d faces\n",
 				polytopeCount - oldPolytopeCount, polytopeCount);
 	}
 
@@ -1064,20 +1306,18 @@ v3 ComputeDepenetration(GameState *gameState, GJKResult gjkResult, Entity *vA, E
 	return closestFeatureNor * V3Dot(closestFeatureNor, closestFeature.a);
 }
 
-#if GJK_VISUAL_DEBUGGING
-void GetGJKStepGeometry(int step, Vertex **buffer, u32 *count)
+#if DEBUG_BUILD
+void GetGJKStepGeometry(int step, DebugVertex **buffer, u32 *count)
 {
-	*count = g_GJKStepCounts[step];
-	*buffer = g_GJKSteps[step];
+	*count = g_debugContext->GJKStepCounts[step];
+	*buffer = g_debugContext->GJKSteps[step];
+}
+
+void GetEPAStepGeometry(int step, DebugVertex **buffer, u32 *count)
+{
+	*count = g_debugContext->polytopeStepCounts[step];
+	*buffer = g_debugContext->polytopeSteps[step];
 }
 #endif
 
-#if EPA_VISUAL_DEBUGGING
-void GetEPAStepGeometry(int step, Vertex **buffer, u32 *count)
-{
-	*count = g_polytopeStepCounts[step];
-	*buffer = g_polytopeSteps[step];
-}
-#endif
-
-#undef EPALOG
+#undef VERBOSE_LOG

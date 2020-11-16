@@ -7,16 +7,24 @@
 #include <GLES3/glcorearb.h>
 #include <Xinput.h>
 
-#include "General.h"
 #include "OpenGL.h"
+
+#ifdef USING_IMGUI
+#define IMGUI_IMPL_OPENGL_LOADER_CUSTOM
+#include <imgui/imgui_impl_win32.cpp>
+#include <imgui/imgui_impl_opengl3.cpp>
+#include <imgui/imgui.h>
+#endif
+
+#include "General.h"
 #include "MemoryAlloc.h"
 #include "Containers.h"
 #include "Maths.h"
 #include "Render.h"
 #include "Geometry.h"
 #include "Resource.h"
-#include "Platform.h"
 #include "PlatformCode.h"
+#include "Platform.h"
 #include "Game.h"
 
 DECLARE_ARRAY(Resource);
@@ -28,16 +36,65 @@ struct ResourceBank
 	Array_FILETIME lastWriteTimes;
 };
 
-HANDLE g_hStdout;
+struct Win32GameCode
+{
+	HMODULE dll;
+	bool isLoaded;
+	FILETIME lastWriteTime;
+
+	StartGame_t *StartGame;
+	GameResourcePostLoad_t *GameResourcePostLoad;
+	InitGameModule_t *InitGameModule;
+	UpdateAndRenderGame_t *UpdateAndRenderGame;
+};
+
 Memory *g_memory;
 ResourceBank *g_resourceBank;
+#ifdef USING_IMGUI
+ImGuiTextBuffer *g_imguiLogBuffer;
+bool g_showConsole;
+#endif
+u32 g_windowWidth = 1440;
+u32 g_windowHeight = 810;
+Win32GameCode g_gameCode;
 
 #include "Win32Common.cpp"
 #include "OpenGL.cpp"
 #include "OpenGLRender.cpp"
 #include "MemoryAlloc.cpp"
 
-#include "BakeryInterop.cpp"
+Resource *CreateResource(const char *filename);
+PLATFORMPROC const Resource *LoadResource(ResourceType type, const char *filename)
+{
+	Resource *newResource = CreateResource(filename);
+
+	u8 *fileBuffer;
+	DWORD fileSize;
+	DWORD error = Win32ReadEntireFile(filename, &fileBuffer, &fileSize, FrameAlloc);
+	if (error != ERROR_SUCCESS)
+		return nullptr;
+
+	newResource->type = type;
+	g_gameCode.GameResourcePostLoad(newResource, fileBuffer, true);
+
+	return newResource;
+}
+
+PLATFORMPROC const Resource *GetResource(const char *filename)
+{
+	for (u32 i = 0; i < g_resourceBank->resources.size; ++i)
+	{
+		Resource *it = &g_resourceBank->resources[i];
+		if (strcmp(it->filename, filename) == 0)
+		{
+			return it;
+		}
+	}
+	return nullptr;
+}
+
+// We need the functions above before including this!
+#include "PlatformCode.cpp"
 
 #if DEBUG_BUILD
 const char *gameDllName = "game_debug.dll";
@@ -99,83 +156,89 @@ bool ProcessKeyboard(Controller *controller)
 	{
 		switch (message.message)
 		{
-			case WM_QUIT:
+		case WM_QUIT:
+		{
+			return true;
+		} break;
+		case WM_SYSKEYDOWN:
+		case WM_SYSKEYUP:
+		case WM_KEYDOWN:
+		case WM_KEYUP:
+		{
+			const bool isDown = (message.lParam & (1 << 31)) == 0;
+			const bool wasDown = (message.lParam & (1 << 30)) != 0;
+
+			auto checkButton = [&isDown, &wasDown](Button &button)
 			{
-				return true;
-			} break;
-			case WM_SYSKEYDOWN:
-			case WM_SYSKEYUP:
-			case WM_KEYDOWN:
-			case WM_KEYUP:
+				if (wasDown != isDown)
+				{
+					button.endedDown = isDown;
+					button.changed = true;
+				}
+			};
+
+			Controller *c = controller;
+			switch (message.wParam)
 			{
-				const bool isDown = (message.lParam & (1 << 31)) == 0;
-				const bool wasDown = (message.lParam & (1 << 30)) != 0;
+				case 'Q':
+					return true;
+				case VK_OEM_3:
+					if (isDown && !wasDown)
+						g_showConsole = !g_showConsole;
+					break;
+				case 'W':
+					checkButton(c->up);
+					break;
+				case 'A':
+					checkButton(c->left);
+					break;
+				case 'S':
+					checkButton(c->down);
+					break;
+				case 'D':
+					checkButton(c->right);
+					break;
 
-				auto checkButton = [&isDown, &wasDown](Button &button)
-				{
-					if (wasDown != isDown)
-					{
-						button.endedDown = isDown;
-						button.changed = true;
-					}
-				};
+				case VK_SPACE:
+					checkButton(c->jump);
+					break;
 
-				Controller *c = controller;
-				switch (message.wParam)
-				{
-					case 'Q':
-						return true;
-					case 'W':
-						checkButton(c->up);
-						break;
-					case 'A':
-						checkButton(c->left);
-						break;
-					case 'S':
-						checkButton(c->down);
-						break;
-					case 'D':
-						checkButton(c->right);
-						break;
-
-					case VK_SPACE:
-						checkButton(c->jump);
-						break;
-
-					case VK_UP:
-						checkButton(c->camUp);
-						break;
-					case VK_DOWN:
-						checkButton(c->camDown);
-						break;
-					case VK_LEFT:
-						checkButton(c->camLeft);
-						break;
-					case VK_RIGHT:
-						checkButton(c->camRight);
-						break;
+				case VK_UP:
+					checkButton(c->camUp);
+					break;
+				case VK_DOWN:
+					checkButton(c->camDown);
+					break;
+				case VK_LEFT:
+					checkButton(c->camLeft);
+					break;
+				case VK_RIGHT:
+					checkButton(c->camRight);
+					break;
 
 #if DEBUG_BUILD
-					case 'H':
-						checkButton(c->debugUp);
-						break;
-					case 'J':
-						checkButton(c->debugDown);
-						break;
-					case 'K':
-						checkButton(c->debugUp);
-						break;
-					case 'L':
-						checkButton(c->debugDown);
-						break;
+				case 'H':
+					checkButton(c->debugUp);
+					break;
+				case 'J':
+					checkButton(c->debugDown);
+					break;
+				case 'K':
+					checkButton(c->debugUp);
+					break;
+				case 'L':
+					checkButton(c->debugDown);
+					break;
 #endif
-				}
-			} break;
-			default:
-			{
-				TranslateMessage(&message);
-				DispatchMessage(&message);
-			} break;
+			}
+			TranslateMessage(&message);
+			DispatchMessage(&message);
+		} break;
+		default:
+		{
+			TranslateMessage(&message);
+			DispatchMessage(&message);
+		} break;
 		}
 	}
 	return false;
@@ -209,16 +272,6 @@ void ProcessXInput(Controller *oldController, Controller *controller)
 }
 /////////
 
-struct Win32GameCode
-{
-	HMODULE dll;
-	bool isLoaded;
-	FILETIME lastWriteTime;
-
-	StartGame_t *StartGame;
-	UpdateAndRenderGame_t *UpdateAndRenderGame;
-};
-
 void ChangeExtension(char *buffer, const char *newExtension)
 {
 	char *lastDot = 0;
@@ -229,12 +282,12 @@ void ChangeExtension(char *buffer, const char *newExtension)
 	strcpy(lastDot + 1, newExtension);
 }
 
-void Win32LoadGameCode(Win32GameCode *gameCode, const char *dllFilename, const char *tempDllFilename)
+void Win32LoadGameCode(const char *dllFilename, const char *tempDllFilename)
 {
 	Log("Loading game code\n");
 #if DEBUG_BUILD
 	CopyFile(dllFilename, tempDllFilename, false);
-	gameCode->dll = LoadLibraryA(tempDllFilename);
+	g_gameCode.dll = LoadLibraryA(tempDllFilename);
 	// Copy pdb
 	{
 		char pdbName[MAX_PATH];
@@ -246,32 +299,44 @@ void Win32LoadGameCode(Win32GameCode *gameCode, const char *dllFilename, const c
 		CopyFile(pdbName, tempPdbName, false);
 	}
 #else
-	gameCode->dll = LoadLibraryA(dllFilename);
+	g_gameCode.dll = LoadLibraryA(dllFilename);
 #endif
-	ASSERT(gameCode->dll);
+	ASSERT(g_gameCode.dll);
 
-	gameCode->StartGame = (StartGame_t *)GetProcAddress(gameCode->dll, "StartGame");
-	ASSERT(gameCode->StartGame);
-	gameCode->UpdateAndRenderGame = (UpdateAndRenderGame_t *)GetProcAddress(gameCode->dll, "UpdateAndRenderGame");
-	ASSERT(gameCode->UpdateAndRenderGame);
+	g_gameCode.StartGame = (StartGame_t *)GetProcAddress(g_gameCode.dll, "StartGame");
+	ASSERT(g_gameCode.StartGame);
 
-	gameCode->isLoaded = true;
+	g_gameCode.GameResourcePostLoad = (GameResourcePostLoad_t *)GetProcAddress(g_gameCode.dll, "GameResourcePostLoad");
+	ASSERT(g_gameCode.GameResourcePostLoad);
+
+	g_gameCode.InitGameModule = (InitGameModule_t *)GetProcAddress(g_gameCode.dll, "InitGameModule");
+	ASSERT(g_gameCode.InitGameModule);
+
+	g_gameCode.UpdateAndRenderGame = (UpdateAndRenderGame_t *)GetProcAddress(g_gameCode.dll, "UpdateAndRenderGame");
+	ASSERT(g_gameCode.UpdateAndRenderGame);
+
+	g_gameCode.isLoaded = true;
 }
 
-void Win32UnloadGameCode(Win32GameCode *gameCode)
+void Win32UnloadGameCode()
 {
-	if (gameCode->dll)
+	if (g_gameCode.dll)
 	{
 		Log("Unloading game code\n");
-		FreeLibrary(gameCode->dll);
-		gameCode->isLoaded = false;
-		gameCode->StartGame = StartGameStub;
-		gameCode->UpdateAndRenderGame = UpdateAndRenderGameStub;
+		FreeLibrary(g_gameCode.dll);
+		g_gameCode.isLoaded = false;
+		g_gameCode.StartGame = StartGameStub;
+		g_gameCode.UpdateAndRenderGame = UpdateAndRenderGameStub;
 	}
 }
 
 LRESULT CALLBACK Win32WindowCallback(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+#ifdef USING_IMGUI
+	if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam))
+		return true;
+#endif
+
 	switch(message)
 	{
 	case WM_CLOSE:
@@ -280,16 +345,15 @@ LRESULT CALLBACK Win32WindowCallback(HWND hWnd, UINT message, WPARAM wParam, LPA
 	} break;
 	case WM_SIZE:
 	{
-		glViewport(0, 0,LOWORD(lParam), HIWORD(lParam));
+		g_windowWidth = LOWORD(lParam);
+		g_windowHeight = HIWORD(lParam);
+		SetViewport(0, 0, g_windowWidth, g_windowHeight);
 	}break;
 	default:
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	}
 	return 0;
 }
-
-
-
 
 Resource *CreateResource(const char *filename)
 {
@@ -305,21 +369,6 @@ Resource *CreateResource(const char *filename)
 	return resource;
 }
 
-#include "Resource.cpp"
-
-GET_RESOURCE(GetResource)
-{
-	for (u32 i = 0; i < g_resourceBank->resources.size; ++i)
-	{
-		Resource *it = &g_resourceBank->resources[i];
-		if (strcmp(it->filename, filename) == 0)
-		{
-			return it;
-		}
-	}
-	return nullptr;
-}
-
 bool ReloadResource(Resource *resource)
 {
 	u8 *fileBuffer;
@@ -328,73 +377,7 @@ bool ReloadResource(Resource *resource)
 	if (error != ERROR_SUCCESS)
 		return false;
 
-	switch (resource->type)
-	{
-	case RESOURCETYPE_MESH:
-	{
-		Vertex *vertexData;
-		u16 *indexData;
-		u32 vertexCount;
-		u32 indexCount;
-		ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
-
-		SendIndexedMesh(&resource->mesh.deviceMesh, vertexData, vertexCount, sizeof(Vertex),
-				indexData, indexCount, false);
-
-		return true;
-	} break;
-	case RESOURCETYPE_SKINNEDMESH:
-	{
-		ResourceSkinnedMesh *skinnedMesh = &resource->skinnedMesh;
-
-		SkinnedVertex *vertexData;
-		u16 *indexData;
-		u32 vertexCount;
-		u32 indexCount;
-		ReadSkinnedMesh(fileBuffer, skinnedMesh, &vertexData, &indexData, &vertexCount, &indexCount);
-
-		// @Broken: This allocs things on transient memory and never frees them
-		SendIndexedMesh(&resource->skinnedMesh.deviceMesh, vertexData, vertexCount,
-				sizeof(SkinnedVertex), indexData, indexCount, false);
-
-		return true;
-	} break;
-	case RESOURCETYPE_LEVELGEOMETRYGRID:
-	{
-		ResourceGeometryGrid *geometryGrid = &resource->geometryGrid;
-		ReadTriangleGeometry(fileBuffer, geometryGrid);
-		return true;
-	} break;
-
-	case RESOURCETYPE_POINTS:
-	{
-		ResourcePointCloud *pointCloud = &resource->points;
-		ReadPoints(fileBuffer, pointCloud);
-		return true;
-	} break;
-	case RESOURCETYPE_SHADER:
-	{
-		ResourceShader *shader = &resource->shader;
-
-		const char *vertexSource, *fragmentSource;
-		ReadBakeryShader(fileBuffer, &vertexSource, &fragmentSource);
-
-		WipeDeviceProgram(shader->programHandle);
-
-		DeviceShader vertexShaderHandle = CreateShader(SHADERTYPE_VERTEX);
-		LoadShader(&vertexShaderHandle, vertexSource);
-		AttachShader(shader->programHandle, vertexShaderHandle);
-
-		DeviceShader fragmentShaderHandle = CreateShader(SHADERTYPE_FRAGMENT);
-		LoadShader(&fragmentShaderHandle, fragmentSource);
-		AttachShader(shader->programHandle, fragmentShaderHandle);
-
-		LinkDeviceProgram(shader->programHandle);
-
-		return true;
-	} break;
-	};
-	return false;
+	return g_gameCode.GameResourcePostLoad(resource, fileBuffer, false);
 }
 
 void InitOpenGLContext(Win32Context *context)
@@ -446,7 +429,7 @@ void InitOpenGLContext(Win32Context *context)
 	LoadWGLProcs();
 
 	context->windowHandle = CreateWindowA("window", "3DVania",
-			WS_OVERLAPPEDWINDOW | WS_VISIBLE, 16, 16, 1440, 810, 0, 0, context->hInstance, 0);
+			WS_OVERLAPPEDWINDOW | WS_VISIBLE, 16, 16, g_windowWidth, g_windowHeight, 0, 0, context->hInstance, 0);
 
 
 	context->deviceContext = GetDC(context->windowHandle);
@@ -501,7 +484,36 @@ void Win32Start(HINSTANCE hInstance)
 	Win32Context context;
 	context.hInstance = hInstance;
 
+	// Allocate memory
+	Memory memory;
+	g_memory = &memory;
+	memory.frameMem = VirtualAlloc(0, Memory::frameSize, MEM_COMMIT, PAGE_READWRITE);
+	memory.stackMem = VirtualAlloc(0, Memory::stackSize, MEM_COMMIT, PAGE_READWRITE);
+	memory.transientMem = VirtualAlloc(0, Memory::transientSize, MEM_COMMIT, PAGE_READWRITE);
+	memory.buddyMem = VirtualAlloc(0, Memory::buddySize, MEM_COMMIT, PAGE_READWRITE);
+
+	const u32 maxNumOfBuddyBlocks = Memory::buddySize / Memory::buddySmallest;
+	memory.buddyBookkeep = (u8 *)VirtualAlloc(0, maxNumOfBuddyBlocks, MEM_COMMIT, PAGE_READWRITE);
+	MemoryInit(&memory);
+
 	InitOpenGLContext(&context);
+
+#ifdef USING_IMGUI
+	// Setup imgui
+	ImGui::SetAllocatorFunctions(BuddyAlloc, BuddyFree);
+	ImGuiTextBuffer logBuffer;
+	{
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+
+		ImGui_ImplWin32_Init(context.windowHandle);
+
+		const char* glslVersion = "#version 330";
+		ImGui_ImplOpenGL3_Init(glslVersion);
+
+		g_imguiLogBuffer = &logBuffer;
+	}
+#endif
 
 	// Get paths
 	char executableFilename[MAX_PATH];
@@ -528,9 +540,8 @@ void Win32Start(HINSTANCE hInstance)
 	Win32LoadXInput();
 
 	// Load game code
-	Win32GameCode gameCode;
-	Win32LoadGameCode(&gameCode, gameDllFilename, tempDllFilename);
-	gameCode.lastWriteTime = Win32GetLastWriteTime(gameDllFilename);
+	Win32LoadGameCode(gameDllFilename, tempDllFilename);
+	g_gameCode.lastWriteTime = Win32GetLastWriteTime(gameDllFilename);
 
 	Controller controller = {};
 
@@ -541,16 +552,6 @@ void Win32Start(HINSTANCE hInstance)
 	QueryPerformanceFrequency(&largeInteger);
 	u64 perfFrequency = largeInteger.LowPart;
 
-	// Allocate memory
-	Memory memory;
-	memory.frameMem = VirtualAlloc(0, frameSize, MEM_COMMIT, PAGE_READWRITE);
-	memory.stackMem = VirtualAlloc(0, stackSize, MEM_COMMIT, PAGE_READWRITE);
-	memory.transientMem = VirtualAlloc(0, transientSize, MEM_COMMIT, PAGE_READWRITE);
-	memory.framePtr = memory.frameMem;
-	memory.stackPtr = memory.stackMem;
-	memory.transientPtr = memory.transientMem;
-	g_memory = &memory;
-
 	ResourceBank resourceBank;
 	ArrayInit_Resource(&resourceBank.resources, 256, malloc);
 	ArrayInit_FILETIME(&resourceBank.lastWriteTimes, 256, malloc);
@@ -558,36 +559,17 @@ void Win32Start(HINSTANCE hInstance)
 
 	// Pass functions
 	PlatformCode platformCode;
-	platformCode.Log = Log;
-	platformCode.PlatformReadEntireFile = PlatformReadEntireFile;
-	platformCode.SetUpDevice = SetUpDevice;
-	platformCode.ClearBuffers = ClearBuffers;
-	platformCode.GetUniform = GetUniform;
-	platformCode.UseProgram = UseProgram;
-	platformCode.UniformMat4 = UniformMat4;
-	platformCode.RenderIndexedMesh = RenderIndexedMesh;
-	platformCode.RenderMesh = RenderMesh;
-	platformCode.RenderMeshInstanced = RenderMeshInstanced;
-	platformCode.RenderIndexedMeshInstanced = RenderIndexedMeshInstanced;
-	platformCode.RenderLines = RenderLines;
-	platformCode.CreateDeviceMesh = CreateDeviceMesh;
-	platformCode.CreateDeviceIndexedMesh = CreateDeviceIndexedMesh;
-	platformCode.SendMesh = SendMesh;
-	platformCode.SendIndexedMesh = SendIndexedMesh;
-	platformCode.CreateShader = CreateShader;
-	platformCode.LoadShader = LoadShader;
-	platformCode.AttachShader = AttachShader;
-	platformCode.CreateDeviceProgram = CreateDeviceProgram;
-	platformCode.LinkDeviceProgram = LinkDeviceProgram;
-	platformCode.SetFillMode = SetFillMode;
-	platformCode.ResourceLoadMesh = ResourceLoadMesh;
-	platformCode.ResourceLoadSkinnedMesh = ResourceLoadSkinnedMesh;
-	platformCode.ResourceLoadLevelGeometryGrid = ResourceLoadLevelGeometryGrid;
-	platformCode.ResourceLoadPoints = ResourceLoadPoints;
-	platformCode.ResourceLoadShader = ResourceLoadShader;
-	platformCode.GetResource = GetResource;
+	FillPlatformCodeStruct(&platformCode);
 
-	gameCode.StartGame(&memory, &platformCode);
+	PlatformContext platformContext = {};
+	platformContext.platformCode = &platformCode;
+	platformContext.memory = &memory;
+#if USING_IMGUI
+	platformContext.imguiContext = ImGui::GetCurrentContext();
+#endif
+
+	g_gameCode.InitGameModule(platformContext);
+	g_gameCode.StartGame();
 
 	bool running = true;
 	while (running)
@@ -599,11 +581,12 @@ void Win32Start(HINSTANCE hInstance)
 
 		// Hot reload
 		FILETIME newDllWriteTime = Win32GetLastWriteTime(gameDllFilename);
-		if (CompareFileTime(&newDllWriteTime, &gameCode.lastWriteTime) != 0)
+		if (CompareFileTime(&newDllWriteTime, &g_gameCode.lastWriteTime) != 0)
 		{
-			Win32UnloadGameCode(&gameCode);
-			Win32LoadGameCode(&gameCode, gameDllFilename, tempDllFilename);
-			gameCode.lastWriteTime = newDllWriteTime;
+			Win32UnloadGameCode();
+			Win32LoadGameCode(gameDllFilename, tempDllFilename);
+			g_gameCode.InitGameModule(platformContext);
+			g_gameCode.lastWriteTime = newDllWriteTime;
 		}
 
 		for (u32 i = 0; i < resourceBank.resources.size; ++i)
@@ -633,7 +616,70 @@ void Win32Start(HINSTANCE hInstance)
 			ProcessXInput(&oldController, &controller);
 		}
 
-		gameCode.UpdateAndRenderGame(&controller, &memory, &platformCode, deltaTime);
+#ifdef USING_IMGUI
+		// Start the Dear ImGui frame
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplWin32_NewFrame();
+		ImGui::NewFrame();
+#endif
+
+		g_gameCode.UpdateAndRenderGame(&controller, deltaTime);
+
+#ifdef USING_IMGUI
+		if (g_showConsole)
+		{
+			// In game console
+			ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
+			ImGui::SetNextWindowSize(ImVec2((f32)g_windowWidth, 250), ImGuiCond_Always);
+
+			if (ImGui::Begin("Console", nullptr, ImGuiWindowFlags_NoTitleBar |
+						ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+						ImGuiWindowFlags_NoCollapse))
+			{
+				static bool autoScroll = true;
+				ImGui::Checkbox("Auto-scroll", &autoScroll);
+
+				ImGui::Separator();
+
+				ImGui::BeginChild("ConsoleScrollingRegion", ImVec2(0, 0), false,
+						ImGuiWindowFlags_HorizontalScrollbar);
+				const char *lineStart = g_imguiLogBuffer->begin();
+				for (const char *scan = g_imguiLogBuffer->begin();
+						scan != g_imguiLogBuffer->end();
+						++scan)
+				{
+					if (*scan == '\n')
+					{
+						ImVec4 color;
+						bool hasColor = false;
+						if (strncmp(lineStart, "ERROR", 5) == 0)
+						{
+							color = ImVec4(0.6f, 0.1f, 0.1f, 1.0f);
+							hasColor = true;
+						}
+						else if (strncmp(lineStart, "WARNING", 7) == 0)
+						{
+							color = ImVec4(0.4f, 0.3f, 0.1f, 1.0f);
+							hasColor = true;
+						}
+						if (hasColor) ImGui::PushStyleColor(ImGuiCol_Text, color);
+						ImGui::TextUnformatted(lineStart, scan);
+						if (hasColor) ImGui::PopStyleColor();
+						lineStart = scan + 1;
+					}
+				}
+				if (autoScroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+					ImGui::SetScrollHereY(1.0f);
+
+				ImGui::EndChild();
+			}
+			ImGui::End();
+		}
+
+		// Rendering
+		ImGui::Render();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+#endif
 
 		SwapBuffers(context.deviceContext);
 
@@ -646,6 +692,8 @@ void Win32Start(HINSTANCE hInstance)
 	wglDeleteContext(context.glContext);
 	ReleaseDC(context.windowHandle, context.deviceContext);
 	DestroyWindow(context.windowHandle);
+
+	Win32UnloadGameCode();
 }
 
 int WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, LPSTR cmdLine, int showCmd)

@@ -19,6 +19,9 @@
 #include "tinyxml/tinyxml2.cpp"
 using namespace tinyxml2;
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb/stb_image.h"
+
 #include "MemoryAlloc.h"
 #include "Maths.h"
 #include "BakeryInterop.h"
@@ -32,12 +35,13 @@ Memory *g_memory;
 
 // Windows
 #if TARGET_WINDOWS
-HANDLE g_hStdout;
 #include "Win32Common.cpp"
 // Linux
 #else
 #include "LinuxCommon.cpp"
 #endif
+
+#define LOG(...) Log(__VA_ARGS__)
 
 #include "MemoryAlloc.cpp"
 
@@ -228,7 +232,7 @@ ErrorCode ProcessMetaFile(const char *filename, const char *fullDataDir)
 	case METATYPE_MESH:
 	case METATYPE_SKINNED_MESH:
 	case METATYPE_TRIANGLE_DATA:
-	case METATYPE_POINTS:
+	case METATYPE_COLLISION_MESH:
 	{
 		ProcessMetaFileCollada(type, rootEl, filename, fullDataDir);
 	} break;
@@ -307,6 +311,35 @@ ErrorCode ProcessMetaFile(const char *filename, const char *fullDataDir)
 
 		PlatformCloseFile(file);
 	} break;
+	case METATYPE_IMAGE:
+	{
+		char outputName[MAX_PATH];
+		GetOutputFilename(filename, outputName);
+
+		XMLElement *imageEl = rootEl->FirstChildElement("image");
+		const char *imageFile = imageEl->FirstChild()->ToText()->Value();
+
+		char fullname[MAX_PATH];
+		sprintf(fullname, "%s%s", fullDataDir, imageFile);
+
+		int width, height, components;
+		u8 *imageData = stbi_load(fullname, &width, &height, &components, 0);
+		ASSERT(imageData);
+
+		FileHandle file = PlatformOpenForWrite(outputName);
+
+		BakeryImageHeader header;
+		header.width = width;
+		header.height = height;
+		header.components = components;
+		header.dataBlobOffset = sizeof(BakeryImageHeader);
+		PlatformWriteToFile(file, &header, sizeof(BakeryImageHeader));
+
+		PlatformWriteToFile(file, imageData, width * height * components);
+
+		PlatformCloseFile(file);
+		stbi_image_free(imageData);
+	} break;
 	default:
 	{
 		return ERROR_META_WRONG_TYPE;
@@ -355,10 +388,8 @@ ErrorCode FindMetaFilesRecursive(const char *folder, Array_FileCacheEntry &cache
 			continue;
 
 		bool changed = DidFileChange(fullName, cache);
-		if (!changed)
-		{
-			changed = DidMetaDependenciesChange(fullName, folder, cache);
-		}
+		// Even if meta file changed, check dependencies to register new write times
+		changed = DidMetaDependenciesChange(fullName, folder, cache) || changed;
 
 		if (!changed)
 			continue;
@@ -390,14 +421,14 @@ int main(int argc, char **argv)
 	g_hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
 #endif
 
-	Memory memory;
+	Memory memory = {};
 	g_memory = &memory;
 
-	memory.stackMem = malloc(stackSize);
+	memory.stackMem = malloc(Memory::stackSize);
 	memory.stackPtr = memory.stackMem;
-	memory.frameMem = malloc(frameSize);
+	memory.frameMem = malloc(Memory::frameSize);
 	memory.framePtr = memory.frameMem;
-	memory.transientMem = malloc(transientSize);
+	memory.transientMem = malloc(Memory::transientSize);
 	memory.transientPtr = memory.transientMem;
 
 	Array_FileCacheEntry cache;
@@ -426,11 +457,5 @@ int main(int argc, char **argv)
 #endif
 	}
 
-	free(memory.stackMem);
-	free(memory.frameMem);
-
 	return error;
 }
-
-#undef FilePosition
-#undef FileAlign

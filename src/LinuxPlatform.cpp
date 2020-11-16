@@ -1,20 +1,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dlfcn.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <linux/limits.h>
+#include <time.h>
+#include <errno.h>
+#include <dirent.h>
+
 #include <X11/X.h>
 #include <X11/Xlib.h>
 #include <GL/gl.h>
 #include <GL/glx.h>
 #include <GL/glu.h>
 #include <GLES3/gl32.h>
-#include <dlfcn.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <linux/limits.h>
-#include <time.h>
-#include <errno.h>
-#include <dirent.h>
 
 #include "General.h"
 #include "Containers.h"
@@ -23,14 +25,19 @@
 #include "Render.h"
 #include "Geometry.h"
 #include "Resource.h"
-#include "Game.h"
 #include "Platform.h"
 #include "PlatformCode.h"
+#include "Game.h"
 
 #include "LinuxCommon.cpp"
 #include "OpenGLRender.cpp"
 
 DECLARE_ARRAY(Resource);
+
+StartGame_t *StartGame;
+GameResourcePostLoad_t *GameResourcePostLoad;
+InitGameModule_t *InitGameModule;
+UpdateAndRenderGame_t *UpdateAndRenderGame;
 
 Memory *g_memory;
 Array_Resource *g_resources;
@@ -47,10 +54,23 @@ Resource *CreateResource(const char *filename)
 	return resource;
 }
 
-#include "BakeryInterop.cpp"
-#include "Resource.cpp"
+PLATFORMPROC const Resource *LoadResource(ResourceType type, const char *filename)
+{
+	Resource *newResource = CreateResource(filename);
 
-GET_RESOURCE(GetResource)
+	u8 *fileBuffer;
+	u64 fileSize;
+	int error = PlatformReadEntireFile(filename, &fileBuffer, &fileSize, FrameAlloc);
+	if (error != 0)
+		return nullptr;
+
+	newResource->type = type;
+	GameResourcePostLoad(newResource, fileBuffer, true);
+
+	return newResource;
+}
+
+PLATFORMPROC const Resource *GetResource(const char *filename)
 {
 	for (u32 i = 0; i < g_resources->size; ++i)
 	{
@@ -63,19 +83,30 @@ GET_RESOURCE(GetResource)
 	return nullptr;
 }
 
+#include "PlatformCode.cpp"
+
+#if DEBUG_BUILD
+const char *gameLibName = "./bin/Game_debug.so";
+#else
+const char *gameLibName = "./bin/Game.so";
+#endif
+
 int main(int argc, char **argv)
 {
 	(void) argc, argv;
 
-	StartGame_t *StartGame;
-	UpdateAndRenderGame_t *UpdateAndRenderGame;
+	// Load game code
 	{
-		void *gameLib = dlopen("./bin/Game.so", RTLD_NOW);
+		void *gameLib = dlopen(gameLibName, RTLD_NOW);
 		if (gameLib == nullptr)
 		{
 			printf("Couldn't load game library! Error %s\n", dlerror());
 			return 3;
 		}
+		InitGameModule = (InitGameModule_t*)dlsym(gameLib, "InitGameModule");
+		ASSERT(InitGameModule != nullptr);
+		GameResourcePostLoad = (GameResourcePostLoad_t*)dlsym(gameLib, "GameResourcePostLoad");
+		ASSERT(GameResourcePostLoad != nullptr);
 		StartGame = (StartGame_t*)dlsym(gameLib, "StartGame");
 		ASSERT(StartGame != nullptr);
 		UpdateAndRenderGame = (UpdateAndRenderGame_t*)dlsym(gameLib, "UpdateAndRenderGame");
@@ -126,49 +157,31 @@ int main(int argc, char **argv)
 	glXMakeCurrent(display, window, glContext);
 
 	Memory memory = {};
-	memory.frameMem = malloc(frameSize);
-	memory.stackMem = malloc(frameSize);
-	memory.transientMem = malloc(frameSize);
-	memory.framePtr = memory.frameMem;
-	memory.stackPtr = memory.stackMem;
-	memory.transientPtr = memory.transientMem;
 	g_memory = &memory;
+	const int prot = PROT_READ | PROT_WRITE;
+	const int flags = MAP_ANONYMOUS;
+	memory.frameMem = mmap((void *)0x1000000000000000, Memory::frameSize, prot, flags, 0, 0);
+	memory.stackMem = mmap((void *)0x2000000000000000, Memory::stackSize, prot, flags, 0, 0);
+	memory.transientMem = mmap((void *)0x3000000000000000, Memory::transientSize, prot, flags, 0, 0);
+	memory.buddyMem = mmap((void *)0x4000000000000000, Memory::buddySize, prot, flags, 0, 0);
 
-	TransientAlloc(sizeof(GameState));
+	const u32 maxNumOfBuddyBlocks = Memory::buddySize / Memory::buddySmallest;
+	memory.buddyBookkeep = (u8 *)malloc( maxNumOfBuddyBlocks);
+	MemoryInit(&memory);
 
 	Array_Resource resources;
-	ArrayInit_Resource(&resources, 256, TransientAlloc);
+	ArrayInit_Resource(&resources, 256, malloc);
 	g_resources = &resources;
 
-	PlatformCode platformCode = {};
-	platformCode.Log = Log;
-	platformCode.PlatformReadEntireFile = PlatformReadEntireFile;
-	platformCode.SetUpDevice = SetUpDevice;
-	platformCode.ClearBuffers = ClearBuffers;
-	platformCode.GetUniform = GetUniform;
-	platformCode.UseProgram = UseProgram;
-	platformCode.UniformMat4 = UniformMat4;
-	platformCode.RenderIndexedMesh = RenderIndexedMesh;
-	platformCode.RenderMesh = RenderMesh;
-	platformCode.RenderLines = RenderLines;
-	platformCode.CreateDeviceMesh = CreateDeviceMesh;
-	platformCode.CreateDeviceIndexedMesh = CreateDeviceIndexedMesh;
-	platformCode.SendMesh = SendMesh;
-	platformCode.SendIndexedMesh = SendIndexedMesh;
-	platformCode.CreateShader = CreateShader;
-	platformCode.LoadShader = LoadShader;
-	platformCode.AttachShader = AttachShader;
-	platformCode.CreateDeviceProgram = CreateDeviceProgram;
-	platformCode.LinkDeviceProgram = LinkDeviceProgram;
-	platformCode.SetFillMode = SetFillMode;
-	platformCode.ResourceLoadMesh = ResourceLoadMesh;
-	platformCode.ResourceLoadSkinnedMesh = ResourceLoadSkinnedMesh;
-	platformCode.ResourceLoadLevelGeometryGrid = ResourceLoadLevelGeometryGrid;
-	platformCode.ResourceLoadPoints = ResourceLoadPoints;
-	platformCode.ResourceLoadShader = ResourceLoadShader;
-	platformCode.GetResource = GetResource;
+	PlatformCode platformCode;
+	FillPlatformCodeStruct(&platformCode);
 
-	StartGame(&memory, &platformCode);
+	PlatformContext platformContext = {};
+	platformContext.platformCode = &platformCode;
+	platformContext.memory = &memory;
+
+	InitGameModule(platformContext);
+	StartGame();
 
 	Controller controller = {};
 
@@ -227,9 +240,9 @@ int main(int argc, char **argv)
 
 		XWindowAttributes windowAttr;
 		XGetWindowAttributes(display, window, &windowAttr);
-		glViewport(0, 0, windowAttr.width, windowAttr.height);
+		SetViewport(0, 0, windowAttr.width, windowAttr.height);
 
-		UpdateAndRenderGame(&controller, &memory, &platformCode, deltaTime);
+		UpdateAndRenderGame(&controller, deltaTime);
 
 		glXSwapBuffers(display, window);
 	}

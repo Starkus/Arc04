@@ -40,6 +40,11 @@ struct DeviceMesh
 	u8 reserved[12];
 };
 
+struct DeviceTexture
+{
+	u8 reserved[4];
+};
+
 struct DeviceShader
 {
 	u8 reserved[4];

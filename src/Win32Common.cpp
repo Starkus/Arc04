@@ -1,3 +1,5 @@
+HANDLE g_hStdout;
+
 struct Win32FileTime
 {
 	FILETIME lastWriteTime;
@@ -21,7 +23,7 @@ static_assert(sizeof(Win32SearchHandle) <= sizeof(PlatformSearchHandle),
 
 typedef HANDLE FileHandle;
 
-void Log(const char *format, ...)
+PLATFORMPROC void Log(const char *format, ...)
 {
 	char buffer[2048];
 	va_list args;
@@ -32,6 +34,11 @@ void Log(const char *format, ...)
 
 	DWORD bytesWritten;
 	WriteFile(g_hStdout, buffer, (DWORD)strlen(buffer), &bytesWritten, nullptr);
+
+#ifdef USING_IMGUI
+	// Imgui console
+	g_imguiLogBuffer->appendfv(format, args);
+#endif
 
 	va_end(args);
 }
@@ -128,7 +135,7 @@ bool PlatformFileExists(const char *filename)
 	return Win32FileExists(filename);
 }
 
-bool PlatformReadEntireFile(const char *filename, u8 **fileBuffer, u64 *fileSize,
+PLATFORMPROC bool PlatformReadEntireFile(const char *filename, u8 **fileBuffer, u64 *fileSize,
 		void *(*allocFunc)(u64))
 {
 	char fullname[MAX_PATH];

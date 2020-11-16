@@ -13,7 +13,7 @@ struct Collider
 	{
 		struct
 		{
-			const Resource *pointCloud;
+			const Resource *meshRes;
 		} convexHull;
 		struct
 		{
@@ -29,11 +29,23 @@ struct Collider
 	};
 };
 
+struct SkinnedMeshInstance
+{
+	int entityHandle;
+	const Resource *meshRes;
+	int animationIdx;
+	f32 animationTime;
+};
+
 struct Entity
 {
 	v3 pos;
 	v3 fw;
+
+	// @Todo: decide how to handle optional things.
 	const Resource *mesh;
+	SkinnedMeshInstance *skinnedMeshInstance;
+
 	Collider collider;
 };
 
@@ -107,10 +119,45 @@ struct DebugGeometryBuffer
 	DebugCube debugCubes[2048];
 	u32 debugCubeCount;
 };
+
+struct DebugContext
+{
+	DeviceProgram debugDrawProgram, debugCubesProgram;
+	DebugGeometryBuffer debugGeometryBuffer;
+
+	bool wireframeDebugDraws;
+	bool drawAABBs;
+	bool drawSupports;
+	bool verboseCollisionLogging;
+
+	// GJK EPA
+	bool drawGJKPolytope;
+	bool freezeGJKGeom;
+	int gjkDrawStep;
+	int gjkStepCount;
+	DebugVertex *GJKSteps[64];
+	int GJKStepCounts[64];
+	v3 GJKNewPoint[64];
+
+	static const int epaMaxSteps = 32;
+	bool drawEPAPolytope;
+	bool freezePolytopeGeom;
+	int polytopeDrawStep;
+	int epaStepCount;
+	DebugVertex *polytopeSteps[epaMaxSteps];
+	int polytopeStepCounts[epaMaxSteps];
+	v3 epaNewPoint[epaMaxSteps];
+
+	// Editor
+	int selectedEntityIdx;
+	DeviceProgram editorSelectedProgram;
+};
 #endif
 
 struct GameState
 {
+	f32 timeMultiplier;
+
 	v3 camPos;
 	f32 camYaw;
 	f32 camPitch;
@@ -119,18 +166,74 @@ struct GameState
 	LevelGeometry levelGeometry;
 	Player player;
 
-	int animationIdx;
-	f32 animationTime;
+	SkinnedMeshInstance skinnedMeshInstances[64];
+	u32 skinnedMeshCount;
+	//int animationIdx;
+	//f32 animationTime;
 
 	// @Cleanup: move to some Render Device Context or something?
 	DeviceProgram program, skinnedMeshProgram;
 	DeviceMesh anvilMesh, cubeMesh, sphereMesh, cylinderMesh, capsuleMesh;
 	SkinnedMesh skinnedMesh;
+};
 
-	// Debug
+struct Button
+{
+	bool endedDown;
+	bool changed;
+};
+
+struct Controller
+{
+	v2 leftStick;
+	v2 rightStick;
+	union
+	{
+		struct
+		{
+			Button up;
+			Button down;
+			Button left;
+			Button right;
+			Button jump;
+			Button camUp;
+			Button camDown;
+			Button camLeft;
+			Button camRight;
+
 #if DEBUG_BUILD
-	DeviceProgram debugDrawProgram, debugCubesProgram;
-	DebugGeometryBuffer debugGeometryBuffer;
-	int currentPolytopeStep;
+			Button debugUp;
+			Button debugDown;
+			Button debugLeft;
+			Button debugRight;
+#endif
+		};
+		Button b[13];
+	};
+};
+
+struct PlatformContext
+{
+	PlatformCode *platformCode;
+	Memory *memory;
+#if USING_IMGUI
+	ImGuiContext *imguiContext;
 #endif
 };
+
+#define INIT_GAME_MODULE(name) void name(PlatformContext platformContext)
+typedef INIT_GAME_MODULE(InitGameModule_t);
+INIT_GAME_MODULE(InitGameModuleStub) { (void) platformContext; }
+
+#define GAME_RESOURCE_POST_LOAD(name) bool name(Resource *resource, u8 *fileBuffer, \
+		bool initialize)
+typedef GAME_RESOURCE_POST_LOAD(GameResourcePostLoad_t);
+GAME_RESOURCE_POST_LOAD(GameResourcePostLoadStub) { (void)resource, fileBuffer, initialize; return false; }
+
+#define START_GAME(name) void name()
+typedef START_GAME(StartGame_t);
+START_GAME(StartGameStub) { }
+
+#define UPDATE_AND_RENDER_GAME(name) void name(Controller *controller, f32 deltaTime)
+typedef UPDATE_AND_RENDER_GAME(UpdateAndRenderGame_t);
+UPDATE_AND_RENDER_GAME(UpdateAndRenderGameStub) { (void) controller, deltaTime; }

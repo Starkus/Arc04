@@ -1,4 +1,7 @@
 #include <math.h> // MSVC math intrinsics
+#if TARGET_WINDOWS
+#include <intrin.h>
+#endif
 
 const f32 PI = 3.1415926535897932384626433832795f;
 const f32 HALFPI = 1.5707963267948966192313216916398f;
@@ -6,6 +9,93 @@ const f32 PI2 = 6.283185307179586476925286766559f;
 const f64 PI_64 = 3.1415926535897932384626433832795;
 const f64 HALFPI_64 = 1.5707963267948966192313216916398;
 const f64 PI2_64 = 6.283185307179586476925286766559;
+
+inline u8 Nlz(u32 x)
+{
+#if TARGET_WINDOWS
+	unsigned long i;
+	if (_BitScanReverse(&i, x))
+		return 31 - (u8)i;
+	return 32;
+#else
+	// From Hacker's Delight
+	union
+	{
+		u32 asInt[2];
+		f64 asDouble;
+	};
+	int n;
+	asDouble = (double)x + 0.5;
+	n = 1054 - (asInt[0] >> 20);
+	return n;
+#endif
+}
+
+inline u8 Ntz(u32 n)
+{
+#if TARGET_WINDOWS
+	unsigned long i;
+	_BitScanForward(&i, n);
+	return (u8)i;
+#else
+	// From Hacker's Delight
+	return 32 - Nlz(~n & (n - 1));
+#endif
+}
+
+inline u32 NextPowerOf2(u32 n)
+{
+	return 0x80000000 >> (Nlz(n - 1) - 1);
+}
+
+inline u32 LastPowerOf2(u32 n)
+{
+	return 0x80000000 >> Nlz(n);
+}
+
+inline u8 Nlz64(u64 x)
+{
+#if TARGET_WINDOWS
+	unsigned long i;
+	if (_BitScanReverse64(&i, x))
+		return 63 - (u8)i;
+	return 64;
+#else
+	// From Hacker's Delight
+	union
+	{
+		u64 asInt;
+		f64 asDouble;
+	};
+	x = x & ~(x >> 1);
+	int n;
+	asDouble = (double)x + 0.5;
+	n = 1086 - (asInt >> 52);
+	return n;
+#endif
+}
+
+inline u8 Ntz64(u64 n)
+{
+#if TARGET_WINDOWS
+	unsigned long i;
+	_BitScanForward64(&i, n);
+	return (u8)i;
+#else
+	// From Hacker's Delight
+	return 64 - Nlz64(~n & (n - 1));
+#endif
+}
+
+inline u64 NextPowerOf264(u64 n)
+{
+	return 0x8000000000000000 >> (Nlz64(n - 1) - 1);
+}
+
+inline u64 LastPowerOf264(u64 n)
+{
+	return 0x8000000000000000 >> Nlz64(n);
+}
 
 inline bool EqualWithEpsilon(f32 a, f32 b, f32 epsilon)
 {
@@ -32,15 +122,9 @@ inline f32 Ceil(f32 n)
 	return ceilf(n);
 }
 
-inline f32 Min(f32 a, f32 b)
-{
-	return a > b ? b : a;
-}
+#define Min(a, b) (a > b ? b : a)
 
-inline f32 Max(f32 a, f32 b)
-{
-	return a > b ? a : b;
-}
+#define Max(a, b) (a > b ? a : b)
 
 inline f32 Fmod(f32 n, f32 d)
 {
@@ -606,4 +690,18 @@ inline mat4 Mat4Compose(const v3 &translation, const v3 &scale, const v4 &rotati
 	m.m31 = translation.y;
 	m.m32 = translation.z;
 	return m;
+}
+
+inline mat4 Mat4ChangeOfBases(const v3 &fw, const v3 &up, const v3 &pos)
+{
+	const v3 right = V3Normalize(V3Cross(fw, up));
+	const v3 up2 = V3Cross(right, fw);
+	const mat4 result =
+	{
+		right.x,	right.y,	right.z,	0.0f,
+		fw.x,		fw.y,		fw.z,		0.0f,
+		up2.x,		up2.y,		up2.z,		0.0f,
+		pos.x,		pos.y,		pos.z,		1.0f
+	};
+	return result;
 }

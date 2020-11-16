@@ -14,14 +14,51 @@
 
 .AllTargets = {}
 
+// Preprocessor
+ObjectList('PreprocessorSource')
+{
+	Using(.DebugBuild)
+
+	.CompilerOptions = '$ExeCompilerOptions$'
+	.CompilerInputFiles = '$ToolsSourcePath$/Preprocessor.cpp'
+	.CompilerOutputPath = '$OutputPath$/$BuildTypeName$'
+}
+Executable('Preprocessor')
+{
+	Using(.DebugBuild)
+
+	.LinkerOptions = .ExeLinkerOptions + ' /SUBSYSTEM:CONSOLE'
+	.LinkerOutput = '$BinPath$/Preprocessor.exe'
+	.Libraries = {
+		'PreprocessorSource',
+	}
+}
+Exec('Preprocessor_Run')
+{
+	.ExecExecutable = 'Preprocessor'
+	.ExecInputPath = '$SourcePath$'
+	.ExecOutput = 'gen/PlatformCode.h'
+	.ExecArguments = 'src/Win32Platform.cpp'
+}
+
 ForEach(.BuildType in .BuildTypes)
 {
 	Using(.BuildType)
 
+	// ImGui
+	ObjectList('ImGuiSource_$BuildTypeName$')
+	{
+		.CompilerOptions = '$ExeCompilerOptions$ -DIMGUI_IMPL_OPENGL_LOADER_CUSTOM'
+		.CompilerInputFiles = {
+			'external/include/imgui/imgui_impl.cpp',
+		}
+		.CompilerOutputPath = '$OutputPath$/$BuildTypeName$'
+	}
+
 	// Win32 Platform
 	ObjectList('Win32PlatformSource_$BuildTypeName$')
 	{
-		.CompilerOptions = '$ExeCompilerOptions$'
+		.CompilerOptions = '$ExeCompilerOptions$ -DUSING_IMGUI=1'
 		.CompilerInputFiles = {
 			'$SourcePath$/Win32Platform.cpp',
 		}
@@ -33,8 +70,9 @@ ForEach(.BuildType in .BuildTypes)
 		.LinkerOutput = '$BinPath$/Win32Platform$BuildTypeSufix$.exe'
 		.Libraries = {
 			'Win32PlatformSource_$BuildTypeName$',
+			'ImGuiSource_$BuildTypeName$',
 		}
-		.PreBuildDependencies = 'Copy_Libs'
+		.PreBuildDependencies = 'Preprocessor_Run'
 	}
 
 	// Add to all targets
@@ -43,7 +81,7 @@ ForEach(.BuildType in .BuildTypes)
 	// Game
 	ObjectList('GameSource_$BuildTypeName$')
 	{
-		.CompilerOptions = '$DllCompilerOptions$'
+		.CompilerOptions = '$DllCompilerOptions$ -DUSING_IMGUI=1'
 		.CompilerInputFiles = {
 			'$SourcePath$/Game.cpp',
 		}
@@ -55,8 +93,9 @@ ForEach(.BuildType in .BuildTypes)
 		.LinkerOutput = '$BinPath$/$GameName$$BuildTypeSufix$.dll'
 		.Libraries = {
 			'GameSource_$BuildTypeName$',
+			'ImGuiSource_$BuildTypeName$',
 		}
-		.PreBuildDependencies = 'Copy_Libs'
+		.PreBuildDependencies = 'Preprocessor_Run'
 	}
 
 	// Add to all targets
@@ -76,7 +115,6 @@ ForEach(.BuildType in .BuildTypes)
 		.Libraries = {
 			'BakerySource_$BuildTypeName$',
 		}
-		.PreBuildDependencies = 'Copy_Libs'
 	}
 
 	// Add to all targets

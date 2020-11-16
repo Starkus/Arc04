@@ -9,7 +9,7 @@ u32 HashRawVertex(const RawVertex &v)
 }
 
 ErrorCode ConstructSkinnedMesh(const RawGeometry *geometry, const WeightData *weightData,
-		DynamicArray_RawVertex &finalVertices, Array_u16 &finalIndices)
+		DynamicArray_RawVertex &finalVertices, DynamicArray_u16 &finalIndices)
 {
 	void *oldStackPtr = g_memory->stackPtr;
 
@@ -61,7 +61,7 @@ ErrorCode ConstructSkinnedMesh(const RawGeometry *geometry, const WeightData *we
 		const bool hasNormals = geometry->normalsOffset >= 0;
 		const int attrCount = 1 + hasUvs + hasNormals;
 
-		ArrayInit_u16(&finalIndices, geometry->triangleCount * 3, FrameAlloc);
+		DynamicArrayInit_u16(&finalIndices, geometry->triangleCount * 3, FrameAlloc);
 
 		// We make the number of buckets the next power of 2 after the count
 		// to minimize collisions with a reasonable amount of memory.
@@ -175,7 +175,7 @@ ErrorCode ConstructSkinnedMesh(const RawGeometry *geometry, const WeightData *we
 }
 
 ErrorCode OutputMesh(const char *filename, DynamicArray_RawVertex &finalVertices,
-		Array_u16 &finalIndices)
+		DynamicArray_u16 &finalIndices)
 {
 	// Output!
 	{
@@ -222,7 +222,7 @@ ErrorCode OutputMesh(const char *filename, DynamicArray_RawVertex &finalVertices
 }
 
 ErrorCode OutputSkinnedMesh(const char *filename,
-		DynamicArray_RawVertex &finalVertices, Array_u16 &finalIndices, Skeleton &skeleton,
+		DynamicArray_RawVertex &finalVertices, DynamicArray_u16 &finalIndices, Skeleton &skeleton,
 		DynamicArray_Animation &animations)
 {
 	void *oldStackPtr = g_memory->stackPtr;
@@ -332,7 +332,7 @@ ErrorCode OutputSkinnedMesh(const char *filename,
 	return ERROR_OK;
 }
 
-void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
+void GenerateGeometryGrid(const Array_v3 &positions, const Array_IndexTriangle &triangles, GeometryGrid *geometryGrid)
 {
 	void *oldStackPtr = g_memory->stackPtr;
 
@@ -340,16 +340,13 @@ void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
 	v2 highCorner = { -INFINITY, -INFINITY };
 
 	// Get limits
-	for (u32 i = 0; i < triangles.size; ++i)
+	for (u32 i = 0; i < positions.size; ++i)
 	{
-		for (u32 j = 0; j < 3; ++j)
-		{
-			v3 p = triangles[i].corners[j];
-			if (p.x < lowCorner.x) lowCorner.x = p.x;
-			if (p.x > highCorner.x) highCorner.x = p.x;
-			if (p.y < lowCorner.y) lowCorner.y = p.y;
-			if (p.y > highCorner.y) highCorner.y = p.y;
-		}
+		v3 p = positions[i];
+		if (p.x < lowCorner.x) lowCorner.x = p.x;
+		if (p.x > highCorner.x) highCorner.x = p.x;
+		if (p.y < lowCorner.y) lowCorner.y = p.y;
+		if (p.y > highCorner.y) highCorner.y = p.y;
 	}
 
 	const int cellsSide = 4;
@@ -361,21 +358,22 @@ void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
 			highCorner.x, highCorner.y);
 
 	// Init buckets
-	DynamicArray_Triangle *cellBuckets = (DynamicArray_Triangle *)StackAlloc(sizeof(DynamicArray_Triangle) * cellCount);
+	DynamicArray_IndexTriangle *cellBuckets = (DynamicArray_IndexTriangle *)
+		StackAlloc(sizeof(DynamicArray_IndexTriangle) * cellCount);
 	for (int i = 0; i < cellCount; ++i)
 	{
-		DynamicArrayInit_Triangle(&cellBuckets[i], 256, StackAlloc);
+		DynamicArrayInit_IndexTriangle(&cellBuckets[i], 256, StackAlloc);
 	}
 	u32 totalTriangleCount = 0;
 
 	for (u32 triangleIdx = 0; triangleIdx < triangles.size; ++triangleIdx)
 	{
-		const Triangle *curTriangle = &triangles[triangleIdx];
+		const IndexTriangle *curTriangle = &triangles[triangleIdx];
 
 		v2 corners[3];
 		for (int i = 0; i < 3; ++i)
 		{
-			v3 worldP = curTriangle->corners[i];
+			v3 worldP = positions[curTriangle->corners[i]];
 
 			// Subtract epsilon from vertices on the high edge, since Floor(p) would give out of
 			// bounds indices.
@@ -407,12 +405,30 @@ void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
 			}
 		}
 
+		// If the whole triangle fits in a single row, just fill from left to right
+		if (Floor(corners[0].y) == Floor(corners[2].y))
+		{
+			int scanlineY = (int)Floor(corners[0].y);
+			f32 left = Min(corners[0].x, Min(corners[1].x, corners[2].x));
+			f32 right = Max(corners[0].x, Max(corners[1].x, corners[2].x));
+			for (int scanX = (int)Floor(left);
+				scanX <= (int)Floor(right);
+				++scanX)
+			{
+				ASSERT(scanX >= 0 && scanX < cellsSide);
+				DynamicArray_IndexTriangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
+				bucket[DynamicArrayAdd_IndexTriangle(&bucket, StackRealloc)] = *curTriangle;
+				++totalTriangleCount;
+			}
+			continue;
+		}
+
 		// We split the triangle into a flat-bottomed triangle and a flat-topped one, and rasterize
 		// them individually
 		f32 lerpT = (corners[1].y - corners[0].y) / (corners[2].y - corners[0].y);
 		v2 midPoint = corners[0] * (1.0f - lerpT) + corners[2] * lerpT;
 
-		// If the whole triangle fits in a single row, just fill from left to right
+		// If top half fits in one row, just scan left to right
 		if (Floor(corners[1].y) == Floor(corners[2].y))
 		{
 			int scanlineY = (int)Floor(corners[1].y);
@@ -423,8 +439,8 @@ void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
 				++scanX)
 			{
 				ASSERT(scanX >= 0 && scanX < cellsSide);
-				DynamicArray_Triangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
-				bucket[DynamicArrayAdd_Triangle(&bucket, StackRealloc)] = *curTriangle;
+				DynamicArray_IndexTriangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
+				bucket[DynamicArrayAdd_IndexTriangle(&bucket, StackRealloc)] = *curTriangle;
 				++totalTriangleCount;
 			}
 		}
@@ -459,8 +475,8 @@ void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
 				{
 					ASSERT(scanX >= 0 && scanX < cellsSide);
 
-					DynamicArray_Triangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
-					bucket[DynamicArrayAdd_Triangle(&bucket, StackRealloc)] = *curTriangle;
+					DynamicArray_IndexTriangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
+					bucket[DynamicArrayAdd_IndexTriangle(&bucket, StackRealloc)] = *curTriangle;
 					++totalTriangleCount;
 				}
 				curX1 = nextX1;
@@ -491,8 +507,8 @@ void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
 				++scanX)
 			{
 				ASSERT(scanX >= 0 && scanX < cellsSide);
-				DynamicArray_Triangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
-				bucket[DynamicArrayAdd_Triangle(&bucket, StackRealloc)] = *curTriangle;
+				DynamicArray_IndexTriangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
+				bucket[DynamicArrayAdd_IndexTriangle(&bucket, StackRealloc)] = *curTriangle;
 				++totalTriangleCount;
 			}
 		}
@@ -524,8 +540,8 @@ void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
 				{
 					ASSERT(scanX >= 0 && scanX < cellsSide);
 
-					DynamicArray_Triangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
-					bucket[DynamicArrayAdd_Triangle(&bucket, StackRealloc)] = *curTriangle;
+					DynamicArray_IndexTriangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
+					bucket[DynamicArrayAdd_IndexTriangle(&bucket, StackRealloc)] = *curTriangle;
 					++totalTriangleCount;
 				}
 				curX1 = nextX1;
@@ -540,7 +556,7 @@ void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
 	geometryGrid->highCorner = highCorner;
 	geometryGrid->cellsSide = cellsSide;
 	geometryGrid->offsets = (u32 *)FrameAlloc(sizeof(u32) * (cellCount + 1));
-	geometryGrid->triangles = (Triangle *)FrameAlloc(sizeof(Triangle) * totalTriangleCount);
+	geometryGrid->triangles = (IndexTriangle *)FrameAlloc(sizeof(IndexTriangle) * totalTriangleCount);
 
 	int triangleCount = 0;
 	for (int y = 0; y < cellsSide; ++y)
@@ -550,7 +566,7 @@ void GenerateGeometryGrid(Array_Triangle &triangles, GeometryGrid *geometryGrid)
 			int i = x + y * cellsSide;
 			geometryGrid->offsets[i] = (u32)triangleCount;
 
-			DynamicArray_Triangle &bucket = cellBuckets[i];
+			DynamicArray_IndexTriangle &bucket = cellBuckets[i];
 			for (u32 bucketIdx = 0; bucketIdx < bucket.size; ++bucketIdx)
 			{
 				geometryGrid->triangles[triangleCount++] = bucket[bucketIdx];
