@@ -12,7 +12,7 @@ GravityForce::~GravityForce()
 void GravityForce::UpdateForce(PointMass &pointMass, f32 duration)
 {
     // check that we do not have infinite mass.
-    if (HasFiniteMass(pointMass)) return;
+    if (!HasFiniteMass(pointMass)) return;
 
     // Apply the mass-scaled force to the point mass.
     pointMass.forceAccumlated += gravity * GetMass(pointMass);
