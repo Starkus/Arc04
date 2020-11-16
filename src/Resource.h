@@ -17,9 +17,9 @@ struct ResourceSkinnedMesh
 {
 	DeviceMesh deviceMesh;
 	u8 jointCount;
-	mat4 *bindPoses;
+	Transform *bindPoses;
 	u8 *jointParents;
-	mat4 *restPoses;
+	Transform *restPoses;
 	u32 animationCount;
 	Animation *animations;
 };

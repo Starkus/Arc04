@@ -696,10 +696,10 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			SkinnedMeshInstance *skinnedMeshInstance =
 				&gameState->skinnedMeshInstances[meshInstanceIdx];
 
-			mat4 joints[128];
+			Transform joints[128];
 			for (int i = 0; i < 128; ++i)
 			{
-				joints[i] = MAT4_IDENTITY;
+				joints[i] = TRANSFORM_IDENTITY;
 			}
 
 			const Resource *skinnedMeshRes = skinnedMeshInstance->meshRes;
@@ -736,7 +736,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					}
 				}
 
-				mat4 transform = MAT4_IDENTITY;
+				Transform transform = TRANSFORM_IDENTITY;
 
 				// Stack to apply transforms in reverse order
 				u32 stack[32];
@@ -769,54 +769,38 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					{
 						// If this joint has no channel, it must not be moving at all,
 						// even considering parents
-						transform = Mat4Multiply(skinnedMesh->restPoses[currentJoint], transform);
+						transform = TransformChain(transform, skinnedMesh->restPoses[currentJoint]);
 						first = false;
 						continue;
 					}
 
-					mat4 a = currentChannel->transforms[currentFrame];
-					mat4 b = currentChannel->transforms[currentFrame + 1];
-					mat4 T;
-#if 0
-					// Dumb linear interpolation of matrices
-					for (int mi = 0; mi < 16; ++mi)
-					{
-						T.m[mi] = a.m[mi] * (1-lerpT) + b.m[mi] * lerpT;
-					}
-#else
-					v3 aTranslation;
-					v3 aScale;
-					v4 aQuat;
-					Mat4Decompose(a, &aTranslation, &aScale, &aQuat);
-
-					v3 bTranslation;
-					v3 bScale;
-					v4 bQuat;
-					Mat4Decompose(b, &bTranslation, &bScale, &bQuat);
+					Transform a = currentChannel->transforms[currentFrame];
+					Transform b = currentChannel->transforms[currentFrame + 1];
 
 					f32 aWeight = (1 - lerpT);
 					f32 bWeight = lerpT;
-					bool invertRot = V4Dot(aQuat, bQuat) < 0;
+					bool invertRot = V4Dot(a.rotation, b.rotation) < 0;
 
-					v3 rTranslation = aTranslation * aWeight + bTranslation * lerpT;
-					v3 rScale = aScale * aWeight + bScale * lerpT;
-					v4 rQuat = aQuat * aWeight + bQuat * (invertRot ? -bWeight : bWeight);
-					rQuat = V4Normalize(rQuat);
+					Transform r =
+					{
+						a.translation * aWeight + b.translation * bWeight,
+						V4Normalize(a.rotation * aWeight + b.rotation * (invertRot ? -bWeight : bWeight)),
+						a.scale * aWeight + b.scale * bWeight
+					};
 
-					T = Mat4Compose(rTranslation, rQuat, rScale);
-#endif
+					mat4 T = Mat4Compose(r);
 
 					if (first)
 					{
-						transform = T;
+						transform = r;
 						first = false;
 					}
 					else
 					{
-						transform = Mat4Multiply(T, transform);
+						transform = TransformChain(transform, r);
 					}
 				}
-				transform = Mat4Multiply(skinnedMesh->bindPoses[jointIdx], transform);
+				transform = TransformChain(transform, skinnedMesh->bindPoses[jointIdx]);
 
 				joints[jointIdx] = transform;
 			}
@@ -835,7 +819,13 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			const mat4 model = Mat4Compose(player->pos, player->rot);
 			UniformMat4(modelUniform, 1, model.m);
 
-			UniformMat4(jointsUniform, 128, joints[0].m);
+			mat4 ms[128];
+			for (int i = 0; i < 128; ++i)
+			{
+				ms[i] = Mat4Compose(joints[i]);
+			}
+
+			UniformMat4(jointsUniform, 128, ms[0].m);
 
 			RenderIndexedMesh(skinnedMesh->deviceMesh);
 		}

@@ -57,7 +57,7 @@ struct GeometryGrid
 struct AnimationChannel
 {
 	u32 jointIndex;
-	mat4 *transforms;
+	Transform *transforms;
 };
 
 struct Animation
@@ -73,9 +73,9 @@ struct SkinnedMesh
 {
 	DeviceMesh deviceMesh;
 	u8 jointCount;
-	mat4 *bindPoses;
+	Transform *bindPoses;
 	u8 *jointParents;
-	mat4 *restPoses;
+	Transform *restPoses;
 	u32 animationCount;
 	Animation *animations;
 };
