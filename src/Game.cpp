@@ -630,9 +630,9 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 		UseProgram(gameState->program);
 		DeviceUniform viewUniform = GetUniform(gameState->program, "view");
-		UniformMat4(viewUniform, 1, view.m);
+		UniformMat4Array(viewUniform, 1, view.m);
 		DeviceUniform projUniform = GetUniform(gameState->program, "projection");
-		UniformMat4(projUniform, 1, proj.m);
+		UniformMat4Array(projUniform, 1, proj.m);
 
 		DeviceUniform albedoUniform = GetUniform(gameState->program, "texAlbedo");
 		UniformInt(albedoUniform, 0);
@@ -657,7 +657,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				continue;
 
 			const mat4 model = Mat4Compose(entity->pos, entity->rot);
-			UniformMat4(modelUniform, 1, model.m);
+			UniformMat4Array(modelUniform, 1, model.m);
 
 			RenderIndexedMesh(entity->mesh->mesh.deviceMesh);
 		}
@@ -666,7 +666,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		{
 			LevelGeometry *level = &gameState->levelGeometry;
 
-			UniformMat4(modelUniform, 1, MAT4_IDENTITY.m);
+			UniformMat4Array(modelUniform, 1, MAT4_IDENTITY.m);
 			RenderIndexedMesh(level->renderMesh->mesh.deviceMesh);
 		}
 
@@ -675,7 +675,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		viewUniform = GetUniform(gameState->skinnedMeshProgram, "view");
 		modelUniform = GetUniform(gameState->skinnedMeshProgram, "model");
 		projUniform = GetUniform(gameState->skinnedMeshProgram, "projection");
-		UniformMat4(projUniform, 1, proj.m);
+		UniformMat4Array(projUniform, 1, proj.m);
 
 		const Resource *sparkusAlb = GetResource("data/sparkus_albedo.b");
 		const Resource *sparkusNor = GetResource("data/sparkus_normal.b");
@@ -687,8 +687,10 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		normalUniform = GetUniform(gameState->skinnedMeshProgram, "texNormal");
 		UniformInt(normalUniform, 1);
 
-		DeviceUniform jointsUniform = GetUniform(gameState->skinnedMeshProgram, "joints");
-		UniformMat4(viewUniform, 1, view.m);
+		DeviceUniform jointTranslationsUniform = GetUniform(gameState->skinnedMeshProgram, "jointTranslations");
+		DeviceUniform jointRotationsUniform = GetUniform(gameState->skinnedMeshProgram, "jointRotations");
+		DeviceUniform jointScalesUniform = GetUniform(gameState->skinnedMeshProgram, "jointScales");
+		UniformMat4Array(viewUniform, 1, view.m);
 
 		for (u32 meshInstanceIdx = 0; meshInstanceIdx < gameState->skinnedMeshCount;
 				++meshInstanceIdx)
@@ -817,15 +819,20 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			// @Todo: actual, safe entity handle.
 			Entity *player = &gameState->entities[skinnedMeshInstance->entityHandle];
 			const mat4 model = Mat4Compose(player->pos, player->rot);
-			UniformMat4(modelUniform, 1, model.m);
+			UniformMat4Array(modelUniform, 1, model.m);
 
-			mat4 ms[128];
+			v3 ts[128];
+			v4 rs[128];
+			v3 ss[128];
 			for (int i = 0; i < 128; ++i)
 			{
-				ms[i] = Mat4Compose(joints[i]);
+				ts[i] = joints[i].translation;
+				rs[i] = joints[i].rotation;
+				ss[i] = joints[i].scale;
 			}
-
-			UniformMat4(jointsUniform, 128, ms[0].m);
+			UniformV3Array(jointTranslationsUniform, 128, ts[0].v);
+			UniformV4Array(jointRotationsUniform, 128, rs[0].v);
+			UniformV3Array(jointScalesUniform, 128, ss[0].v);
 
 			RenderIndexedMesh(skinnedMesh->deviceMesh);
 		}
@@ -842,8 +849,8 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			UseProgram(g_debugContext->debugDrawProgram);
 			viewUniform = GetUniform(g_debugContext->debugDrawProgram, "view");
 			projUniform = GetUniform(g_debugContext->debugDrawProgram, "projection");
-			UniformMat4(projUniform, 1, proj.m);
-			UniformMat4(viewUniform, 1, view.m);
+			UniformMat4Array(projUniform, 1, proj.m);
+			UniformMat4Array(viewUniform, 1, view.m);
 
 			SendMesh(&dgb->deviceMesh,
 					dgb->triangleData,
@@ -861,8 +868,8 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				UseProgram(g_debugContext->debugCubesProgram);
 				viewUniform = GetUniform(g_debugContext->debugDrawProgram, "view");
 				projUniform = GetUniform(g_debugContext->debugDrawProgram, "projection");
-				UniformMat4(projUniform, 1, proj.m);
-				UniformMat4(viewUniform, 1, view.m);
+				UniformMat4Array(projUniform, 1, proj.m);
+				UniformMat4Array(viewUniform, 1, view.m);
 
 				SendMesh(&dgb->cubePositionsBuffer,
 						dgb->debugCubes,
@@ -889,9 +896,9 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 			UseProgram(g_debugContext->editorSelectedProgram);
 			viewUniform = GetUniform(g_debugContext->editorSelectedProgram, "view");
-			UniformMat4(viewUniform, 1, view.m);
+			UniformMat4Array(viewUniform, 1, view.m);
 			projUniform = GetUniform(g_debugContext->editorSelectedProgram, "projection");
-			UniformMat4(projUniform, 1, proj.m);
+			UniformMat4Array(projUniform, 1, proj.m);
 			modelUniform = GetUniform(g_debugContext->editorSelectedProgram, "model");
 
 			static f32 t = 0;
@@ -903,7 +910,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			if (entity->mesh)
 			{
 				const mat4 model = Mat4Compose(entity->pos, entity->rot);
-				UniformMat4(modelUniform, 1, model.m);
+				UniformMat4Array(modelUniform, 1, model.m);
 
 				RenderIndexedMesh(entity->mesh->mesh.deviceMesh);
 			}
