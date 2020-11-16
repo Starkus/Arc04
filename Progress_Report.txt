@@ -1,0 +1,6 @@
+## PROGRESS REPORT
+
+* Code hot reload (mod game to push things)
+* Bakery daemon
+* Resource hot reload (modify level/shaders)
+* Imgui

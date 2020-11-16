@@ -226,6 +226,8 @@ union v4
 	f32 v[4];
 };
 
+const v4 QUATERNION_IDENTITY = { 0, 0, 0, 1 };
+
 union mat4
 {
 	struct
@@ -648,6 +650,40 @@ inline v4 QuaternionFromRotationMatrix(const mat4 &m)
 	return result;
 }
 
+inline v3 QuaternionRotateVector(const v4 &q, const v3 &v)
+{
+	const v3 vectorPart = { q.x, q.y, q.z };
+	const f32 scalarPart = q.w;
+
+	const v3 result = vectorPart * 2.0f * V3Dot(vectorPart, v) +
+			v * (scalarPart * scalarPart - V3SqrLen(vectorPart)) +
+			V3Cross(vectorPart, v) * 2.0f * scalarPart;
+
+	return result;
+}
+
+inline v4 QuaternionFromEuler(const v3 &euler)
+{
+	const f32 halfYaw = euler.z * 0.5f;
+	const f32 halfPitch = euler.y * 0.5f;
+	const f32 halfRoll = euler.x * 0.5f;
+
+	const f32 cosYaw = Cos(halfYaw);
+	const f32 sinYaw = Sin(halfYaw);
+	const f32 cosPitch = Cos(halfPitch);
+	const f32 sinPitch = Sin(halfPitch);
+	const f32 cosRoll = Cos(halfRoll);
+	const f32 sinRoll = Sin(halfRoll);
+
+	v4 result;
+	result.x = sinRoll * cosPitch * cosYaw - cosRoll * sinPitch * sinYaw;
+	result.y = cosRoll * sinPitch * cosYaw + sinRoll * cosPitch * sinYaw;
+	result.z = cosRoll * cosPitch * sinYaw - sinRoll * sinPitch * cosYaw;
+	result.w = cosRoll * cosPitch * cosYaw + sinRoll * sinPitch * sinYaw;
+
+	return result;
+}
+
 // NOTE: m is passed by copy on purpose here
 inline void Mat4Decompose(mat4 m, v3 *translation, v3 *scale, v4 *rotation)
 {
@@ -673,7 +709,17 @@ inline void Mat4Decompose(mat4 m, v3 *translation, v3 *scale, v4 *rotation)
 	*rotation = QuaternionFromRotationMatrix(m);
 }
 
-inline mat4 Mat4Compose(const v3 &translation, const v3 &scale, const v4 &rotation)
+inline mat4 Mat4Compose(const v3 &translation, const v4 &rotation)
+{
+	mat4 m;
+	m = Mat4FromQuaternion(rotation);
+	m.m30 = translation.x;
+	m.m31 = translation.y;
+	m.m32 = translation.z;
+	return m;
+}
+
+inline mat4 Mat4Compose(const v3 &translation, const v4 &rotation, const v3 &scale)
 {
 	mat4 m;
 	m = Mat4FromQuaternion(rotation);

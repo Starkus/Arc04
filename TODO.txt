@@ -9,7 +9,6 @@
 - BVH for entities
 - Non axis aligned colliders
 - Decompose transform matrices at data-preprocess-time? For blending etc.
-- Stop using fw vector as orientation and use quaternions like sane people.
 - Import scenes/levels from .dae? We already do geometry but should we import more things?
 - Particle systems
 

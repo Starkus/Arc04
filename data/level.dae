@@ -5,8 +5,8 @@
       <author>Blender User</author>
       <authoring_tool>Blender 2.90.1 commit date:2020-09-23, commit time:06:43, hash:3e85bb34d0d7</authoring_tool>
     </contributor>
-    <created>2020-11-15T15:56:06</created>
-    <modified>2020-11-15T15:56:06</modified>
+    <created>2020-11-15T18:02:32</created>
+    <modified>2020-11-15T18:02:32</modified>
     <unit name="meter" meter="1"/>
     <up_axis>Z_UP</up_axis>
   </asset>
@@ -146,7 +146,7 @@
         <instance_geometry url="#Cube_002-mesh" name="Cube.001"/>
       </node>
       <node id="Cube" name="Cube" type="NODE">
-        <matrix sid="transform">3.43034 0 0 0 0 0.2238512 0 14.34542 0 0 0.1555652 0 0 0 0 1</matrix>
+        <matrix sid="transform">15.43385 0 0 0 0 0.2238512 0 14.34542 0 0 0.1555652 0 0 0 0 1</matrix>
         <instance_geometry url="#stairs-mesh" name="Cube"/>
       </node>
       <node id="Grid" name="Grid" type="NODE">

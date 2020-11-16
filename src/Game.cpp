@@ -213,7 +213,7 @@ GAMEDLL START_GAME(StartGame)
 	{
 		Entity *playerEnt = &gameState->entities[gameState->entityCount++];
 		gameState->player.entity = playerEnt;
-		playerEnt->fw = { 0.0f, 1.0f, 0.0f };
+		playerEnt->rot = QUATERNION_IDENTITY;
 		playerEnt->mesh = 0;
 
 		playerEnt->collider.type = COLLIDER_CAPSULE;
@@ -247,32 +247,32 @@ GAMEDLL START_GAME(StartGame)
 
 		Entity *testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { -6.0f, 3.0f, 1.0f };
-		testEntity->fw = { 0.0f, 1.0f, 0.0f };
+		testEntity->rot = QUATERNION_IDENTITY;
 		testEntity->mesh = anvilRes;
 		testEntity->collider = collider;
 
 		testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { 5.0f, 4.0f, 1.0f };
-		testEntity->fw = { 0.0f, 1.0f, 0.0f };
+		testEntity->rot = QUATERNION_IDENTITY;
 		testEntity->mesh = anvilRes;
 		testEntity->collider = collider;
 
 		testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { 3.0f, -4.0f, 1.0f };
-		testEntity->fw = { 0.707f, 0.707f, 0.0f };
+		testEntity->rot = QuaternionFromEuler(v3{ 0, 0, HALFPI * -0.5f });
 		testEntity->mesh = anvilRes;
 		testEntity->collider = collider;
 
 		testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { -8.0f, -4.0f, 1.0f };
-		testEntity->fw = { 0.707f, 0.0f, 0.707f };
+		testEntity->rot = QuaternionFromEuler(v3{ HALFPI * 0.5f, 0, 0 });
 		testEntity->mesh = anvilRes;
 		testEntity->collider = collider;
 
 		const Resource *sphereRes = GetResource("data/sphere.b");
 		testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { -6.0f, 7.0f, 1.0f };
-		testEntity->fw = { 0.0f, 1.0f, 0.0f };
+		testEntity->rot = QUATERNION_IDENTITY;
 		testEntity->mesh = sphereRes;
 		testEntity->collider.type = COLLIDER_SPHERE;
 		testEntity->collider.sphere.radius = 1;
@@ -281,7 +281,7 @@ GAMEDLL START_GAME(StartGame)
 		const Resource *cylinderRes = GetResource("data/cylinder.b");
 		testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { -3.0f, 7.0f, 1.0f };
-		testEntity->fw = { 0.0f, 1.0f, 0.0f };
+		testEntity->rot = QUATERNION_IDENTITY;
 		testEntity->mesh = cylinderRes;
 		testEntity->collider.type = COLLIDER_CYLINDER;
 		testEntity->collider.cylinder.radius = 1;
@@ -291,7 +291,7 @@ GAMEDLL START_GAME(StartGame)
 		const Resource *capsuleRes = GetResource("data/capsule.b");
 		testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { 0.0f, 7.0f, 2.0f };
-		testEntity->fw = { 0.0f, 1.0f, 0.0f };
+		testEntity->rot = QUATERNION_IDENTITY;
 		testEntity->mesh = capsuleRes;
 		testEntity->collider.type = COLLIDER_CAPSULE;
 		testEntity->collider.capsule.radius = 1;
@@ -300,7 +300,7 @@ GAMEDLL START_GAME(StartGame)
 
 		testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { 3.0f, 4.0f, 0.0f };
-		testEntity->fw = { 0.0f, 1.0f, 0.0f };
+		testEntity->rot = QUATERNION_IDENTITY;
 		testEntity->mesh = nullptr;
 		testEntity->collider.type = COLLIDER_SPHERE;
 		testEntity->collider.sphere.radius = 0.3f;
@@ -398,15 +398,10 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				0
 			};
 
-			f32 sqlen = V3SqrLen(worldInputDir);
-			if (sqlen > 1)
+			if (V3SqrLen(worldInputDir))
 			{
-				worldInputDir /= Sqrt(sqlen);
-				player->entity->fw = worldInputDir;
-			}
-			else if (sqlen)
-			{
-				player->entity->fw = worldInputDir / Sqrt(sqlen);
+				f32 targetYaw = Atan2(-worldInputDir.x, worldInputDir.y);
+				player->entity->rot = QuaternionFromEuler(v3{ 0, 0, targetYaw });
 			}
 
 			const f32 playerSpeed = 5.0f;
@@ -516,6 +511,10 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			{
 				if (HitTest(gameState, origin, dirs[i], &hit, &triangle))
 				{
+					// Ignore slopes
+					if (triangle.normal.z > 0.05f)
+						continue;
+
 					f32 dot = V3Dot(triangle.normal, dirs[i] / rayLen);
 					if (dot > -0.707f && dot < 0.707f)
 						continue;
@@ -657,7 +656,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			if (!entity->mesh)
 				continue;
 
-			const mat4 model = Mat4ChangeOfBases(entity->fw, {0,0,1}, entity->pos);
+			const mat4 model = Mat4Compose(entity->pos, entity->rot);
 			UniformMat4(modelUniform, 1, model.m);
 
 			RenderIndexedMesh(entity->mesh->mesh.deviceMesh);
@@ -804,7 +803,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					v4 rQuat = aQuat * aWeight + bQuat * (invertRot ? -bWeight : bWeight);
 					rQuat = V4Normalize(rQuat);
 
-					T = Mat4Compose(rTranslation, rScale, rQuat);
+					T = Mat4Compose(rTranslation, rQuat, rScale);
 #endif
 
 					if (first)
@@ -833,7 +832,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 			// @Todo: actual, safe entity handle.
 			Entity *player = &gameState->entities[skinnedMeshInstance->entityHandle];
-			const mat4 model = Mat4ChangeOfBases(player->fw, {0,0,1}, player->pos);
+			const mat4 model = Mat4Compose(player->pos, player->rot);
 			UniformMat4(modelUniform, 1, model.m);
 
 			UniformMat4(jointsUniform, 128, joints[0].m);
@@ -913,7 +912,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			Entity *entity = &gameState->entities[g_debugContext->selectedEntityIdx];
 			if (entity->mesh)
 			{
-				const mat4 model = Mat4ChangeOfBases(entity->fw, {0,0,1}, entity->pos);
+				const mat4 model = Mat4Compose(entity->pos, entity->rot);
 				UniformMat4(modelUniform, 1, model.m);
 
 				RenderIndexedMesh(entity->mesh->mesh.deviceMesh);
