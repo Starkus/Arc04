@@ -4,8 +4,6 @@
 #include "Maths.h"
 #include "General.h"
 
-
-
 // A point mass, is a way/idealization to abstract a body from its dimensions.
 struct PointMass
 {
@@ -29,7 +27,6 @@ struct PointMass
     */
     f32 damping;
 
-
     /*
         Holds the inver of th mass of the point mass. 
         It is more usefull to holde the inverse mass because
@@ -41,7 +38,6 @@ struct PointMass
     */
     f32 inverseMass;
 
-
     /*
         Holds the accumulated force to be applied at the next
         simulation iteration only. This value is zeroed at each
@@ -49,7 +45,6 @@ struct PointMass
     */
     v3 forceAccumlated;
 };
-
 
 inline void Integrate(PointMass &pointMass, f32 duration)
 {
@@ -73,7 +68,7 @@ inline void Integrate(PointMass &pointMass, f32 duration)
     */
     {
         // Work out the acceleration from the force
-        v3 resultingAcceleration =  pointMass.acceleration + (pointMass.forceAccumlated * pointMass.inverseMass);
+        v3 resultingAcceleration = pointMass.acceleration + (pointMass.forceAccumlated * pointMass.inverseMass);
 
         // Update linear velocity from the acceleration.
         pointMass.velocity += resultingAcceleration * duration;
@@ -81,6 +76,28 @@ inline void Integrate(PointMass &pointMass, f32 duration)
 
     // Impose drag
     pointMass.velocity *= powf(pointMass.damping, duration);
+
+    // Clear the forces
+    pointMass.forceAccumlated = {0, 0, 0};
 }
 
-#endif
+inline bool HasFiniteMass(PointMass &pointMass)
+{
+    return pointMass.inverseMass >= 0.0f;
+}
+
+inline f32 GetMass(PointMass &pointMass)
+{
+    if (pointMass.inverseMass == 0)
+        return DBL_MAX;
+
+    return 1.0f / pointMass.inverseMass;
+}
+
+inline f32 SetMass(PointMass &pointMass, const f32 mass)
+{
+    ASSERT(mass != 0);
+    pointMass.inverseMass = 1.0f / mass;
+}
+
+#endif // POINT_MASS_H

@@ -11,10 +11,8 @@ struct RigidBody
 
     v3 velocity;
 
-    v3 position;
-   
+    v3 position;   
 };
-
 
 /*
     We don't need to create methods to get speed and direction 
