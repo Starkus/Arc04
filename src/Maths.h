@@ -226,6 +226,8 @@ union v4
 	f32 v[4];
 };
 
+const v4 QUATERNION_IDENTITY = { 0, 0, 0, 1 };
+
 union mat4
 {
 	struct
@@ -331,6 +333,11 @@ inline v3 V3Cross(const v3 &a, const v3 &b)
 		a.x * b.y - a.y * b.x
 	};
 	return result;
+}
+
+inline v3 V3Scale(const v3 &v, const v3 &scale)
+{
+	return v3{ v.x * scale.x, v.y * scale.y, v.z * scale.z };
 }
 
 inline v3 operator+(const v3 &a, const v3 &b)
@@ -648,47 +655,117 @@ inline v4 QuaternionFromRotationMatrix(const mat4 &m)
 	return result;
 }
 
-// NOTE: m is passed by copy on purpose here
-inline void Mat4Decompose(mat4 m, v3 *translation, v3 *scale, v4 *rotation)
+inline v3 QuaternionRotateVector(const v4 &q, const v3 &v)
 {
-	*translation = { m.m30, m.m31, m.m32 };
+	const v3 vectorPart = { q.x, q.y, q.z };
+	const f32 scalarPart = q.w;
+
+	const v3 result = vectorPart * 2.0f * V3Dot(vectorPart, v) +
+			v * (scalarPart * scalarPart - V3SqrLen(vectorPart)) +
+			V3Cross(vectorPart, v) * 2.0f * scalarPart;
+
+	return result;
+}
+
+inline v4 QuaternionMultiply(const v4 &a, const v4 &b)
+{
+	const v4 result =
+	{
+		a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+		a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+		a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+		a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z
+	};
+	return result;
+}
+
+inline v4 QuaternionFromEuler(const v3 &euler)
+{
+	const f32 halfYaw = euler.z * 0.5f;
+	const f32 halfPitch = euler.y * 0.5f;
+	const f32 halfRoll = euler.x * 0.5f;
+
+	const f32 cosYaw = Cos(halfYaw);
+	const f32 sinYaw = Sin(halfYaw);
+	const f32 cosPitch = Cos(halfPitch);
+	const f32 sinPitch = Sin(halfPitch);
+	const f32 cosRoll = Cos(halfRoll);
+	const f32 sinRoll = Sin(halfRoll);
+
+	v4 result;
+	result.x = sinRoll * cosPitch * cosYaw - cosRoll * sinPitch * sinYaw;
+	result.y = cosRoll * sinPitch * cosYaw + sinRoll * cosPitch * sinYaw;
+	result.z = cosRoll * cosPitch * sinYaw - sinRoll * sinPitch * cosYaw;
+	result.w = cosRoll * cosPitch * cosYaw + sinRoll * sinPitch * sinYaw;
+
+	return result;
+}
+
+struct Transform
+{
+	v3 translation;
+	v4 rotation;
+	v3 scale;
+};
+
+const Transform TRANSFORM_IDENTITY =
+{
+	v3{},
+	QUATERNION_IDENTITY,
+	v3{ 1, 1, 1 }
+};
+
+// NOTE: m is passed by copy on purpose here
+inline void Mat4Decompose(mat4 m, Transform *transform)
+{
+	transform->translation = { m.m30, m.m31, m.m32 };
 	m.m30 = 0;
 	m.m31 = 0;
 	m.m32 = 0;
-	*scale =
+	transform->scale =
 	{
 		Sqrt(m.m00 * m.m00 + m.m10 * m.m10 + m.m20 * m.m20),
 		Sqrt(m.m01 * m.m01 + m.m11 * m.m11 + m.m21 * m.m21),
 		Sqrt(m.m02 * m.m02 + m.m12 * m.m12 + m.m22 * m.m22)
 	};
-	m.m00 /= scale->x;
-	m.m10 /= scale->x;
-	m.m20 /= scale->x;
-	m.m01 /= scale->y;
-	m.m11 /= scale->y;
-	m.m21 /= scale->y;
-	m.m02 /= scale->z;
-	m.m12 /= scale->z;
-	m.m22 /= scale->z;
-	*rotation = QuaternionFromRotationMatrix(m);
+	m.m00 /= transform->scale.x;
+	m.m10 /= transform->scale.x;
+	m.m20 /= transform->scale.x;
+	m.m01 /= transform->scale.y;
+	m.m11 /= transform->scale.y;
+	m.m21 /= transform->scale.y;
+	m.m02 /= transform->scale.z;
+	m.m12 /= transform->scale.z;
+	m.m22 /= transform->scale.z;
+	transform->rotation = QuaternionFromRotationMatrix(m);
 }
 
-inline mat4 Mat4Compose(const v3 &translation, const v3 &scale, const v4 &rotation)
+inline mat4 Mat4Compose(const v3 &translation, const v4 &rotation)
 {
 	mat4 m;
 	m = Mat4FromQuaternion(rotation);
-	m.m00 *= scale.x;
-	m.m10 *= scale.x;
-	m.m20 *= scale.x;
-	m.m01 *= scale.y;
-	m.m11 *= scale.y;
-	m.m21 *= scale.y;
-	m.m02 *= scale.z;
-	m.m12 *= scale.z;
-	m.m22 *= scale.z;
 	m.m30 = translation.x;
 	m.m31 = translation.y;
 	m.m32 = translation.z;
+	return m;
+}
+
+inline mat4 Mat4Compose(const Transform &t)
+{
+	mat4 m;
+	m = Mat4FromQuaternion(t.rotation);
+	m.m00 *= t.scale.x;
+	m.m10 *= t.scale.x;
+	m.m20 *= t.scale.x;
+	m.m01 *= t.scale.y;
+	m.m11 *= t.scale.y;
+	m.m21 *= t.scale.y;
+	m.m02 *= t.scale.z;
+	m.m12 *= t.scale.z;
+	m.m22 *= t.scale.z;
+	m.m30 = t.translation.x;
+	m.m31 = t.translation.y;
+	m.m32 = t.translation.z;
 	return m;
 }
 
@@ -703,5 +780,15 @@ inline mat4 Mat4ChangeOfBases(const v3 &fw, const v3 &up, const v3 &pos)
 		up2.x,		up2.y,		up2.z,		0.0f,
 		pos.x,		pos.y,		pos.z,		1.0f
 	};
+	return result;
+}
+
+// NOTE: a happens before b!
+inline Transform TransformChain(const Transform &a, const Transform &b)
+{
+	Transform result;
+	result.translation = V3Scale(QuaternionRotateVector(a.rotation, b.translation), a.scale) + a.translation;
+	result.rotation = QuaternionMultiply(a.rotation, b.rotation);
+	result.scale = V3Scale(a.scale, b.scale);
 	return result;
 }

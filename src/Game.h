@@ -40,7 +40,7 @@ struct SkinnedMeshInstance
 struct Entity
 {
 	v3 pos;
-	v3 fw;
+	v4 rot;
 
 	// @Todo: decide how to handle optional things.
 	const Resource *mesh;

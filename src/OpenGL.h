@@ -68,8 +68,11 @@ typedef void (GLAPIENTRY *glUniform1iProc)(GLint location, GLint v0);
 typedef void (GLAPIENTRY *glUniform1fProc)(GLint location, GLfloat v0);
 typedef void (GLAPIENTRY *glUniform2fProc)(GLint location, GLfloat v0, GLfloat v1);
 typedef void (GLAPIENTRY *glUniform3fProc)(GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
+typedef void (GLAPIENTRY *glUniform4fProc)(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
 typedef void (GLAPIENTRY *glUniform1fvProc)(GLint location, GLsizei count, const GLfloat *v);
+typedef void (GLAPIENTRY *glUniform2fvProc)(GLint location, GLsizei count, const GLfloat *v);
 typedef void (GLAPIENTRY *glUniform3fvProc)(GLint location, GLsizei count, const GLfloat *v);
+typedef void (GLAPIENTRY *glUniform4fvProc)(GLint location, GLsizei count, const GLfloat *v);
 typedef void (GLAPIENTRY *glUniformMatrix4fvProc)(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
 typedef void (GLAPIENTRY *glActiveTextureProc)(GLenum texture);
 
@@ -153,8 +156,11 @@ GL_DeclareProc(glUniform1i);
 GL_DeclareProc(glUniform1f);
 GL_DeclareProc(glUniform2f);
 GL_DeclareProc(glUniform3f);
+GL_DeclareProc(glUniform4f);
 GL_DeclareProc(glUniform1fv);
+GL_DeclareProc(glUniform2fv);
 GL_DeclareProc(glUniform3fv);
+GL_DeclareProc(glUniform4fv);
 GL_DeclareProc(glActiveTexture);
 GL_DeclareProc(glGenBuffers);
 GL_DeclareProc(glDeleteBuffers);
@@ -229,8 +235,11 @@ GL_DeclareProc(glBlendEquationSeparate);
 #define glUniform1f glUniform1fPointer
 #define glUniform2f glUniform2fPointer
 #define glUniform3f glUniform3fPointer
+#define glUniform4f glUniform4fPointer
 #define glUniform1fv glUniform1fvPointer
+#define glUniform2fv glUniform2fvPointer
 #define glUniform3fv glUniform3fvPointer
+#define glUniform4fv glUniform4fvPointer
 #define glActiveTexture glActiveTexturePointer
 #define glGenBuffers glGenBuffersPointer
 #define glDeleteBuffers glDeleteBuffersPointer

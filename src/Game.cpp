@@ -213,7 +213,7 @@ GAMEDLL START_GAME(StartGame)
 	{
 		Entity *playerEnt = &gameState->entities[gameState->entityCount++];
 		gameState->player.entity = playerEnt;
-		playerEnt->fw = { 0.0f, 1.0f, 0.0f };
+		playerEnt->rot = QUATERNION_IDENTITY;
 		playerEnt->mesh = 0;
 
 		playerEnt->collider.type = COLLIDER_CAPSULE;
@@ -247,32 +247,32 @@ GAMEDLL START_GAME(StartGame)
 
 		Entity *testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { -6.0f, 3.0f, 1.0f };
-		testEntity->fw = { 0.0f, 1.0f, 0.0f };
+		testEntity->rot = QUATERNION_IDENTITY;
 		testEntity->mesh = anvilRes;
 		testEntity->collider = collider;
 
 		testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { 5.0f, 4.0f, 1.0f };
-		testEntity->fw = { 0.0f, 1.0f, 0.0f };
+		testEntity->rot = QUATERNION_IDENTITY;
 		testEntity->mesh = anvilRes;
 		testEntity->collider = collider;
 
 		testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { 3.0f, -4.0f, 1.0f };
-		testEntity->fw = { 0.707f, 0.707f, 0.0f };
+		testEntity->rot = QuaternionFromEuler(v3{ 0, 0, HALFPI * -0.5f });
 		testEntity->mesh = anvilRes;
 		testEntity->collider = collider;
 
 		testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { -8.0f, -4.0f, 1.0f };
-		testEntity->fw = { 0.707f, 0.0f, 0.707f };
+		testEntity->rot = QuaternionFromEuler(v3{ HALFPI * 0.5f, 0, 0 });
 		testEntity->mesh = anvilRes;
 		testEntity->collider = collider;
 
 		const Resource *sphereRes = GetResource("data/sphere.b");
 		testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { -6.0f, 7.0f, 1.0f };
-		testEntity->fw = { 0.0f, 1.0f, 0.0f };
+		testEntity->rot = QUATERNION_IDENTITY;
 		testEntity->mesh = sphereRes;
 		testEntity->collider.type = COLLIDER_SPHERE;
 		testEntity->collider.sphere.radius = 1;
@@ -281,7 +281,7 @@ GAMEDLL START_GAME(StartGame)
 		const Resource *cylinderRes = GetResource("data/cylinder.b");
 		testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { -3.0f, 7.0f, 1.0f };
-		testEntity->fw = { 0.0f, 1.0f, 0.0f };
+		testEntity->rot = QUATERNION_IDENTITY;
 		testEntity->mesh = cylinderRes;
 		testEntity->collider.type = COLLIDER_CYLINDER;
 		testEntity->collider.cylinder.radius = 1;
@@ -291,7 +291,7 @@ GAMEDLL START_GAME(StartGame)
 		const Resource *capsuleRes = GetResource("data/capsule.b");
 		testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { 0.0f, 7.0f, 2.0f };
-		testEntity->fw = { 0.0f, 1.0f, 0.0f };
+		testEntity->rot = QUATERNION_IDENTITY;
 		testEntity->mesh = capsuleRes;
 		testEntity->collider.type = COLLIDER_CAPSULE;
 		testEntity->collider.capsule.radius = 1;
@@ -300,7 +300,7 @@ GAMEDLL START_GAME(StartGame)
 
 		testEntity = &gameState->entities[gameState->entityCount++];
 		testEntity->pos = { 3.0f, 4.0f, 0.0f };
-		testEntity->fw = { 0.0f, 1.0f, 0.0f };
+		testEntity->rot = QUATERNION_IDENTITY;
 		testEntity->mesh = nullptr;
 		testEntity->collider.type = COLLIDER_SPHERE;
 		testEntity->collider.sphere.radius = 0.3f;
@@ -398,15 +398,10 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				0
 			};
 
-			f32 sqlen = V3SqrLen(worldInputDir);
-			if (sqlen > 1)
+			if (V3SqrLen(worldInputDir))
 			{
-				worldInputDir /= Sqrt(sqlen);
-				player->entity->fw = worldInputDir;
-			}
-			else if (sqlen)
-			{
-				player->entity->fw = worldInputDir / Sqrt(sqlen);
+				f32 targetYaw = Atan2(-worldInputDir.x, worldInputDir.y);
+				player->entity->rot = QuaternionFromEuler(v3{ 0, 0, targetYaw });
 			}
 
 			const f32 playerSpeed = 5.0f;
@@ -516,6 +511,10 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			{
 				if (HitTest(gameState, origin, dirs[i], &hit, &triangle))
 				{
+					// Ignore slopes
+					if (triangle.normal.z > 0.05f)
+						continue;
+
 					f32 dot = V3Dot(triangle.normal, dirs[i] / rayLen);
 					if (dot > -0.707f && dot < 0.707f)
 						continue;
@@ -631,9 +630,9 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 		UseProgram(gameState->program);
 		DeviceUniform viewUniform = GetUniform(gameState->program, "view");
-		UniformMat4(viewUniform, 1, view.m);
+		UniformMat4Array(viewUniform, 1, view.m);
 		DeviceUniform projUniform = GetUniform(gameState->program, "projection");
-		UniformMat4(projUniform, 1, proj.m);
+		UniformMat4Array(projUniform, 1, proj.m);
 
 		DeviceUniform albedoUniform = GetUniform(gameState->program, "texAlbedo");
 		UniformInt(albedoUniform, 0);
@@ -657,8 +656,8 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			if (!entity->mesh)
 				continue;
 
-			const mat4 model = Mat4ChangeOfBases(entity->fw, {0,0,1}, entity->pos);
-			UniformMat4(modelUniform, 1, model.m);
+			const mat4 model = Mat4Compose(entity->pos, entity->rot);
+			UniformMat4Array(modelUniform, 1, model.m);
 
 			RenderIndexedMesh(entity->mesh->mesh.deviceMesh);
 		}
@@ -667,7 +666,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		{
 			LevelGeometry *level = &gameState->levelGeometry;
 
-			UniformMat4(modelUniform, 1, MAT4_IDENTITY.m);
+			UniformMat4Array(modelUniform, 1, MAT4_IDENTITY.m);
 			RenderIndexedMesh(level->renderMesh->mesh.deviceMesh);
 		}
 
@@ -676,7 +675,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		viewUniform = GetUniform(gameState->skinnedMeshProgram, "view");
 		modelUniform = GetUniform(gameState->skinnedMeshProgram, "model");
 		projUniform = GetUniform(gameState->skinnedMeshProgram, "projection");
-		UniformMat4(projUniform, 1, proj.m);
+		UniformMat4Array(projUniform, 1, proj.m);
 
 		const Resource *sparkusAlb = GetResource("data/sparkus_albedo.b");
 		const Resource *sparkusNor = GetResource("data/sparkus_normal.b");
@@ -688,8 +687,10 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		normalUniform = GetUniform(gameState->skinnedMeshProgram, "texNormal");
 		UniformInt(normalUniform, 1);
 
-		DeviceUniform jointsUniform = GetUniform(gameState->skinnedMeshProgram, "joints");
-		UniformMat4(viewUniform, 1, view.m);
+		DeviceUniform jointTranslationsUniform = GetUniform(gameState->skinnedMeshProgram, "jointTranslations");
+		DeviceUniform jointRotationsUniform = GetUniform(gameState->skinnedMeshProgram, "jointRotations");
+		DeviceUniform jointScalesUniform = GetUniform(gameState->skinnedMeshProgram, "jointScales");
+		UniformMat4Array(viewUniform, 1, view.m);
 
 		for (u32 meshInstanceIdx = 0; meshInstanceIdx < gameState->skinnedMeshCount;
 				++meshInstanceIdx)
@@ -697,10 +698,10 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			SkinnedMeshInstance *skinnedMeshInstance =
 				&gameState->skinnedMeshInstances[meshInstanceIdx];
 
-			mat4 joints[128];
+			Transform joints[128];
 			for (int i = 0; i < 128; ++i)
 			{
-				joints[i] = MAT4_IDENTITY;
+				joints[i] = TRANSFORM_IDENTITY;
 			}
 
 			const Resource *skinnedMeshRes = skinnedMeshInstance->meshRes;
@@ -737,7 +738,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					}
 				}
 
-				mat4 transform = MAT4_IDENTITY;
+				Transform transform = TRANSFORM_IDENTITY;
 
 				// Stack to apply transforms in reverse order
 				u32 stack[32];
@@ -770,54 +771,38 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					{
 						// If this joint has no channel, it must not be moving at all,
 						// even considering parents
-						transform = Mat4Multiply(skinnedMesh->restPoses[currentJoint], transform);
+						transform = TransformChain(transform, skinnedMesh->restPoses[currentJoint]);
 						first = false;
 						continue;
 					}
 
-					mat4 a = currentChannel->transforms[currentFrame];
-					mat4 b = currentChannel->transforms[currentFrame + 1];
-					mat4 T;
-#if 0
-					// Dumb linear interpolation of matrices
-					for (int mi = 0; mi < 16; ++mi)
-					{
-						T.m[mi] = a.m[mi] * (1-lerpT) + b.m[mi] * lerpT;
-					}
-#else
-					v3 aTranslation;
-					v3 aScale;
-					v4 aQuat;
-					Mat4Decompose(a, &aTranslation, &aScale, &aQuat);
-
-					v3 bTranslation;
-					v3 bScale;
-					v4 bQuat;
-					Mat4Decompose(b, &bTranslation, &bScale, &bQuat);
+					Transform a = currentChannel->transforms[currentFrame];
+					Transform b = currentChannel->transforms[currentFrame + 1];
 
 					f32 aWeight = (1 - lerpT);
 					f32 bWeight = lerpT;
-					bool invertRot = V4Dot(aQuat, bQuat) < 0;
+					bool invertRot = V4Dot(a.rotation, b.rotation) < 0;
 
-					v3 rTranslation = aTranslation * aWeight + bTranslation * lerpT;
-					v3 rScale = aScale * aWeight + bScale * lerpT;
-					v4 rQuat = aQuat * aWeight + bQuat * (invertRot ? -bWeight : bWeight);
-					rQuat = V4Normalize(rQuat);
+					Transform r =
+					{
+						a.translation * aWeight + b.translation * bWeight,
+						V4Normalize(a.rotation * aWeight + b.rotation * (invertRot ? -bWeight : bWeight)),
+						a.scale * aWeight + b.scale * bWeight
+					};
 
-					T = Mat4Compose(rTranslation, rScale, rQuat);
-#endif
+					mat4 T = Mat4Compose(r);
 
 					if (first)
 					{
-						transform = T;
+						transform = r;
 						first = false;
 					}
 					else
 					{
-						transform = Mat4Multiply(T, transform);
+						transform = TransformChain(transform, r);
 					}
 				}
-				transform = Mat4Multiply(skinnedMesh->bindPoses[jointIdx], transform);
+				transform = TransformChain(transform, skinnedMesh->bindPoses[jointIdx]);
 
 				joints[jointIdx] = transform;
 			}
@@ -833,10 +818,21 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 			// @Todo: actual, safe entity handle.
 			Entity *player = &gameState->entities[skinnedMeshInstance->entityHandle];
-			const mat4 model = Mat4ChangeOfBases(player->fw, {0,0,1}, player->pos);
-			UniformMat4(modelUniform, 1, model.m);
+			const mat4 model = Mat4Compose(player->pos, player->rot);
+			UniformMat4Array(modelUniform, 1, model.m);
 
-			UniformMat4(jointsUniform, 128, joints[0].m);
+			v3 ts[128];
+			v4 rs[128];
+			v3 ss[128];
+			for (int i = 0; i < 128; ++i)
+			{
+				ts[i] = joints[i].translation;
+				rs[i] = joints[i].rotation;
+				ss[i] = joints[i].scale;
+			}
+			UniformV3Array(jointTranslationsUniform, 128, ts[0].v);
+			UniformV4Array(jointRotationsUniform, 128, rs[0].v);
+			UniformV3Array(jointScalesUniform, 128, ss[0].v);
 
 			RenderIndexedMesh(skinnedMesh->deviceMesh);
 		}
@@ -853,8 +849,8 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			UseProgram(g_debugContext->debugDrawProgram);
 			viewUniform = GetUniform(g_debugContext->debugDrawProgram, "view");
 			projUniform = GetUniform(g_debugContext->debugDrawProgram, "projection");
-			UniformMat4(projUniform, 1, proj.m);
-			UniformMat4(viewUniform, 1, view.m);
+			UniformMat4Array(projUniform, 1, proj.m);
+			UniformMat4Array(viewUniform, 1, view.m);
 
 			SendMesh(&dgb->deviceMesh,
 					dgb->triangleData,
@@ -872,8 +868,8 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				UseProgram(g_debugContext->debugCubesProgram);
 				viewUniform = GetUniform(g_debugContext->debugDrawProgram, "view");
 				projUniform = GetUniform(g_debugContext->debugDrawProgram, "projection");
-				UniformMat4(projUniform, 1, proj.m);
-				UniformMat4(viewUniform, 1, view.m);
+				UniformMat4Array(projUniform, 1, proj.m);
+				UniformMat4Array(viewUniform, 1, view.m);
 
 				SendMesh(&dgb->cubePositionsBuffer,
 						dgb->debugCubes,
@@ -900,9 +896,9 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 			UseProgram(g_debugContext->editorSelectedProgram);
 			viewUniform = GetUniform(g_debugContext->editorSelectedProgram, "view");
-			UniformMat4(viewUniform, 1, view.m);
+			UniformMat4Array(viewUniform, 1, view.m);
 			projUniform = GetUniform(g_debugContext->editorSelectedProgram, "projection");
-			UniformMat4(projUniform, 1, proj.m);
+			UniformMat4Array(projUniform, 1, proj.m);
 			modelUniform = GetUniform(g_debugContext->editorSelectedProgram, "model");
 
 			static f32 t = 0;
@@ -913,8 +909,8 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			Entity *entity = &gameState->entities[g_debugContext->selectedEntityIdx];
 			if (entity->mesh)
 			{
-				const mat4 model = Mat4ChangeOfBases(entity->fw, {0,0,1}, entity->pos);
-				UniformMat4(modelUniform, 1, model.m);
+				const mat4 model = Mat4Compose(entity->pos, entity->rot);
+				UniformMat4Array(modelUniform, 1, model.m);
 
 				RenderIndexedMesh(entity->mesh->mesh.deviceMesh);
 			}

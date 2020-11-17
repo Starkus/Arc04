@@ -74,9 +74,9 @@ struct Skeleton
 {
 	u8 jointCount;
 	char **ids;
-	mat4 *bindPoses;
+	Transform *bindPoses;
 	u8 *jointParents;
-	mat4 *restPoses;
+	Transform *restPoses;
 };
 
 DECLARE_DYNAMIC_ARRAY(AnimationChannel);

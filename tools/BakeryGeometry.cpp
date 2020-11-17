@@ -268,7 +268,7 @@ ErrorCode OutputSkinnedMesh(const char *filename,
 
 	// Write skeleton
 	header.bindPosesBlobOffset = FilePosition(newFile);
-	PlatformWriteToFile(newFile, skeleton.bindPoses, sizeof(mat4) * skeleton.jointCount);
+	PlatformWriteToFile(newFile, skeleton.bindPoses, sizeof(Transform) * skeleton.jointCount);
 	FileAlign(newFile);
 
 	header.jointParentsBlobOffset = FilePosition(newFile);
@@ -276,7 +276,7 @@ ErrorCode OutputSkinnedMesh(const char *filename,
 	FileAlign(newFile);
 
 	header.restPosesBlobOffset = FilePosition(newFile);
-	PlatformWriteToFile(newFile, skeleton.restPoses, sizeof(mat4) * skeleton.jointCount);
+	PlatformWriteToFile(newFile, skeleton.restPoses, sizeof(Transform) * skeleton.jointCount);
 	FileAlign(newFile);
 
 	// Write animations
@@ -304,7 +304,7 @@ ErrorCode OutputSkinnedMesh(const char *filename,
 			BakerySkinnedMeshAnimationChannelHeader *channelHeader = &channelHeaders[channelIdx];
 			channelHeader->jointIndex = channel->jointIndex;
 			channelHeader->transformsBlobOffset = FilePosition(newFile);
-			PlatformWriteToFile(newFile, channel->transforms, sizeof(mat4) * animation->frameCount);
+			PlatformWriteToFile(newFile, channel->transforms, sizeof(Transform) * animation->frameCount);
 		}
 
 		animationHeader->channelsBlobOffset = FilePosition(newFile);

@@ -67,8 +67,11 @@ void LoadOpenGLProcs()
 	GL_GetProc(glUniform1f);
 	GL_GetProc(glUniform2f);
 	GL_GetProc(glUniform3f);
+	GL_GetProc(glUniform4f);
 	GL_GetProc(glUniform1fv);
+	GL_GetProc(glUniform2fv);
 	GL_GetProc(glUniform3fv);
+	GL_GetProc(glUniform4fv);
 	GL_GetProc(glActiveTexture);
 	GL_GetProc(glGenBuffers);
 	GL_GetProc(glDeleteBuffers);

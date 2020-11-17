@@ -93,8 +93,8 @@ void ImguiShowEditWindow(GameState *gameState)
 	ImGui::Separator();
 
 	ImGui::DragFloat3("Position", selectedEntity->pos.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
-	ImGui::DragFloat3("Fw", selectedEntity->fw.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
-	selectedEntity->fw = V3Normalize(selectedEntity->fw);
+	ImGui::DragFloat4("Rotation", selectedEntity->rot.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
+	selectedEntity->rot = V4Normalize(selectedEntity->rot);
 
 	ImGui::Separator();
 

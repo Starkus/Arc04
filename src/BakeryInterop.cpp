@@ -31,16 +31,16 @@ void ReadSkinnedMesh(const u8 *fileBuffer, ResourceSkinnedMesh *skinnedMesh, Ski
 
 	u32 jointCount = header->jointCount;
 
-	const u64 bindPosesBlobSize = sizeof(mat4) * jointCount;
-	mat4 *bindPoses = (mat4 *)TransientAlloc(bindPosesBlobSize); // @Broken: Memory leak with resource reload!!!
+	const u64 bindPosesBlobSize = sizeof(Transform) * jointCount;
+	Transform *bindPoses = (Transform *)TransientAlloc(bindPosesBlobSize); // @Broken: Memory leak with resource reload!!!
 	memcpy(bindPoses, fileBuffer + header->bindPosesBlobOffset, bindPosesBlobSize);
 
 	const u64 jointParentsBlobSize = jointCount;
 	u8 *jointParents = (u8 *)TransientAlloc(jointParentsBlobSize);
 	memcpy(jointParents, fileBuffer + header->jointParentsBlobOffset, jointParentsBlobSize);
 
-	const u64 restPosesBlobSize = sizeof(mat4) * jointCount;
-	mat4 *restPoses = (mat4 *)TransientAlloc(restPosesBlobSize);
+	const u64 restPosesBlobSize = sizeof(Transform) * jointCount;
+	Transform *restPoses = (Transform *)TransientAlloc(restPosesBlobSize);
 	memcpy(restPoses, fileBuffer + header->restPosesBlobOffset, restPosesBlobSize);
 
 	ASSERT(jointCount < U8_MAX);
@@ -87,8 +87,8 @@ void ReadSkinnedMesh(const u8 *fileBuffer, ResourceSkinnedMesh *skinnedMesh, Ski
 
 			u32 jointIndex = channelHeader->jointIndex;
 
-			u64 transformsBlobSize = sizeof(mat4) * frameCount;
-			mat4 *transforms = (mat4 *)TransientAlloc(transformsBlobSize);
+			u64 transformsBlobSize = sizeof(Transform) * frameCount;
+			Transform *transforms = (Transform *)TransientAlloc(transformsBlobSize);
 			memcpy(transforms, fileBuffer + channelHeader->transformsBlobOffset,
 					transformsBlobSize);
 

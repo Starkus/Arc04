@@ -320,7 +320,7 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, const Entity *entity, v3 *
 	{
 	case COLLIDER_CONVEX_HULL:
 	{
-		mat4 modelMatrix = Mat4ChangeOfBases(entity->fw, {0,0,1}, entity->pos);
+		const mat4 modelMatrix = Mat4Compose(entity->pos, entity->rot);
 
 		// Un-rotate direction
 		// @Speed: maybe do this with quaternions once decomposed transformations are a thing.
@@ -331,8 +331,10 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, const Entity *entity, v3 *
 			modelMatrix.m02,	modelMatrix.m12,	modelMatrix.m22,	0,
 			0,			0,		0,		1
 		};
-		v4 localRayDir4 = Mat4TransformV4(rotMatrixInv, v4{ rayDir.x, rayDir.y, rayDir.z, 0 });
-		v3 localRayDir = { localRayDir4.x, localRayDir4.y, localRayDir4.z };
+		v4 invQ = entity->rot;
+		invQ.w = -invQ.w;
+
+		v3 localRayDir = QuaternionRotateVector(invQ, rayDir);
 
 		v3 localRayOrigin = rayOrigin - entity->pos;
 		v4 localRayOrigin4 = Mat4TransformV4(rotMatrixInv, v4{ localRayOrigin.x, localRayOrigin.y,
@@ -591,8 +593,8 @@ void GetAABB(Entity *entity, v3 *min, v3 *max)
 		*min = { INFINITY, INFINITY, INFINITY };
 		*max = { -INFINITY, -INFINITY, -INFINITY };
 
-		// @Speed: inverse-transform direction, pick a point, and then transform only that point!
-		mat4 modelMatrix = Mat4ChangeOfBases(entity->fw, {0,0,1}, entity->pos);
+		// @Speed: transform without converting to matrix
+		const mat4 modelMatrix = Mat4Compose(entity->pos, entity->rot);
 
 		const Resource *res = c->convexHull.meshRes;
 		if (!res)
@@ -661,7 +663,7 @@ v3 FurthestInDirection(Entity *entity, v3 dir)
 	{
 		f32 maxDist = -INFINITY;
 
-		mat4 modelMatrix = Mat4ChangeOfBases(entity->fw, {0,0,1}, entity->pos);
+		const mat4 modelMatrix = Mat4Compose(entity->pos, entity->rot);
 
 		// Un-rotate direction
 		// @Speed: maybe do this with quaternions once decomposed transformations are a thing.

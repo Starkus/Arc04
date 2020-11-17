@@ -365,17 +365,27 @@ ErrorCode ReadColladaController(XMLElement *rootEl, Skeleton *skeleton, WeightDa
 
 	// Read bind poses
 	{
+		void *oldStackPtr = g_memory->stackPtr;
+
 		XMLElement *arrayEl = bindPosesSource->FirstChildElement("float_array");
 		int count = arrayEl->FindAttribute("count")->IntValue();
-		ASSERT(count / 16 == skeleton->jointCount);
-		skeleton->bindPoses = (mat4 *)FrameAlloc(sizeof(f32) * count);
-		ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), (f32 *)skeleton->bindPoses,
-				count);
+		int transformCount = count / 16;
+		ASSERT(transformCount == skeleton->jointCount);
+		skeleton->bindPoses = (Transform *)FrameAlloc(sizeof(Transform) * transformCount);
 
-		for (int i = 0; i < count / 16; ++i)
+		Array_mat4 matrices;
+		ArrayInit_mat4(&matrices, transformCount, StackAlloc);
+		ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), (f32 *)matrices.data, count);
+
+		for (int i = 0; i < transformCount; ++i)
 		{
-			skeleton->bindPoses[i] = Mat4Transpose(skeleton->bindPoses[i]);
+			mat4 m = Mat4Transpose(matrices[i]);
+			Transform t;
+			Mat4Decompose(m, &t);
+			skeleton->bindPoses[i] = t;
 		}
+
+		StackFree(oldStackPtr);
 	}
 
 	// Read counts
@@ -400,7 +410,7 @@ ErrorCode ReadColladaController(XMLElement *rootEl, Skeleton *skeleton, WeightDa
 		skeleton->jointParents = (u8 *)FrameAlloc(skeleton->jointCount);
 		memset(skeleton->jointParents, 0xFFFF, skeleton->jointCount);
 
-		skeleton->restPoses = (mat4 *)FrameAlloc(sizeof(mat4) * skeleton->jointCount);
+		skeleton->restPoses = (Transform *)FrameAlloc(sizeof(Transform) * skeleton->jointCount);
 
 		XMLElement *sceneEl = rootEl->FirstChildElement("library_visual_scenes")
 			->FirstChildElement("visual_scene");
@@ -456,7 +466,10 @@ ErrorCode ReadColladaController(XMLElement *rootEl, Skeleton *skeleton, WeightDa
 				const char *matrixStr = matrixEl->FirstChild()->ToText()->Value();
 				mat4 restPose;
 				ReadStringToFloats(matrixStr, (f32 *)&restPose, 16);
-				skeleton->restPoses[jointIdx] = Mat4Transpose(restPose);
+
+				Transform t;
+				Mat4Decompose(Mat4Transpose(restPose), &t);
+				skeleton->restPoses[jointIdx] = t;
 			}
 
 			if (checkChildren)
@@ -582,22 +595,33 @@ ErrorCode ReadColladaAnimation(XMLElement *rootEl, Animation &animation, Skeleto
 
 		// Read matrices
 		{
+			void *oldStackPtr = g_memory->stackPtr;
+
 			XMLElement *arrayEl = matricesSource->FirstChildElement("float_array");
 			int count = arrayEl->FindAttribute("count")->IntValue();
-			ASSERT(animation.frameCount == (u32)(count / 16));
-			channel.transforms = (mat4 *)FrameAlloc(sizeof(f32) * count);
-			ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), (f32 *)channel.transforms,
+			int transformCount = count / 16;
+			ASSERT(animation.frameCount == (u32)(transformCount));
+			channel.transforms = (Transform *)FrameAlloc(sizeof(Transform) * transformCount);
+
+			Array_mat4 matrices;
+			ArrayInit_mat4(&matrices, transformCount, StackAlloc);
+			ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), (f32 *)matrices.data,
 					count);
 
 			for (int i = 0; i < count / 16; ++i)
 			{
-				channel.transforms[i] = Mat4Transpose(channel.transforms[i]);
+				mat4 m = Mat4Transpose(matrices[i]);
+				Transform t;
+				Mat4Decompose(m, &t);
+				channel.transforms[i] = t;
 			}
+
+			StackFree(oldStackPtr);
 		}
 
 		// Get joint id
 		{
-			// TODO use scene to properly get the target joint
+			// @Todo: use scene to properly get the target joint
 			const char *targetName = channelEl->FindAttribute("target")->Value();
 			char jointIdBuffer[64];
 			for (const char *scan = targetName; ; ++scan)

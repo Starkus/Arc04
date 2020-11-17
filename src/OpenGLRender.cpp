@@ -85,10 +85,22 @@ PLATFORMPROC void UseProgram(DeviceProgram program)
 	glUseProgram(glProgram->program);
 }
 
-PLATFORMPROC void UniformMat4(DeviceUniform uniform, u32 count, const f32 *buffer)
+PLATFORMPROC void UniformMat4Array(DeviceUniform uniform, u32 count, const f32 *buffer)
 {
 	GLDeviceUniform *glUniform = (GLDeviceUniform *)&uniform;
 	glUniformMatrix4fv(glUniform->location, count, false, buffer);
+}
+
+PLATFORMPROC void UniformV3Array(DeviceUniform uniform, u32 count, const f32 *buffer)
+{
+	GLDeviceUniform *glUniform = (GLDeviceUniform *)&uniform;
+	glUniform3fv(glUniform->location, count, buffer);
+}
+
+PLATFORMPROC void UniformV4Array(DeviceUniform uniform, u32 count, const f32 *buffer)
+{
+	GLDeviceUniform *glUniform = (GLDeviceUniform *)&uniform;
+	glUniform4fv(glUniform->location, count, buffer);
 }
 
 PLATFORMPROC void UniformInt(DeviceUniform uniform, int n)
@@ -101,6 +113,18 @@ PLATFORMPROC void UniformFloat(DeviceUniform uniform, f32 n)
 {
 	GLDeviceUniform *glUniform = (GLDeviceUniform *)&uniform;
 	glUniform1f(glUniform->location, n);
+}
+
+PLATFORMPROC void UniformV3(DeviceUniform uniform, v3 v)
+{
+	GLDeviceUniform *glUniform = (GLDeviceUniform *)&uniform;
+	glUniform3f(glUniform->location, v.x, v.y, v.z);
+}
+
+PLATFORMPROC void UniformV4(DeviceUniform uniform, v4 v)
+{
+	GLDeviceUniform *glUniform = (GLDeviceUniform *)&uniform;
+	glUniform4f(glUniform->location, v.x, v.y, v.z, v.w);
 }
 
 PLATFORMPROC void RenderIndexedMesh(DeviceMesh mesh)
