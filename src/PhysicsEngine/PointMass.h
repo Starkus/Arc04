@@ -46,7 +46,7 @@ struct PointMass
     v3 forceAccumlated;
 };
 
-inline void Integrate(PointMass &pointMass, f32 duration)
+inline void Integrate(PointMass *pointMass, f32 duration)
 {
     ASSERT(duration > 0.0);
 
@@ -54,7 +54,7 @@ inline void Integrate(PointMass &pointMass, f32 duration)
     Update linear position 
         =>  position = p + v * t = position + (velocity * duration)
     */
-    pointMass.position += pointMass.velocity * duration;
+    pointMass->position += pointMass->velocity * duration;
 
     /*
      Velocity Update 
@@ -68,36 +68,36 @@ inline void Integrate(PointMass &pointMass, f32 duration)
     */
     {
         // Work out the acceleration from the force
-        v3 resultingAcceleration = pointMass.acceleration + (pointMass.forceAccumlated * pointMass.inverseMass);
+        v3 resultingAcceleration = pointMass->acceleration + (pointMass->forceAccumlated * pointMass->inverseMass);
 
         // Update linear velocity from the acceleration.
-        pointMass.velocity += resultingAcceleration * duration;
+        pointMass->velocity += resultingAcceleration * duration;
     }
 
     // Impose drag
-    pointMass.velocity *= powf(pointMass.damping, duration);
+    pointMass->velocity *= powf(pointMass->damping, duration);
 
     // Clear the forces
-    pointMass.forceAccumlated = {0, 0, 0};
+    pointMass->forceAccumlated = {0, 0, 0};
 }
 
-inline bool HasFiniteMass(PointMass &pointMass)
+inline bool HasFiniteMass(PointMass *pointMass)
 {
-    return pointMass.inverseMass >= 0.0f;
+    return pointMass->inverseMass >= 0.0f;
 }
 
-inline f32 GetMass(PointMass &pointMass)
+inline f32 GetMass(PointMass *pointMass)
 {
-    if (pointMass.inverseMass == 0)
+    if (pointMass->inverseMass == 0)
         return DBL_MAX;
 
-    return 1.0f / pointMass.inverseMass;
+    return 1.0f / pointMass->inverseMass;
 }
 
-inline f32 SetMass(PointMass &pointMass, const f32 mass)
+inline f32 SetMass(PointMass *pointMass, const f32 mass)
 {
     ASSERT(mass != 0);
-    pointMass.inverseMass = 1.0f / mass;
+    pointMass->inverseMass = 1.0f / mass;
 }
 
 #endif // POINT_MASS_H
