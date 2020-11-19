@@ -40,14 +40,103 @@ DECLARE_ARRAY(u32);
 #include "Collision.cpp"
 #include "BakeryInterop.cpp"
 #include "Resource.cpp"
-#ifdef USING_IMGUI
-#include "Imgui.cpp"
-#endif
 
 #if TARGET_WINDOWS
 #define GAMEDLL NOMANGLE __declspec(dllexport)
 #else
 #define GAMEDLL NOMANGLE __attribute__((visibility("default")))
+#endif
+
+Entity *GetEntity(GameState *gameState, EntityHandle handle)
+{
+	// Check handle is valid
+	if (handle.generation != gameState->entityGenerations[handle.id])
+		return nullptr;
+
+	return gameState->entityPointers[handle.id];
+}
+
+EntityHandle AddEntity(GameState *gameState, Entity **outEntity)
+{
+	Entity *newEntity = &gameState->entities[gameState->entityCount++];
+	*newEntity = {};
+	newEntity->rot = QUATERNION_IDENTITY;
+
+	EntityHandle newHandle;
+	newHandle.id = U32_MAX;
+	newHandle.generation = U8_MAX;
+
+	for (int entityId = 0; entityId < 256; ++entityId)
+	{
+		Entity *ptrInIdx = gameState->entityPointers[entityId];
+		if (!ptrInIdx)
+		{
+			// Assing vacant ID to new entity
+			gameState->entityPointers[entityId] = newEntity;
+
+			// Fill out entity handle
+			newHandle.id = entityId;
+			// Advance generation by one
+			newHandle.generation = ++gameState->entityGenerations[entityId];
+
+			break;
+		}
+	}
+
+	Log("Added new entity at 0x%p (id %d gen %d)\n", newEntity, newHandle.id, newHandle.generation);
+
+	*outEntity = newEntity;
+	return newHandle;
+}
+
+// @Improve: delay actual deletion of entities til end of frame?
+void RemoveEntity(GameState *gameState, EntityHandle handle)
+{
+	// Check handle is valid
+	if (handle.generation != gameState->entityGenerations[handle.id])
+		return;
+
+	Entity *entityPtr = gameState->entityPointers[handle.id];
+	// If entity is already deleted there's nothing to do
+	if (!entityPtr)
+		return;
+
+	// Remove 'components'
+	SkinnedMeshInstance *skinnedMeshInstance = entityPtr->skinnedMeshInstance;
+	if (skinnedMeshInstance)
+	{
+		SkinnedMeshInstance *last = &gameState->skinnedMeshInstances[--gameState->skinnedMeshCount];
+		Entity *lastsEntity = GetEntity(gameState, last->entityHandle);
+		if (lastsEntity)
+		{
+			// Fix entity that was pointing to skinnedMeshInstance that we moved.
+			lastsEntity->skinnedMeshInstance = skinnedMeshInstance;
+		}
+		*skinnedMeshInstance = *last;
+	}
+
+	// Erase from entity array by swapping with last
+	Entity *ptrOfLast = &gameState->entities[--gameState->entityCount];
+	Log("Moving entity at 0x%p to 0x%p\n", ptrOfLast, entityPtr);
+	*entityPtr = *ptrOfLast;
+
+	// Find and fix handle to entity we moved
+	for (int entityId = 0; entityId < 256; ++entityId)
+	{
+		Entity *currentPtr = gameState->entityPointers[entityId];
+		if (currentPtr == ptrOfLast)
+		{
+			gameState->entityPointers[entityId] = entityPtr;
+			break;
+		}
+	}
+
+	gameState->entityPointers[handle.id] = nullptr;
+	//gameState->entityGenerations[handle.id] = 0;
+}
+
+#ifdef USING_IMGUI
+#include "Imgui.cpp"
 #endif
 
 GAMEDLL INIT_GAME_MODULE(InitGameModule)
@@ -211,13 +300,14 @@ GAMEDLL START_GAME(StartGame)
 
 	// Init player
 	{
-		Entity *playerEnt = &gameState->entities[gameState->entityCount++];
-		gameState->player.entity = playerEnt;
+		Entity *playerEnt;
+		EntityHandle playerEntityHandle = AddEntity(gameState, &playerEnt);
+		gameState->player.entityHandle = playerEntityHandle;
 		playerEnt->rot = QUATERNION_IDENTITY;
 		playerEnt->mesh = 0;
 
 		playerEnt->collider.type = COLLIDER_CAPSULE;
-		playerEnt->collider.capsule.radius = 0.5;
+		playerEnt->collider.capsule.radius = 0.5f;
 		playerEnt->collider.capsule.height = 1.0f;
 		playerEnt->collider.capsule.offset = { 0, 0, 1 };
 
@@ -225,7 +315,7 @@ GAMEDLL START_GAME(StartGame)
 
 		SkinnedMeshInstance *skinnedMeshInstance =
 			&gameState->skinnedMeshInstances[gameState->skinnedMeshCount++];
-		skinnedMeshInstance->entityHandle = gameState->entityCount - 1;
+		skinnedMeshInstance->entityHandle = playerEntityHandle;
 		skinnedMeshInstance->meshRes = GetResource("data/Sparkus.b");
 		skinnedMeshInstance->animationIdx = PLAYERANIM_IDLE;
 		skinnedMeshInstance->animationTime = 0;
@@ -245,32 +335,33 @@ GAMEDLL START_GAME(StartGame)
 
 		const Resource *anvilRes = GetResource("data/anvil.b");
 
-		Entity *testEntity = &gameState->entities[gameState->entityCount++];
+		Entity *testEntity;
+		AddEntity(gameState, &testEntity);
 		testEntity->pos = { -6.0f, 3.0f, 1.0f };
 		testEntity->rot = QUATERNION_IDENTITY;
 		testEntity->mesh = anvilRes;
 		testEntity->collider = collider;
 
-		testEntity = &gameState->entities[gameState->entityCount++];
+		AddEntity(gameState, &testEntity);
 		testEntity->pos = { 5.0f, 4.0f, 1.0f };
 		testEntity->rot = QUATERNION_IDENTITY;
 		testEntity->mesh = anvilRes;
 		testEntity->collider = collider;
 
-		testEntity = &gameState->entities[gameState->entityCount++];
+		AddEntity(gameState, &testEntity);
 		testEntity->pos = { 3.0f, -4.0f, 1.0f };
 		testEntity->rot = QuaternionFromEuler(v3{ 0, 0, HALFPI * -0.5f });
 		testEntity->mesh = anvilRes;
 		testEntity->collider = collider;
 
-		testEntity = &gameState->entities[gameState->entityCount++];
+		AddEntity(gameState, &testEntity);
 		testEntity->pos = { -8.0f, -4.0f, 1.0f };
 		testEntity->rot = QuaternionFromEuler(v3{ HALFPI * 0.5f, 0, 0 });
 		testEntity->mesh = anvilRes;
 		testEntity->collider = collider;
 
 		const Resource *sphereRes = GetResource("data/sphere.b");
-		testEntity = &gameState->entities[gameState->entityCount++];
+		AddEntity(gameState, &testEntity);
 		testEntity->pos = { -6.0f, 7.0f, 1.0f };
 		testEntity->rot = QUATERNION_IDENTITY;
 		testEntity->mesh = sphereRes;
@@ -279,7 +370,7 @@ GAMEDLL START_GAME(StartGame)
 		testEntity->collider.sphere.offset = {};
 
 		const Resource *cylinderRes = GetResource("data/cylinder.b");
-		testEntity = &gameState->entities[gameState->entityCount++];
+		AddEntity(gameState, &testEntity);
 		testEntity->pos = { -3.0f, 7.0f, 1.0f };
 		testEntity->rot = QUATERNION_IDENTITY;
 		testEntity->mesh = cylinderRes;
@@ -289,7 +380,7 @@ GAMEDLL START_GAME(StartGame)
 		testEntity->collider.cylinder.offset = {};
 
 		const Resource *capsuleRes = GetResource("data/capsule.b");
-		testEntity = &gameState->entities[gameState->entityCount++];
+		AddEntity(gameState, &testEntity);
 		testEntity->pos = { 0.0f, 7.0f, 2.0f };
 		testEntity->rot = QUATERNION_IDENTITY;
 		testEntity->mesh = capsuleRes;
@@ -298,7 +389,7 @@ GAMEDLL START_GAME(StartGame)
 		testEntity->collider.capsule.height = 2;
 		testEntity->collider.capsule.offset = {};
 
-		testEntity = &gameState->entities[gameState->entityCount++];
+		EntityHandle testEntityHandle = AddEntity(gameState, &testEntity);
 		testEntity->pos = { 3.0f, 4.0f, 0.0f };
 		testEntity->rot = QUATERNION_IDENTITY;
 		testEntity->mesh = nullptr;
@@ -307,7 +398,7 @@ GAMEDLL START_GAME(StartGame)
 		testEntity->collider.sphere.offset = { 0, 0, 1 };
 		SkinnedMeshInstance *skinnedMeshInstance =
 			&gameState->skinnedMeshInstances[gameState->skinnedMeshCount++];
-		skinnedMeshInstance->entityHandle = gameState->entityCount - 1;
+		skinnedMeshInstance->entityHandle = testEntityHandle;
 		skinnedMeshInstance->meshRes = GetResource("data/Jumper.b");
 		skinnedMeshInstance->animationIdx = 0;
 		skinnedMeshInstance->animationTime = 0;
@@ -318,8 +409,9 @@ GAMEDLL START_GAME(StartGame)
 void ChangeState(GameState *gameState, PlayerState newState, PlayerAnim newAnim)
 {
 	//Log("Changed state: 0x%X -> 0x%X\n", gameState->player.state, newState);
-	gameState->player.entity->skinnedMeshInstance->animationIdx = newAnim;
-	gameState->player.entity->skinnedMeshInstance->animationTime = 0;
+	Entity *playerEntity = GetEntity(gameState, gameState->player.entityHandle);
+	playerEntity->skinnedMeshInstance->animationIdx = newAnim;
+	playerEntity->skinnedMeshInstance->animationTime = 0;
 	gameState->player.state = newState;
 }
 
@@ -370,6 +462,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 		// Move player
 		Player *player = &gameState->player;
+		Entity *playerEntity = GetEntity(gameState, player->entityHandle);
 		{
 			v2 inputDir = {};
 			if (controller->up.endedDown)
@@ -401,11 +494,11 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			if (V3SqrLen(worldInputDir))
 			{
 				f32 targetYaw = Atan2(-worldInputDir.x, worldInputDir.y);
-				player->entity->rot = QuaternionFromEuler(v3{ 0, 0, targetYaw });
+				playerEntity->rot = QuaternionFromEuler(v3{ 0, 0, targetYaw });
 			}
 
 			const f32 playerSpeed = 5.0f;
-			player->entity->pos += worldInputDir * playerSpeed * deltaTime;
+			playerEntity->pos += worldInputDir * playerSpeed * deltaTime;
 
 			if (!(player->state & PLAYERSTATEFLAG_AIRBORNE))
 			{
@@ -439,7 +532,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				player->vel.z = 0;
 			}
 
-			player->entity->pos += player->vel * deltaTime;
+			playerEntity->pos += player->vel * deltaTime;
 		}
 
 		const f32 groundRayDist = (player->state & PLAYERSTATEFLAG_AIRBORNE) ? 1.0f : 1.5f;
@@ -447,12 +540,12 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		// Collision
 		bool touchedGround = false;
 
-		for (u32 entityIndex = 0; entityIndex < gameState->entityCount; ++ entityIndex)
+		for (u32 entityIndex = 0; entityIndex < gameState->entityCount; ++entityIndex)
 		{
 			Entity *entity = &gameState->entities[entityIndex];
-			if (entity != gameState->player.entity)
+			if (entity != playerEntity)
 			{
-				v3 origin = player->entity->pos + v3{ 0, 0, 1 };
+				v3 origin = playerEntity->pos + v3{ 0, 0, 1 };
 				v3 dir = { 0, 0, -groundRayDist };
 				v3 hit;
 				v3 hitNor;
@@ -460,26 +553,25 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				{
 					if (hitNor.z > 0.7f)
 					{
-						player->entity->pos.z = hit.z;
+						playerEntity->pos.z = hit.z;
 						touchedGround = true;
 						break;
 					}
 				}
 
-				GJKResult gjkResult = GJKTest(player->entity, entity);
+				GJKResult gjkResult = GJKTest(playerEntity, entity);
 				if (gjkResult.hit)
 				{
-					v3 depenetration = ComputeDepenetration(gjkResult, player->entity, entity);
+					v3 depenetration = ComputeDepenetration(gjkResult, playerEntity, entity);
 					// @Hack: ignoring depenetration when it's too big
 					if (V3Length(depenetration) < 2.0f)
 					{
-						player->entity->pos += depenetration;
+						playerEntity->pos += depenetration;
 					}
 					else
 					{
 						Log("WARNING! Ignoring huge depenetration vector... something went wrong!\n");
 					}
-
 					break;
 				}
 			}
@@ -487,17 +579,17 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 		// Ray testing
 		{
-			v3 origin = player->entity->pos + v3{ 0, 0, 1 };
+			v3 origin = playerEntity->pos + v3{ 0, 0, 1 };
 			v3 dir = { 0, 0, -groundRayDist };
 			v3 hit;
 			Triangle triangle;
 			if (HitTest(gameState, origin, dir, &hit, &triangle))
 			{
-				player->entity->pos.z = hit.z;
+				playerEntity->pos.z = hit.z;
 				touchedGround = true;
 			}
 
-			origin = player->entity->pos + v3{ 0, 0, 1 };
+			origin = playerEntity->pos + v3{ 0, 0, 1 };
 			const f32 playerRadius = 0.5f;
 			const f32 rayLen = playerRadius * 1.414f;
 			v3 dirs[] =
@@ -519,14 +611,14 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					if (dot > -0.707f && dot < 0.707f)
 						continue;
 
-					hit.z = player->entity->pos.z;
+					hit.z = playerEntity->pos.z;
 
-					f32 aDistAlongNormal = V3Dot(triangle.a - player->entity->pos, triangle.normal);
+					f32 aDistAlongNormal = V3Dot(triangle.a - playerEntity->pos, triangle.normal);
 					if (aDistAlongNormal < 0) aDistAlongNormal = -aDistAlongNormal;
 					if (aDistAlongNormal < playerRadius)
 					{
 						f32 factor = playerRadius - aDistAlongNormal;
-						player->entity->pos += triangle.normal * factor;
+						playerEntity->pos += triangle.normal * factor;
 					}
 				}
 			}
@@ -542,13 +634,13 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			ChangeState(gameState, PLAYERSTATE_FALL, PLAYERANIM_FALL);
 		}
 
-		if (player->entity->pos.z < -1)
+		if (playerEntity->pos.z < -1)
 		{
-			player->entity->pos.z = 1;
+			playerEntity->pos.z = 1;
 			player->vel = {};
 		}
 
-		gameState->camPos = player->entity->pos;
+		gameState->camPos = playerEntity->pos;
 
 #if DEBUG_BUILD
 		if (g_debugContext->drawGJKPolytope)
@@ -816,9 +908,8 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			}
 			skinnedMeshInstance->animationTime = currentTime;
 
-			// @Todo: actual, safe entity handle.
-			Entity *player = &gameState->entities[skinnedMeshInstance->entityHandle];
-			const mat4 model = Mat4Compose(player->pos, player->rot);
+			Entity *entity = GetEntity(gameState, skinnedMeshInstance->entityHandle);
+			const mat4 model = Mat4Compose(entity->pos, entity->rot);
 			UniformMat4Array(modelUniform, 1, model.m);
 
 			v3 ts[128];

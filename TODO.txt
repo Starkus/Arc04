@@ -1,8 +1,8 @@
 ## TODO
 
 # Next up?
+- Implement some persistent state with save/load (option to reset easily)
 - Pick up entities with cursor
-- Entity system that allows deleting (compact array + sparse array of indices?)
 - Design how to link entities with 'components' (mesh to render, collider, etc.)
 - Materials... bind textures/programs depending on mesh.
 - Raycast against AABBs before colliders.

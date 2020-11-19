@@ -90,6 +90,27 @@ void ImguiShowEditWindow(GameState *gameState)
 		g_debugContext->selectedEntityIdx = gameState->entityCount - 1;
 	Entity *selectedEntity = &gameState->entities[g_debugContext->selectedEntityIdx];
 
+	if (ImGui::Button("Add"))
+	{
+		Entity *newEntity;
+		AddEntity(gameState, &newEntity);
+		g_debugContext->selectedEntityIdx = gameState->entityCount - 1;
+	}
+
+	ImGui::SameLine();
+	if (ImGui::Button("Delete"))
+	{
+		for (u32 id = 0; id < 256; ++id)
+		{
+			if (gameState->entityPointers[id] == selectedEntity)
+			{
+				EntityHandle handle = { id, gameState->entityGenerations[id] };
+				RemoveEntity(gameState, handle);
+				break;
+			}
+		}
+	}
+
 	ImGui::Separator();
 
 	ImGui::DragFloat3("Position", selectedEntity->pos.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");

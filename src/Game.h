@@ -29,14 +29,7 @@ struct Collider
 	};
 };
 
-struct SkinnedMeshInstance
-{
-	int entityHandle;
-	const Resource *meshRes;
-	int animationIdx;
-	f32 animationTime;
-};
-
+struct SkinnedMeshInstance;
 struct Entity
 {
 	v3 pos;
@@ -47,6 +40,20 @@ struct Entity
 	SkinnedMeshInstance *skinnedMeshInstance;
 
 	Collider collider;
+};
+
+struct EntityHandle
+{
+	u32 id;
+	u8 generation;
+};
+
+struct SkinnedMeshInstance
+{
+	EntityHandle entityHandle;
+	const Resource *meshRes;
+	int animationIdx;
+	f32 animationTime;
 };
 
 struct LevelGeometry
@@ -84,7 +91,7 @@ enum PlayerAnim
 
 struct Player
 {
-	Entity *entity;
+	EntityHandle entityHandle;
 	v3 vel;
 	PlayerState state;
 };
@@ -162,14 +169,16 @@ struct GameState
 	f32 camYaw;
 	f32 camPitch;
 	u32 entityCount;
+
 	Entity entities[256];
+	Entity *entityPointers[256];
+	u8 entityGenerations[256];
+
 	LevelGeometry levelGeometry;
 	Player player;
 
 	SkinnedMeshInstance skinnedMeshInstances[64];
 	u32 skinnedMeshCount;
-	//int animationIdx;
-	//f32 animationTime;
 
 	// @Cleanup: move to some Render Device Context or something?
 	DeviceProgram program, skinnedMeshProgram;
