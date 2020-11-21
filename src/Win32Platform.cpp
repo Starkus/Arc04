@@ -154,6 +154,9 @@ bool ProcessKeyboard(Controller *controller)
 	MSG message;
 	while (PeekMessageA(&message, 0, 0, 0, PM_REMOVE))
 	{
+#if USING_IMGUI
+		if (!ImGui::GetIO().WantCaptureKeyboard)
+#endif
 		switch (message.message)
 		{
 		case WM_QUIT:
@@ -231,8 +234,6 @@ bool ProcessKeyboard(Controller *controller)
 					break;
 #endif
 			}
-			TranslateMessage(&message);
-			DispatchMessage(&message);
 		} break;
 		default:
 		{
@@ -240,6 +241,11 @@ bool ProcessKeyboard(Controller *controller)
 			DispatchMessage(&message);
 		} break;
 		}
+
+#ifdef USING_IMGUI
+		TranslateMessage(&message);
+		ImGui_ImplWin32_WndProcHandler(0, message.message, message.wParam, message.lParam);
+#endif
 	}
 	return false;
 }
@@ -332,11 +338,6 @@ void Win32UnloadGameCode()
 
 LRESULT CALLBACK Win32WindowCallback(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-#ifdef USING_IMGUI
-	if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam))
-		return true;
-#endif
-
 	switch(message)
 	{
 	case WM_CLOSE:

@@ -157,6 +157,7 @@ int GLEnableAttribs(u32 attribs, int first = 0)
 	if (attribs & RENDERATTRIB_INDICES)		stride += sizeof(u16) * 4;
 	if (attribs & RENDERATTRIB_WEIGHTS)		stride += sizeof(f32) * 4;
 	if (attribs & RENDERATTRIB_COLOR)		stride += sizeof(v3);
+	if (attribs & RENDERATTRIB_VERTEXNUM)	stride += sizeof(u8);
 
 	for (int i = 0; i < 4; ++i)
 		if (attribs & (RENDERATTRIB_1CUSTOMV3 << i)) stride += sizeof(v3);
@@ -213,6 +214,14 @@ int GLEnableAttribs(u32 attribs, int first = 0)
 		glEnableVertexAttribArray(attribIdx);
 		++attribIdx;
 		offset += sizeof(v3);
+	}
+	// Vertex number
+	if (attribs & RENDERATTRIB_VERTEXNUM)
+	{
+		glVertexAttribIPointer(attribIdx, 1, GL_UNSIGNED_BYTE, stride, (GLvoid *)offset);
+		glEnableVertexAttribArray(attribIdx);
+		++attribIdx;
+		offset += sizeof(u8) * 1;
 	}
 
 	// Custom V3s
@@ -307,6 +316,13 @@ PLATFORMPROC DeviceMesh CreateDeviceMesh(int attribs)
 	return result;
 }
 
+PLATFORMPROC void DestroyDeviceMesh(DeviceMesh mesh)
+{
+	GLDeviceMesh *glMesh = (GLDeviceMesh *)&mesh;
+	glDeleteBuffers(1, glMesh->buffers);
+	glDeleteVertexArrays(1, &glMesh->vao);
+}
+
 PLATFORMPROC DeviceMesh CreateDeviceIndexedMesh(int attribs)
 {
 	DeviceMesh result;
@@ -321,6 +337,13 @@ PLATFORMPROC DeviceMesh CreateDeviceIndexedMesh(int attribs)
 	GLEnableAttribs(attribs);
 
 	return result;
+}
+
+PLATFORMPROC void DestroyDeviceIndexedMesh(DeviceMesh mesh)
+{
+	GLDeviceMesh *glMesh = (GLDeviceMesh *)&mesh;
+	glDeleteBuffers(2, glMesh->buffers);
+	glDeleteVertexArrays(1, &glMesh->vao);
 }
 
 PLATFORMPROC DeviceTexture CreateDeviceTexture()

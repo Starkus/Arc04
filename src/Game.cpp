@@ -17,6 +17,7 @@
 #endif
 
 #include "General.h"
+#include "RandomTable.h"
 #include "Maths.h"
 #include "MemoryAlloc.h"
 #include "Render.h"
@@ -56,15 +57,26 @@ Entity *GetEntity(GameState *gameState, EntityHandle handle)
 	return gameState->entityPointers[handle.id];
 }
 
+EntityHandle FindEntityHandle(GameState *gameState, Entity *entityPtr)
+{
+	for (u32 entityId = 0; entityId < ArrayCount(gameState->entities); ++entityId)
+	{
+		Entity *currentPtr = gameState->entityPointers[entityId];
+		if (currentPtr == entityPtr)
+		{
+			return { entityId, gameState->entityGenerations[entityId] };
+		}
+	}
+	return ENTITY_HANDLE_INVALID;
+}
+
 EntityHandle AddEntity(GameState *gameState, Entity **outEntity)
 {
 	Entity *newEntity = &gameState->entities[gameState->entityCount++];
 	*newEntity = {};
 	newEntity->rot = QUATERNION_IDENTITY;
 
-	EntityHandle newHandle;
-	newHandle.id = U32_MAX;
-	newHandle.generation = U8_MAX;
+	EntityHandle newHandle = ENTITY_HANDLE_INVALID;
 
 	for (int entityId = 0; entityId < 256; ++entityId)
 	{
@@ -201,6 +213,7 @@ GAMEDLL START_GAME(StartGame)
 	g_debugContext = (DebugContext *)TransientAlloc(sizeof(DebugContext));
 #endif
 
+	memset(gameState, 0, sizeof(GameState));
 	gameState->timeMultiplier = 1.0f;
 	gameState->entityCount = 0;
 	gameState->skinnedMeshCount = 0;
@@ -277,6 +290,9 @@ GAMEDLL START_GAME(StartGame)
 		const Resource *shaderSkinnedRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_skinned.b");
 		gameState->skinnedMeshProgram = shaderSkinnedRes->shader.programHandle;
 
+		const Resource *shaderParticleRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_particles.b");
+		gameState->particleSystemProgram = shaderParticleRes->shader.programHandle;
+
 #if DEBUG_BUILD
 		const Resource *shaderDebugRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_debug.b");
 		g_debugContext->debugDrawProgram = shaderDebugRes->shader.programHandle;
@@ -287,6 +303,17 @@ GAMEDLL START_GAME(StartGame)
 		const Resource *shaderEditorSelectedRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_editor_selected.b");
 		g_debugContext->editorSelectedProgram = shaderEditorSelectedRes->shader.programHandle;
 #endif
+	}
+
+	// Particle mesh
+	{
+		// @Improve: render attribs don't matter when the mesh will be used for instanced rendering.
+		// Make more consistent!!
+		DeviceMesh particleMesh = CreateDeviceMesh(0);
+		// @Improve: triangle strip?
+		u8 data[] = { 0, 1, 2, 2, 1, 3 };
+		SendMesh(&particleMesh, data, ArrayCount(data), sizeof(data[0]), false);
+		gameState->particleMesh = particleMesh;
 	}
 
 	// Init level
@@ -320,6 +347,12 @@ GAMEDLL START_GAME(StartGame)
 		skinnedMeshInstance->animationIdx = PLAYERANIM_IDLE;
 		skinnedMeshInstance->animationTime = 0;
 		playerEnt->skinnedMeshInstance = skinnedMeshInstance;
+
+		ParticleSystem *particleSystem =
+			&gameState->particleSystems[gameState->particleSystemCount++];
+		particleSystem->entityHandle = playerEntityHandle;
+		particleSystem->deviceBuffer = CreateDeviceMesh(0);
+		playerEnt->particleSystem = particleSystem;
 	}
 
 	// Init camera
@@ -625,7 +658,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		}
 
 		bool wasAirborne = player->state & PLAYERSTATEFLAG_AIRBORNE;
-		if (wasAirborne && touchedGround)
+		if (wasAirborne && touchedGround && player->vel.z < 0)
 		{
 			ChangeState(gameState, PLAYERSTATE_LAND, PLAYERANIM_LAND);
 		}
@@ -790,6 +823,12 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			SkinnedMeshInstance *skinnedMeshInstance =
 				&gameState->skinnedMeshInstances[meshInstanceIdx];
 
+#if DEBUG_BUILD
+			// Avoid crash when adding these in the editor
+			if (!skinnedMeshInstance->meshRes)
+				continue;
+#endif
+
 			Transform joints[128];
 			for (int i = 0; i < 128; ++i)
 			{
@@ -926,6 +965,86 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			UniformV3Array(jointScalesUniform, 128, ss[0].v);
 
 			RenderIndexedMesh(skinnedMesh->deviceMesh);
+		}
+
+		// Particles
+		UseProgram(gameState->particleSystemProgram);
+		viewUniform = GetUniform(gameState->particleSystemProgram, "view");
+		projUniform = GetUniform(gameState->particleSystemProgram, "projection");
+		UniformMat4Array(projUniform, 1, proj.m);
+		UniformMat4Array(viewUniform, 1, view.m);
+
+		for (u32 partSysIdx = 0; partSysIdx < gameState->particleSystemCount;
+				++partSysIdx)
+		{
+			ParticleSystem *particleSystem = &gameState->particleSystems[partSysIdx];
+			Entity *entity = GetEntity(gameState, particleSystem->entityHandle);
+
+			const int maxCount = ArrayCount(particleSystem->particles);
+			const f32 spawnRate = 0.013f;
+			const f32 maxLife = 2.0f;
+			particleSystem->timer += deltaTime;
+			while (particleSystem->timer > spawnRate)
+			{
+				particleSystem->timer -= spawnRate;
+
+				// Spawn particle
+				for (int i = 0; i < maxCount; ++i)
+				{
+					if (!particleSystem->alive[i])
+					{
+						particleSystem->alive[i] = true;
+
+						particleSystem->bookkeeps[i].lifeTime = 0;
+						particleSystem->bookkeeps[i].duration = GetRandom() / (f32)U32_MAX * maxLife;
+						particleSystem->bookkeeps[i].velocity =
+						{
+							GetRandom() / (f32)U32_MAX - 0.5f,
+							GetRandom() / (f32)U32_MAX - 0.5f,
+							1
+						};
+
+						particleSystem->particles[i].pos = entity->pos;
+						particleSystem->particles[i].size = 0.1f;
+						particleSystem->particles[i].color =
+						{
+							GetRandom() / (f32)U32_MAX,
+							GetRandom() / (f32)U32_MAX,
+							GetRandom() / (f32)U32_MAX,
+						};
+						break;
+					}
+				}
+			}
+			for (int i = 0; i < maxCount; ++i)
+			{
+				if (!particleSystem->alive[i])
+				{
+					particleSystem->particles[i].size = 0;
+					continue;
+				}
+
+				ParticleBookkeep *bookkeep = &particleSystem->bookkeeps[i];
+				bookkeep->lifeTime += deltaTime;
+				if (bookkeep->lifeTime > bookkeep->duration)
+				{
+					// Despawn
+					particleSystem->alive[i] = false;
+				}
+
+				particleSystem->particles[i].pos += bookkeep->velocity * deltaTime;
+				particleSystem->particles[i].size += 0.1f * deltaTime;
+			}
+
+			SendMesh(&particleSystem->deviceBuffer,
+					particleSystem->particles,
+					ArrayCount(particleSystem->particles),
+					sizeof(particleSystem->particles[0]), true);
+
+			u32 meshAttribs = RENDERATTRIB_VERTEXNUM;
+			u32 instAttribs = RENDERATTRIB_POSITION | RENDERATTRIB_COLOR | RENDERATTRIB_1CUSTOMF32;
+			RenderMeshInstanced(gameState->particleMesh, particleSystem->deviceBuffer, meshAttribs,
+					instAttribs);
 		}
 
 #if DEBUG_BUILD

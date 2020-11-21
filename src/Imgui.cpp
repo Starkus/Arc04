@@ -113,32 +113,83 @@ void ImguiShowEditWindow(GameState *gameState)
 
 	ImGui::Separator();
 
+	ImGui::Text("Transform");
 	ImGui::DragFloat3("Position", selectedEntity->pos.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
 	ImGui::DragFloat4("Rotation", selectedEntity->rot.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
-	selectedEntity->rot = V4Normalize(selectedEntity->rot);
+	if (ImGui::Button("Normalize rotation quaternion"))
+		selectedEntity->rot = V4Normalize(selectedEntity->rot);
 
 	ImGui::Separator();
 
+	ImGui::Text("Mesh");
 	static char meshResInputName[128] = "";
-	ImGui::InputText("Mesh resource", meshResInputName, IM_ARRAYSIZE(meshResInputName));
-	//if (ImGui::Button("Apply"))
+	if (ImGui::InputText("Mesh resource", meshResInputName, ArrayCount(meshResInputName), ImGuiInputTextFlags_EnterReturnsTrue) |
+		ImGui::Button("Change mesh"))
 	{
 		const Resource *res = GetResource(meshResInputName);
-		if (res)
+		selectedEntity->mesh = res;
+	}
+
+	ImGui::Separator();
+
+	ImGui::Text("Skinned mesh");
+	SkinnedMeshInstance *skinnedMesh = selectedEntity->skinnedMeshInstance;
+	if (skinnedMesh)
+	{
+		static char skinnedMeshResInputName[128] = "";
+		if (ImGui::InputText("Skinned mesh resource", skinnedMeshResInputName,
+					ArrayCount(skinnedMeshResInputName), ImGuiInputTextFlags_EnterReturnsTrue) |
+			ImGui::Button("Change skinned mesh"))
 		{
-			selectedEntity->mesh = res;
+			const Resource *res = GetResource(skinnedMeshResInputName);
+			if (res)
+			{
+				skinnedMesh->meshRes = res;
+			}
+		}
+
+		if (ImGui::InputInt("Animation", &skinnedMesh->animationIdx))
+		{
+			skinnedMesh->animationTime = 0;
+		}
+		if (skinnedMesh->animationIdx < 0)
+			skinnedMesh->animationIdx = 0;
+		else if (skinnedMesh->meshRes &&
+				skinnedMesh->animationIdx >= (int)skinnedMesh->meshRes->skinnedMesh.animationCount)
+			skinnedMesh->animationIdx = skinnedMesh->meshRes->skinnedMesh.animationCount - 1;
+
+		if (ImGui::Button("Remove skinned mesh"))
+		{
+			SkinnedMeshInstance *last = &gameState->skinnedMeshInstances[--gameState->skinnedMeshCount];
+			Entity *entityOfLast = GetEntity(gameState, last->entityHandle);
+
+			*skinnedMesh = *last;
+			entityOfLast->skinnedMeshInstance = skinnedMesh;
+
+			selectedEntity->skinnedMeshInstance = nullptr;
+		}
+	}
+	else
+	{
+		if (ImGui::Button("Add skinned mesh"))
+		{
+			skinnedMesh = &gameState->skinnedMeshInstances[gameState->skinnedMeshCount++];
+			*skinnedMesh = {};
+			skinnedMesh->entityHandle = FindEntityHandle(gameState, selectedEntity);
+			selectedEntity->skinnedMeshInstance = skinnedMesh;
 		}
 	}
 
 	ImGui::Separator();
 
+	ImGui::Text("Collider");
 	{
 		const char* items[] = { "COLLIDER_CONVEX_HULL", "COLLIDER_SPHERE", "COLLIDER_CYLINDER", "COLLIDER_CAPSULE" };
 		int itemCurrentIdx = (int)selectedEntity->collider.type;
 		const char* comboLabel = items[itemCurrentIdx];
 		if (ImGui::BeginCombo("Type", comboLabel))
 		{
-			for (int n = 0; n < IM_ARRAYSIZE(items); n++)
+			for (int n = 0; n < ArrayCount(items); n++)
 			{
 				const bool isSelected = (itemCurrentIdx == n);
 				if (ImGui::Selectable(items[n], isSelected))
@@ -165,8 +216,8 @@ void ImguiShowEditWindow(GameState *gameState)
 	case COLLIDER_CONVEX_HULL:
 	{
 		static char colMeshResInputName[128] = "";
-		ImGui::InputText("Collision mesh resource", colMeshResInputName, IM_ARRAYSIZE(colMeshResInputName));
-		//if (ImGui::Button("Apply2"))
+		ImGui::InputText("Collision mesh resource", colMeshResInputName, ArrayCount(colMeshResInputName));
+		if (ImGui::Button("Change collision mesh"))
 		{
 			const Resource *res = GetResource(colMeshResInputName);
 			if (res)
@@ -192,6 +243,36 @@ void ImguiShowEditWindow(GameState *gameState)
 		ImGui::InputFloat("Radius", &collider->capsule.radius);
 		ImGui::InputFloat("Height", &collider->capsule.height);
 	} break;
+	}
+
+	ImGui::Separator();
+
+	ImGui::Text("Particle system");
+	ParticleSystem *particleSystem = selectedEntity->particleSystem;
+	if (particleSystem)
+	{
+		if (ImGui::Button("Remove particle system"))
+		{
+			ParticleSystem *last = &gameState->particleSystems[--gameState->particleSystemCount];
+			Entity *entityOfLast = GetEntity(gameState, last->entityHandle);
+
+			*particleSystem = *last;
+			entityOfLast->particleSystem = particleSystem;
+
+			DestroyDeviceMesh(particleSystem->deviceBuffer);
+			selectedEntity->particleSystem = nullptr;
+		}
+	}
+	else
+	{
+		if (ImGui::Button("Add particle system"))
+		{
+			ParticleSystem *newParticleSystem = &gameState->particleSystems[gameState->particleSystemCount++];
+			newParticleSystem->entityHandle = FindEntityHandle(gameState, selectedEntity);
+			newParticleSystem->deviceBuffer = CreateDeviceMesh(0);
+			memset(newParticleSystem->alive, 0, sizeof(newParticleSystem->alive));
+			selectedEntity->particleSystem = newParticleSystem;
+		}
 	}
 
 	ImGui::End();

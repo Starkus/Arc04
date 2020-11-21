@@ -30,6 +30,7 @@ struct Collider
 };
 
 struct SkinnedMeshInstance;
+struct ParticleSystem;
 struct Entity
 {
 	v3 pos;
@@ -38,6 +39,7 @@ struct Entity
 	// @Todo: decide how to handle optional things.
 	const Resource *mesh;
 	SkinnedMeshInstance *skinnedMeshInstance;
+	ParticleSystem *particleSystem;
 
 	Collider collider;
 };
@@ -47,6 +49,7 @@ struct EntityHandle
 	u32 id;
 	u8 generation;
 };
+EntityHandle ENTITY_HANDLE_INVALID = { U32_MAX, 0 };
 
 struct SkinnedMeshInstance
 {
@@ -54,6 +57,30 @@ struct SkinnedMeshInstance
 	const Resource *meshRes;
 	int animationIdx;
 	f32 animationTime;
+};
+
+struct Particle
+{
+	v3 pos;
+	v3 color;
+	f32 size;
+};
+
+struct ParticleBookkeep
+{
+	f32 lifeTime;
+	f32 duration;
+	v3 velocity;
+};
+
+struct ParticleSystem
+{
+	EntityHandle entityHandle;
+	DeviceMesh deviceBuffer;
+	f32 timer;
+	bool alive[256]; // @Improve
+	ParticleBookkeep bookkeeps[256];
+	Particle particles[256];
 };
 
 struct LevelGeometry
@@ -180,10 +207,12 @@ struct GameState
 	SkinnedMeshInstance skinnedMeshInstances[64];
 	u32 skinnedMeshCount;
 
+	ParticleSystem particleSystems[64];
+	u32 particleSystemCount;
+
 	// @Cleanup: move to some Render Device Context or something?
-	DeviceProgram program, skinnedMeshProgram;
-	DeviceMesh anvilMesh, cubeMesh, sphereMesh, cylinderMesh, capsuleMesh;
-	SkinnedMesh skinnedMesh;
+	DeviceProgram program, skinnedMeshProgram, particleSystemProgram;
+	DeviceMesh particleMesh;
 };
 
 struct Button
