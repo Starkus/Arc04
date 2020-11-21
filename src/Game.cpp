@@ -27,6 +27,7 @@
 #include "PlatformCode.h"
 #include "Containers.h"
 #include "Game.h"
+#include "Reflection.h"
 
 Memory *g_memory;
 #if DEBUG_BUILD

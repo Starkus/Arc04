@@ -49,31 +49,100 @@ struct Tokenizer
 	int line;
 };
 
-struct Type
+enum Type
+{
+	TYPE_INVALID,
+	TYPE_U8,
+	TYPE_U16,
+	TYPE_U32,
+	TYPE_U64,
+	TYPE_I8,
+	TYPE_I16,
+	TYPE_I32,
+	TYPE_I64,
+	TYPE_F32,
+	TYPE_F64,
+	TYPE_BOOL,
+	TYPE_STRUCT,
+	TYPE_COUNT
+};
+
+const char *TypeStrings[] =
+{
+	"TYPE_INVALID",
+	"TYPE_U8",
+	"TYPE_U16",
+	"TYPE_U32",
+	"TYPE_U64",
+	"TYPE_I8",
+	"TYPE_I16",
+	"TYPE_I32",
+	"TYPE_I64",
+	"TYPE_F32",
+	"TYPE_F64",
+	"TYPE_BOOL",
+	"TYPE_STRUCT"
+};
+
+const char *basicTypeStrings[] =
+{
+	"INVALID",
+	"u8",
+	"u16",
+	"u32",
+	"u64",
+	"i8",
+	"i16",
+	"i32",
+	"i64",
+	"f32",
+	"f64",
+	"bool",
+	"struct"
+};
+
+struct TypeInfo
 {
 	Token name;
 	bool isConst;
+	bool isStatic;
 	bool isFunction;
 	int ptrLevels;
+	int count;
 	char *paramsBegin;
 	int paramsSize;
 };
 
 struct Param
 {
-	Type type;
+	TypeInfo type;
 	Token name;
 	bool isVarArgs;
 };
 
 struct Procedure
 {
-	Type returnType;
+	TypeInfo returnType;
 	Token name;
 	Param params[16];
 	int paramCount;
 };
 DECLARE_DYNAMIC_ARRAY(Procedure);
+
+struct StructMember
+{
+	Token name;
+	Type type;
+	TypeInfo typeInfo;
+};
+
+struct Struct
+{
+	Token name;
+	int memberCount;
+	StructMember members[64];
+};
+DECLARE_DYNAMIC_ARRAY(Struct);
 
 inline bool IsAlpha(char c)
 {
@@ -269,7 +338,7 @@ Token ReadTokenAndAdvance(Tokenizer *tokenizer)
 	return result;
 }
 
-void PrintType(char *buffer, const Type *type)
+void PrintTypeInfo(char *buffer, const TypeInfo *type)
 {
 	char stars[8] = {};
 	for (int i = 0; i < type->ptrLevels; ++i)
@@ -334,20 +403,281 @@ void ParseFile(const char *filename, DynamicArray_Token &tokens)
 	}
 }
 
-void PrintStructs(DynamicArray_Token &tokens)
+Type ParseType(Token token, DynamicArray_Struct &structs)
 {
+	Type result = TYPE_INVALID;
+
+	if (strncmp("u8", token.begin, token.size) == 0)
+	{
+		result = TYPE_U8;
+	}
+	else if (strncmp("u16", token.begin, token.size) == 0)
+	{
+		result = TYPE_U16;
+	}
+	else if (strncmp("u32", token.begin, token.size) == 0)
+	{
+		result = TYPE_U32;
+	}
+	else if (strncmp("u64", token.begin, token.size) == 0)
+	{
+		result = TYPE_U64;
+	}
+
+	else if (strncmp("i8", token.begin, token.size) == 0)
+	{
+		result = TYPE_I8;
+	}
+	else if (strncmp("i16", token.begin, token.size) == 0)
+	{
+		result = TYPE_I16;
+	}
+	else if (strncmp("i32", token.begin, token.size) == 0)
+	{
+		result = TYPE_I32;
+	}
+	else if (strncmp("i64", token.begin, token.size) == 0 ||
+			strncmp("int", token.begin, token.size) == 0)
+	{
+		result = TYPE_I64;
+	}
+
+	else if (strncmp("f32", token.begin, token.size) == 0)
+	{
+		result = TYPE_F32;
+	}
+	else if (strncmp("f64", token.begin, token.size) == 0)
+	{
+		result = TYPE_F64;
+	}
+
+	else if (strncmp("bool", token.begin, token.size) == 0)
+	{
+		result = TYPE_BOOL;
+	}
+
+	else
+	{
+		for (u32 i = 0; i < structs.size; ++i)
+		{
+			if (structs[i].name.type == TOKEN_IDENTIFIER && // Avoid annonymous structs
+					strncmp(structs[i].name.begin, token.begin, Min(structs[i].name.size, token.size)) == 0)
+			{
+				result = TYPE_STRUCT;
+				break;
+			}
+		}
+	}
+
+	return result;
+}
+
+void PrintStructs(DynamicArray_Struct &structs)
+{
+	for (u32 structIdx = 0; structIdx < structs.size; ++structIdx)
+	{
+		Struct *struct_ = &structs[structIdx];
+
+		Log("Struct '%.*s'\n", struct_->name.size, struct_->name.begin);
+
+		for (int memberIdx = 0; memberIdx < struct_->memberCount; ++memberIdx)
+		{
+			StructMember *member = &struct_->members[memberIdx];
+			Log("    Member: %s ", basicTypeStrings[member->type],
+					member->typeInfo.name.size, member->typeInfo.name.begin,
+					member->name.size, member->name.begin);
+
+			char buffer[256];
+			PrintTypeInfo(buffer, &member->typeInfo);
+			Log("%s", buffer);
+
+			Log("%.*s\n", member->name.size, member->name.begin);
+		}
+	}
+}
+
+void ReadStructs(DynamicArray_Token &tokens, DynamicArray_Struct &structs)
+{
+	DynamicArrayInit_Struct(&structs, 256, malloc);
+
 	for (u32 tokenIdx = 0; tokenIdx < tokens.size; ++tokenIdx)
 	{
 		Token *token = &tokens[tokenIdx];
 		if (token->type == TOKEN_IDENTIFIER)
 		{
-			if (strncmp(token->begin, "struct", token->size) == 0)
+			if (strncmp(token->begin, "struct", token->size) == 0 ||
+				strncmp(token->begin, "union", token->size) == 0) // @Improve
 			{
+				Struct struct_ = {};
+
 				token = &tokens[++tokenIdx];
 				if (token->type == TOKEN_IDENTIFIER)
+				{
+					struct_.name = *token;
 					Log("Found struct of name '%.*s'\n", token->size, token->begin);
+					token = &tokens[++tokenIdx];
+				}
 				else
+				{
 					Log("Found annonymous struct\n");
+				}
+
+				if (token->type == ';')
+				{
+					// Just declaration
+					token = &tokens[++tokenIdx];
+					continue;
+				}
+
+				if (token->type != '{')
+				{
+					Log("ERROR! Reading struct, expected {\n");
+					return;
+				}
+				token = &tokens[++tokenIdx];
+
+				int scopeLevel = 1;
+				while (scopeLevel && token->type != TOKEN_END_OF_FILE)
+				{
+					StructMember member = {};
+
+					while (token->type == TOKEN_PREPROCESSOR_DIRECTIVE)
+						token = &tokens[++tokenIdx];
+
+					if (token->type == TOKEN_IDENTIFIER &&
+							strncmp(token->begin, "static", token->size) == 0)
+					{
+						member.typeInfo.isStatic = true;
+						token = &tokens[++tokenIdx];
+					}
+
+					if (token->type == TOKEN_IDENTIFIER &&
+							strncmp(token->begin, "const", token->size) == 0)
+					{
+						member.typeInfo.isConst = true;
+						token = &tokens[++tokenIdx];
+					}
+
+					bool annonymousType = false;
+					if (token->type == TOKEN_IDENTIFIER && (
+							strncmp(token->begin, "struct", token->size) == 0 ||
+							strncmp(token->begin, "union", token->size) == 0))
+					{
+						// @Hack
+						if ((token + 1)->type == '{')
+						{
+							// Check if it's unnamed union/struct
+							Token *t = token + 1;
+							while (t->type != '}' && t->type != TOKEN_END_OF_FILE)
+								++t;
+							++t;
+							if (t->type != TOKEN_IDENTIFIER)
+							{
+								// Unnamed union/struct
+								++scopeLevel;
+								token = &tokens[++tokenIdx];
+								token = &tokens[++tokenIdx];
+							}
+							else
+							{
+								// Named union/struct
+								annonymousType = true;
+
+								while (token->type != '}' && token->type != TOKEN_END_OF_FILE)
+									token = &tokens[++tokenIdx];
+								token = &tokens[++tokenIdx];
+							}
+						}
+					}
+
+					if (!annonymousType && token->type == TOKEN_IDENTIFIER)
+					{
+						member.type = ParseType(*token, structs);
+						member.typeInfo.name = *token;
+						token = &tokens[++tokenIdx];
+					}
+
+					while (1)
+					{
+						member.typeInfo.ptrLevels = 0;
+
+						while (token->type == '*')
+						{
+							++member.typeInfo.ptrLevels;
+							token = &tokens[++tokenIdx];
+						}
+
+						if (token->type == TOKEN_IDENTIFIER)
+						{
+							member.name = *token;
+							token = &tokens[++tokenIdx];
+						}
+
+						if (token->type == '[')
+						{
+							token = &tokens[++tokenIdx];
+							if (token->type != TOKEN_LITERAL_NUMBER)
+							{
+								Log("ERROR! Non-literal array sizes not supported yet!\n");
+								// @Incomplete: parse array members!
+								while (token->type != ']')
+								{
+									token = &tokens[++tokenIdx];
+								}
+							}
+							else
+							{
+								member.typeInfo.count = atoi(token->begin);
+								token = &tokens[++tokenIdx];
+								ASSERT(token->type == ']');
+							}
+							token = &tokens[++tokenIdx];
+						}
+
+						// @Hack: Ignore default values
+						if (token->type == '=')
+						{
+							token = &tokens[++tokenIdx];
+							while (token->type != ';' && token->type != ',')
+								token = &tokens[++tokenIdx];
+						}
+
+						if (member.name.type == TOKEN_IDENTIFIER && member.name.size)
+						{
+							if (!member.typeInfo.isStatic)
+								struct_.members[struct_.memberCount++] = member;
+						}
+						else
+						{
+							Log("WARNING! member with empty name!\n");
+						}
+
+						if (token->type == ',')
+							token = &tokens[++tokenIdx];
+						else
+							break;
+					}
+
+					while (token->type == TOKEN_PREPROCESSOR_DIRECTIVE)
+						token = &tokens[++tokenIdx];
+
+					if (token->type != ';')
+					{
+						Log("ERROR! Reading struct, expected ; got %c\n", token->type);
+					}
+					token = &tokens[++tokenIdx];
+
+					if (token->type == '}')
+					{
+						--scopeLevel;
+						token = &tokens[++tokenIdx];
+					}
+				}
+
+				if (struct_.name.type == TOKEN_IDENTIFIER && struct_.name.size)
+				{
+					structs[DynamicArrayAdd_Struct(&structs, realloc)] = struct_;
+				}
 			}
 		}
 	}
@@ -571,7 +901,7 @@ u64 PrintToFile(FileHandle file, const char *format, ...)
 void PrintProcedureToFile(FileHandle file, Procedure *proc)
 {
 	char typeStr[256];
-	PrintType(typeStr, &proc->returnType);
+	PrintTypeInfo(typeStr, &proc->returnType);
 	PrintToFile(file, "%s(*%.*s)(", typeStr, proc->name.size, proc->name.begin);
 	for (int paramIdx = 0; paramIdx < proc->paramCount; ++paramIdx)
 	{
@@ -584,8 +914,8 @@ void PrintProcedureToFile(FileHandle file, Procedure *proc)
 			continue;
 		}
 
-		Type *paramType = &proc->params[paramIdx].type;
-		PrintType(typeStr, paramType);
+		TypeInfo *paramType = &proc->params[paramIdx].type;
+		PrintTypeInfo(typeStr, paramType);
 
 		Token *name = &proc->params[paramIdx].name;
 
@@ -662,6 +992,70 @@ void WritePlatformCodeFiles(DynamicArray_Procedure &procedures)
 	PlatformCloseFile(file);
 }
 
+void WriteReflectionFile(DynamicArray_Struct &structs)
+{
+	FileHandle file = PlatformOpenForWrite("gen/Reflection.h");
+
+	PrintToFile(file, "enum Type\n{\n");
+	for (int i = 0; i < TYPE_COUNT; ++i)
+		PrintToFile(file, "\t%s,\n", TypeStrings[i]);
+	PrintToFile(file, "};\n\n");
+
+	PrintToFile(file, "struct StructInfo;\n");
+
+	PrintToFile(file, "struct StructMember\n{\n");
+	PrintToFile(file,   "\tconst char *name;\n");
+	PrintToFile(file,   "\tType type;\n");
+	PrintToFile(file,   "\tu32 pointerLevels;\n");
+	PrintToFile(file,   "\tu32 arrayCount;\n");
+	PrintToFile(file,   "\tu64 offset;\n");
+	PrintToFile(file,   "\tconst StructInfo *structInfo;\n");
+	PrintToFile(file, "};\n\n");
+
+	PrintToFile(file, "struct StructInfo\n{\n");
+	PrintToFile(file,   "\tconst char *name;\n");
+	PrintToFile(file,   "\tu32 memberCount;\n");
+	PrintToFile(file,   "\tconst StructMember *members;\n");
+	PrintToFile(file, "};\n\n");
+
+	for (u32 structIdx = 0; structIdx < structs.size; ++structIdx)
+	{
+		Struct *struct_ = &structs[structIdx];
+
+		PrintToFile(file, "const StructMember _typeInfoMembers_%.*s[] =\n{\n", struct_->name.size,
+				struct_->name.begin);
+		for (int memberIdx = 0; memberIdx < struct_->memberCount; ++memberIdx)
+		{
+			StructMember *member = &struct_->members[memberIdx];
+			PrintToFile(file, "\t{ \"%.*s\", ", member->name.size, member->name.begin);
+			PrintToFile(file, "%s, ", TypeStrings[member->type]);
+			PrintToFile(file, "%d, ", member->typeInfo.ptrLevels);
+			PrintToFile(file, "%d, ", member->typeInfo.count);
+			PrintToFile(file, "offsetof(%.*s, %.*s)", struct_->name.size,
+					struct_->name.begin, member->name.size, member->name.begin);
+			if (member->type == TYPE_STRUCT)
+			{
+				PrintToFile(file, ", &typeInfo_%.*s", member->typeInfo.name.size,
+						member->typeInfo.name.begin);
+			}
+			PrintToFile(file, " },\n", struct_->name.size,
+					struct_->name.begin, member->name.size, member->name.begin);
+		}
+		PrintToFile(file, "};\n");
+
+		PrintToFile(file, "const StructInfo typeInfo_%.*s = { ", struct_->name.size,
+				struct_->name.begin);
+
+		PrintToFile(file, "\"%.*s\", ", struct_->name.size, struct_->name.begin);
+		PrintToFile(file, "%d, ", struct_->memberCount);
+		PrintToFile(file, "_typeInfoMembers_%.*s ", struct_->name.size, struct_->name.begin);
+
+		PrintToFile(file, "};\n\n");
+	}
+
+	PlatformCloseFile(file);
+}
+
 int main(int argc, char **argv)
 {
 	if (argc == 1)
@@ -677,11 +1071,22 @@ int main(int argc, char **argv)
 	DynamicArray_Procedure procedures;
 	DynamicArrayInit_Procedure(&procedures, 64, malloc);
 
-	const char *inputfile = argv[1];
+	const char *gameFile = "src/Game.cpp";
+	DynamicArray_Token gameTokens;
+	DynamicArrayInit_Token(&gameTokens, 4096, malloc);
+	ParseFile(gameFile, gameTokens);
+
+	DynamicArray_Struct structs;
+	ReadStructs(gameTokens, structs);
+	PrintStructs(structs);
+
+	WriteReflectionFile(structs);
+
+	const char *platformFile = argv[1];
 
 	DynamicArray_Token tokens;
 	DynamicArrayInit_Token(&tokens, 4096, malloc);
-	ParseFile(inputfile, tokens);
+	ParseFile(platformFile, tokens);
 
 	int error = ExtractPlatformProcedures(tokens, procedures);
 	if (error)

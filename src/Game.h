@@ -29,21 +29,6 @@ struct Collider
 	};
 };
 
-struct SkinnedMeshInstance;
-struct ParticleSystem;
-struct Entity
-{
-	v3 pos;
-	v4 rot;
-
-	// @Todo: decide how to handle optional things.
-	const Resource *mesh;
-	SkinnedMeshInstance *skinnedMeshInstance;
-	ParticleSystem *particleSystem;
-
-	Collider collider;
-};
-
 struct EntityHandle
 {
 	u32 id;
@@ -81,6 +66,19 @@ struct ParticleSystem
 	bool alive[256]; // @Improve
 	ParticleBookkeep bookkeeps[256];
 	Particle particles[256];
+};
+
+struct Entity
+{
+	v3 pos;
+	v4 rot;
+
+	// @Todo: decide how to handle optional things.
+	const Resource *mesh;
+	SkinnedMeshInstance *skinnedMeshInstance;
+	ParticleSystem *particleSystem;
+
+	Collider collider;
 };
 
 struct LevelGeometry
