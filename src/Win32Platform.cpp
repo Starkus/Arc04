@@ -149,7 +149,7 @@ void Win32LoadXInput()
 	}
 }
 
-bool ProcessKeyboard(Controller *controller)
+bool ProcessKeyboard(Controller *c)
 {
 	MSG message;
 	while (PeekMessageA(&message, 0, 0, 0, PM_REMOVE))
@@ -163,6 +163,38 @@ bool ProcessKeyboard(Controller *controller)
 		{
 			return true;
 		} break;
+#if DEBUG_BUILD
+		case WM_LBUTTONDOWN:
+		{
+			c->mouseLeft.changed = !c->mouseLeft.endedDown;
+			c->mouseLeft.endedDown = true;
+		} break;
+		case WM_MBUTTONDOWN:
+		{
+			c->mouseMiddle.changed = !c->mouseMiddle.endedDown;
+			c->mouseMiddle.endedDown = true;
+		} break;
+		case WM_RBUTTONDOWN:
+		{
+			c->mouseRight.changed = !c->mouseRight.endedDown;
+			c->mouseRight.endedDown = true;
+		} break;
+		case WM_LBUTTONUP:
+		{
+			c->mouseLeft.changed = c->mouseLeft.endedDown;
+			c->mouseLeft.endedDown = false;
+		} break;
+		case WM_MBUTTONUP:
+		{
+			c->mouseMiddle.changed = c->mouseMiddle.endedDown;
+			c->mouseMiddle.endedDown = false;
+		} break;
+		case WM_RBUTTONUP:
+		{
+			c->mouseRight.changed = c->mouseRight.endedDown;
+			c->mouseRight.endedDown = false;
+		} break;
+#endif
 		case WM_SYSKEYDOWN:
 		case WM_SYSKEYUP:
 		case WM_KEYDOWN:
@@ -180,7 +212,6 @@ bool ProcessKeyboard(Controller *controller)
 				}
 			};
 
-			Controller *c = controller;
 			switch (message.wParam)
 			{
 				case 'Q':
@@ -615,6 +646,16 @@ void Win32Start(HINSTANCE hInstance)
 			if (stop) running = false;
 
 			ProcessXInput(&oldController, &controller);
+			
+			// Mouse position
+			POINT mousePos;
+			GetCursorPos(&mousePos);
+			ScreenToClient(context.windowHandle, &mousePos);
+			controller.mousePos =
+			{
+				(f32)mousePos.x * 2.0f / g_windowWidth - 1.0f,
+				(f32)mousePos.y * 2.0f / g_windowHeight - 1.0f
+			};
 		}
 
 #ifdef USING_IMGUI

@@ -583,7 +583,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				v3 dir = { 0, 0, -groundRayDist };
 				v3 hit;
 				v3 hitNor;
-				if (RayColliderIntersection(origin, dir, entity, &hit, &hitNor))
+				if (RayColliderIntersection(origin, dir, false, entity, &hit, &hitNor))
 				{
 					if (hitNor.z > 0.7f)
 					{
@@ -617,7 +617,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			v3 dir = { 0, 0, -groundRayDist };
 			v3 hit;
 			Triangle triangle;
-			if (HitTest(gameState, origin, dir, &hit, &triangle))
+			if (HitTest(gameState, origin, dir, false, &hit, &triangle))
 			{
 				playerEntity->pos.z = hit.z;
 				touchedGround = true;
@@ -635,7 +635,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			};
 			for (u32 i = 0; i < ArrayCount(dirs); ++i)
 			{
-				if (HitTest(gameState, origin, dirs[i], &hit, &triangle))
+				if (HitTest(gameState, origin, dirs[i], false, &hit, &triangle))
 				{
 					// Ignore slopes
 					if (triangle.normal.z > 0.05f)
@@ -677,6 +677,15 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		gameState->camPos = playerEntity->pos;
 
 #if DEBUG_BUILD
+		//Editor stuff
+		if (controller->mouseLeft.endedDown && controller->mouseLeft.changed)
+		{
+			if (g_debugContext->hoveredEntityIdx != -1)
+			{
+				g_debugContext->selectedEntityIdx = g_debugContext->hoveredEntityIdx;
+			}
+		}
+
 		if (g_debugContext->drawGJKPolytope)
 		{
 			DebugVertex *gjkVertices;
@@ -753,6 +762,37 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			mat4 camPosMatrix = Mat4Translation(-pos);
 			view = Mat4Multiply(camPosMatrix, view);
 		}
+
+#if DEBUG_BUILD
+		// Mouse picking
+		// @Todo: move from rendering code
+		{
+			v4 worldCursorPos = { controller->mousePos.x, -controller->mousePos.y, -1, 1 };
+			mat4 invViewMatrix = Mat4Adjugate(view);
+			mat4 invProjMatrix = Mat4Inverse(proj);
+			worldCursorPos = Mat4TransformV4(invProjMatrix, worldCursorPos);
+			worldCursorPos /= worldCursorPos.w;
+			worldCursorPos = Mat4TransformV4(invViewMatrix, worldCursorPos);
+			v3 cursorXYZ = { worldCursorPos.x, worldCursorPos.y, worldCursorPos.z };
+
+			v3 camPos = {};
+			camPos = Mat4TransformPosition(invViewMatrix, camPos);
+
+			v3 origin = camPos;
+			v3 dir = cursorXYZ - origin;
+			g_debugContext->hoveredEntityIdx = -1;
+			for (u32 entityIndex = 0; entityIndex < gameState->entityCount; ++entityIndex)
+			{
+				Entity *entity = &gameState->entities[entityIndex];
+				v3 hit;
+				v3 hitNor;
+				if (RayColliderIntersection(origin, dir, true, entity, &hit, &hitNor))
+				{
+					g_debugContext->hoveredEntityIdx = entityIndex;
+				}
+			}
+		}
+#endif
 
 		UseProgram(gameState->program);
 		DeviceUniform viewUniform = GetUniform(gameState->program, "view");

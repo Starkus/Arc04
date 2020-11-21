@@ -996,6 +996,8 @@ void WriteReflectionFile(DynamicArray_Struct &structs)
 {
 	FileHandle file = PlatformOpenForWrite("gen/Reflection.h");
 
+	PrintToFile(file, "#if DEBUG_BUILD\n");
+
 	PrintToFile(file, "enum Type\n{\n");
 	for (int i = 0; i < TYPE_COUNT; ++i)
 		PrintToFile(file, "\t%s,\n", TypeStrings[i]);
@@ -1052,6 +1054,8 @@ void WriteReflectionFile(DynamicArray_Struct &structs)
 
 		PrintToFile(file, "};\n\n");
 	}
+
+	PrintToFile(file, "#endif\n");
 
 	PlatformCloseFile(file);
 }

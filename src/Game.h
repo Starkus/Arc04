@@ -182,6 +182,7 @@ struct DebugContext
 
 	// Editor
 	int selectedEntityIdx;
+	int hoveredEntityIdx;
 	DeviceProgram editorSelectedProgram;
 };
 #endif
@@ -238,14 +239,19 @@ struct Controller
 			Button camRight;
 
 #if DEBUG_BUILD
+			Button mouseLeft;
+			Button mouseMiddle;
+			Button mouseRight;
+
 			Button debugUp;
 			Button debugDown;
 			Button debugLeft;
 			Button debugRight;
 #endif
 		};
-		Button b[13];
+		Button b[16];
 	};
+	v2 mousePos;
 };
 
 struct PlatformContext

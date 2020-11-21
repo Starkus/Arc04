@@ -38,7 +38,7 @@ void GenPolytopeMesh(EPAFace *polytopeData, int faceCount, DebugVertex *buffer)
 }
 #endif
 
-bool RayTriangleIntersection(v3 rayOrigin, v3 rayDir, const Triangle *triangle, v3 *hit)
+bool RayTriangleIntersection(v3 rayOrigin, v3 rayDir, bool infinite, const Triangle *triangle, v3 *hit)
 {
 	const v3 &a = triangle->a;
 	const v3 &b = triangle->b;
@@ -58,7 +58,7 @@ bool RayTriangleIntersection(v3 rayOrigin, v3 rayDir, const Triangle *triangle, 
 	f32 aDistAlongNormal = V3Dot(a - rayOrigin, -nor);
 	f32 factor = aDistAlongNormal / rayDistAlongNormal;
 
-	if (factor < 0 || factor > 1)
+	if (factor < 0 || (!infinite && factor > 1))
 		return false;
 
 	v3 rayPlaneInt = rayOrigin + rayDir * factor;
@@ -89,8 +89,8 @@ bool RayTriangleIntersection(v3 rayOrigin, v3 rayDir, const Triangle *triangle, 
 	return true;
 }
 
-bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, v3 rayOrigin, v3
-		rayDir, v3 *hit, Triangle *triangle)
+bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, v3 rayOrigin,
+		v3 rayDir, bool infinite, v3 *hit, Triangle *triangle)
 {
 	if (swapXY)
 	{
@@ -136,7 +136,7 @@ bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, 
 #endif
 
 		v3 thisHit;
-		if (RayTriangleIntersection(rayOrigin, rayDir, &tri, &thisHit))
+		if (RayTriangleIntersection(rayOrigin, rayDir, infinite, &tri, &thisHit))
 		{
 			f32 sqrLen = V3SqrLen(thisHit - rayOrigin);
 			if (sqrLen < closestSqrLen)
@@ -200,7 +200,7 @@ bool HitTest_CheckCell(GameState *gameState, int cellX, int cellY, bool swapXY, 
 	return result;
 }
 
-bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, v3 *hit, Triangle *triangle)
+bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, bool infinite, v3 *hit, Triangle *triangle)
 {
 	const ResourceGeometryGrid *geometryGrid = &gameState->levelGeometry.geometryGrid->geometryGrid;
 	v2 cellSize = (geometryGrid->highCorner - geometryGrid->lowCorner) / (f32)(geometryGrid->cellsSide);
@@ -249,7 +249,7 @@ bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, v3 *hit, Triangle *t
 	f32 curY = p1.y;
 
 	if (HitTest_CheckCell(gameState, (int)Floor(curX), (int)Floor(curY), swapXY, rayOrigin, rayDir,
-				hit, triangle))
+				infinite, hit, triangle))
 		return true;
 
 	int oldY = (int)Floor(curY);
@@ -288,20 +288,20 @@ bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, v3 *hit, Triangle *t
 			{
 				// Paint cell below
 				if (HitTest_CheckCell(gameState, (int)Floor(curX), (int)Floor(projY), swapXY,
-							rayOrigin, rayDir, hit, triangle))
+							rayOrigin, rayDir, infinite, hit, triangle))
 					return true;
 			}
 			else
 			{
 				// Paint cell behind
 				if (HitTest_CheckCell(gameState, (int)Floor(curX - xSign), (int)Floor(curY), swapXY,
-							rayOrigin, rayDir, hit, triangle))
+							rayOrigin, rayDir, infinite, hit, triangle))
 					return true;
 			}
 		}
 
 		if (HitTest_CheckCell(gameState, (int)Floor(curX), (int)Floor(curY), swapXY, rayOrigin,
-					rayDir, hit, triangle))
+					rayDir, infinite, hit, triangle))
 			return true;
 
 		oldY = newY;
@@ -310,7 +310,7 @@ bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, v3 *hit, Triangle *t
 	return false;
 }
 
-bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, const Entity *entity, v3 *hit, v3 *hitNor)
+bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, bool infinite, const Entity *entity, v3 *hit, v3 *hitNor)
 {
 	v3 unitDir = V3Normalize(rayDir);
 
@@ -365,7 +365,7 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, const Entity *entity, v3 *
 				continue;
 
 			v3 currHit;
-			if (RayTriangleIntersection(localRayOrigin, localRayDir, &tri, &currHit))
+			if (RayTriangleIntersection(localRayOrigin, localRayDir, infinite, &tri, &currHit))
 			{
 				*hit = currHit;
 				*hitNor = tri.normal;
@@ -402,7 +402,7 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, const Entity *entity, v3 *
 		*hit = proj - unitDir * td;
 
 		// Limit reach
-		if (V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
+		if (!infinite && V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
 			return false;
 
 		*hitNor = (*hit - center) / c->sphere.radius;
@@ -435,7 +435,7 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, const Entity *entity, v3 *
 			if (distSqr <= radiusSqr)
 			{
 				// Limit reach
-				if (factor < 0 || factor > 1)
+				if (factor < 0 || (!infinite && factor > 1))
 					return false;
 
 				*hit = proj;
@@ -467,7 +467,7 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, const Entity *entity, v3 *
 		*hit = proj;
 
 		// Limit reach
-		if (V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
+		if (!infinite && V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
 			return false;
 
 		*hitNor = (*hit - center) / c->cylinder.radius;
@@ -499,7 +499,7 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, const Entity *entity, v3 *
 					*hit = sphereProj;
 
 					// Limit reach
-					if (V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
+					if (!infinite && V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
 						return false;
 
 					*hitNor = (*hit - sphereCenter) / c->capsule.radius;
@@ -527,7 +527,7 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, const Entity *entity, v3 *
 					*hit = sphereProj;
 
 					// Limit reach
-					if (V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
+					if (!infinite && V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
 						return false;
 
 					*hitNor = (*hit - sphereCenter) / c->capsule.radius;
@@ -567,7 +567,7 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, const Entity *entity, v3 *
 		*hit = proj;
 
 		// Limit reach
-		if (V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
+		if (!infinite && V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
 			return false;
 
 		*hitNor = (*hit - center) / c->capsule.radius;

@@ -1,6 +1,6 @@
 void ImguiShowDebugWindow(GameState *gameState)
 {
-#if DEBUG_BUILD
+#if DEBUG_BUILD && USING_IMGUI
 	ImGui::SetNextWindowPos(ImVec2(8, 340), ImGuiCond_FirstUseEver);
 	ImGui::SetNextWindowSize(ImVec2(315, 425), ImGuiCond_FirstUseEver);
 	ImGui::SetNextWindowCollapsed(true, ImGuiCond_FirstUseEver);
@@ -72,7 +72,7 @@ void ImguiShowDebugWindow(GameState *gameState)
 
 void ImguiShowEditWindow(GameState *gameState)
 {
-#if USING_IMGUI
+#if EDITOR_PRESENT
 	ImGui::SetNextWindowPos(ImVec2(1161, 306), ImGuiCond_FirstUseEver);
 	ImGui::SetNextWindowSize(ImVec2(253, 229), ImGuiCond_FirstUseEver);
 	ImGui::SetNextWindowCollapsed(false, ImGuiCond_FirstUseEver);
