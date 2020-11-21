@@ -1072,9 +1072,7 @@ int main(int argc, char **argv)
 
 	Log("%s - %s\n", argv[0], argv[1]);
 
-	DynamicArray_Procedure procedures;
-	DynamicArrayInit_Procedure(&procedures, 64, malloc);
-
+#if 0
 	const char *gameFile = "src/Game.cpp";
 	DynamicArray_Token gameTokens;
 	DynamicArrayInit_Token(&gameTokens, 4096, malloc);
@@ -1085,6 +1083,10 @@ int main(int argc, char **argv)
 	PrintStructs(structs);
 
 	WriteReflectionFile(structs);
+#endif
+
+	DynamicArray_Procedure procedures;
+	DynamicArrayInit_Procedure(&procedures, 64, malloc);
 
 	const char *platformFile = argv[1];
 

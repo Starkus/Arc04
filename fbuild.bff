@@ -58,7 +58,7 @@ ForEach(.BuildType in .BuildTypes)
 	// Win32 Platform
 	ObjectList('Win32PlatformSource_$BuildTypeName$')
 	{
-		.CompilerOptions = '$ExeCompilerOptions$ -DUSING_IMGUI=1'
+		.CompilerOptions = '$ExeCompilerOptions$'
 		.CompilerInputFiles = {
 			'$SourcePath$/Win32Platform.cpp',
 		}
@@ -81,7 +81,7 @@ ForEach(.BuildType in .BuildTypes)
 	// Game
 	ObjectList('GameSource_$BuildTypeName$')
 	{
-		.CompilerOptions = '$DllCompilerOptions$ -DUSING_IMGUI=1'
+		.CompilerOptions = '$DllCompilerOptions$'
 		.CompilerInputFiles = {
 			'$SourcePath$/Game.cpp',
 		}

@@ -7,16 +7,21 @@
 #include <GLES3/glcorearb.h>
 #include <Xinput.h>
 
+#include "General.h"
+
+#if DEBUG_BUILD
+#define USING_IMGUI 1
+#endif
+
 #include "OpenGL.h"
 
-#ifdef USING_IMGUI
+#if USING_IMGUI
 #define IMGUI_IMPL_OPENGL_LOADER_CUSTOM
 #include <imgui/imgui_impl_win32.cpp>
 #include <imgui/imgui_impl_opengl3.cpp>
 #include <imgui/imgui.h>
 #endif
 
-#include "General.h"
 #include "MemoryAlloc.h"
 #include "Containers.h"
 #include "Maths.h"
@@ -99,6 +104,8 @@ PLATFORMPROC const Resource *GetResource(const char *filename)
 #if DEBUG_BUILD
 const char *gameDllName = "game_debug.dll";
 const char *tempDllName = ".game_temp.dll";
+#elif TEST_BUILD
+const char *gameDllName = "game_test.dll";
 #else
 const char *gameDllName = "game.dll";
 #endif
@@ -216,10 +223,12 @@ bool ProcessKeyboard(Controller *c)
 			{
 				case 'Q':
 					return true;
+#if USING_IMGUI
 				case VK_OEM_3:
 					if (isDown && !wasDown)
 						g_showConsole = !g_showConsole;
 					break;
+#endif
 				case 'W':
 					checkButton(c->up);
 					break;

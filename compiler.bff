@@ -85,8 +85,8 @@ Compiler('Compiler_x64')
 	.BuildTypeSufix = '_debug'
 
 	.Compiler = 'Compiler_x64'
-	.ExeCompilerOptions = .CommonCompilerOptions + ' /MTd /Z7 /Od /DDEBUG_BUILD'
-	.DllCompilerOptions = .CommonCompilerOptions + ' /LDd /Z7 /Od /DDEBUG_BUILD'
+	.ExeCompilerOptions = .CommonCompilerOptions + ' /MTd /Z7 /Od /DDEBUG_BUILD=1'
+	.DllCompilerOptions = .CommonCompilerOptions + ' /LDd /Z7 /Od /DDEBUG_BUILD=1'
 
 	.Linker = .Linker_x64
 	.ExeLinkerOptions = .CommonLinkerOptions + ' /DEBUG:FULL /OPT:REF,NOICF'
@@ -99,8 +99,8 @@ Compiler('Compiler_x64')
 	.BuildTypeSufix = '_test'
 
 	.Compiler = 'Compiler_x64'
-	.ExeCompilerOptions = .CommonCompilerOptions + ' /MTd /O2 /Ob2 /Ot /Gy /Z7 /Zo /DDEBUG_BUILD'
-	.DllCompilerOptions = .CommonCompilerOptions + ' /LD /O2 /Ob2 /Ot /Gy /Z7 /Zo /DDEBUG_BUILD'
+	.ExeCompilerOptions = .CommonCompilerOptions + ' /MTd /O2 /Ob2 /Ot /Gy /Z7 /Zo /DTEST_BUILD=1'
+	.DllCompilerOptions = .CommonCompilerOptions + ' /LD /O2 /Ob2 /Ot /Gy /Z7 /Zo /DTEST_BUILD=1'
 
 	.Linker = .Linker_x64
 	.ExeLinkerOptions = .CommonLinkerOptions + ' /DEBUG:FASTLINK /OPT:REF,ICF'
@@ -113,8 +113,8 @@ Compiler('Compiler_x64')
 	.BuildTypeSufix = ''
 
 	.Compiler = 'Compiler_x64'
-	.ExeCompilerOptions = .CommonCompilerOptions + ' /Z7 /MT /O2 /Ob2 /Ot /Gy'
-	.DllCompilerOptions = .CommonCompilerOptions + ' /Z7 /LD /O2 /Ob2 /Ot /Gy'
+	.ExeCompilerOptions = .CommonCompilerOptions + ' /MT /O2 /Ob2 /Ot /Gy'
+	.DllCompilerOptions = .CommonCompilerOptions + ' /LD /O2 /Ob2 /Ot /Gy'
 
 	.Linker = .Linker_x64
 	.ExeLinkerOptions = .CommonLinkerOptions + ' /OPT:REF,ICF'

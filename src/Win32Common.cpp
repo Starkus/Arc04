@@ -35,7 +35,7 @@ PLATFORMPROC void Log(const char *format, ...)
 	DWORD bytesWritten;
 	WriteFile(g_hStdout, buffer, (DWORD)strlen(buffer), &bytesWritten, nullptr);
 
-#ifdef USING_IMGUI
+#if USING_IMGUI
 	// Imgui console
 	g_imguiLogBuffer->appendfv(format, args);
 #endif

@@ -1,7 +1,13 @@
 #include <stddef.h>
 #include <memory.h>
 
-#define IMGUI_SHOW_DEMO
+#include "General.h"
+
+#if TARGET_WINDOWS && DEBUG_BUILD
+#define USING_IMGUI 1
+#endif
+
+//#define IMGUI_SHOW_DEMO
 
 #if USING_IMGUI
 #include <imgui/imgui.h>
@@ -10,13 +16,12 @@
 #endif
 #endif
 
-#if defined(USING_IMGUI) && DEBUG_BUILD
+#if USING_IMGUI && DEBUG_BUILD
 #define EDITOR_PRESENT 1
 #else
 #define EDITOR_PRESENT 0
 #endif
 
-#include "General.h"
 #include "RandomTable.h"
 #include "Maths.h"
 #include "MemoryAlloc.h"
@@ -27,7 +32,7 @@
 #include "PlatformCode.h"
 #include "Containers.h"
 #include "Game.h"
-#include "Reflection.h"
+//#include "Reflection.h"
 
 Memory *g_memory;
 #if DEBUG_BUILD

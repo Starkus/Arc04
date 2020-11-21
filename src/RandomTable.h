@@ -1,4 +1,4 @@
-const u32 random[] = {
+const u32 RANDOM[] = {
 0xd6d807e1, 0x85bb13c5, 0x03541c3a, 0x7c613aed,
 0x4e57084c, 0xdd05cd88, 0x1d962a98, 0x0968a328,
 0xfc08550f, 0x89c5f943, 0x6242ab1d, 0x61c1fc3e,
@@ -516,7 +516,7 @@ const u32 random[] = {
 inline u32 GetRandom()
 {
 	static int randomIndex = 0;
-	const u32 result = random[randomIndex++];
-	randomIndex %= ArrayCount(random);
+	const u32 result = RANDOM[randomIndex++];
+	randomIndex %= ArrayCount(RANDOM);
 	return result;
 }
