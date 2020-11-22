@@ -1,11 +1,11 @@
 #version 330 core
 layout (location = 0) in uint vertexNum;
 layout (location = 1) in vec3 pos;
-layout (location = 2) in vec3 inColor;
+layout (location = 2) in vec4 inColor;
 layout (location = 3) in float size;
 uniform mat4 view;
 uniform mat4 projection;
-out vec3 color;
+out vec4 color;
 
 vec2 corners[] = vec2[4](
 	vec2(-1, -1),

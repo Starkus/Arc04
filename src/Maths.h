@@ -469,6 +469,18 @@ inline v4 operator-(const v4 &v)
 	return result;
 }
 
+inline v4 operator+=(v4 &a, const v4 &b)
+{
+	a = { a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w };
+	return a;
+}
+
+inline v4 operator-=(v4 &a, const v4 &b)
+{
+	a = { a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w };
+	return a;
+}
+
 inline v4 operator*(const v4 &a, f32 b)
 {
 	const v4 result = { a.x * b, a.y * b, a.z * b, a.w * b };

@@ -47,7 +47,7 @@ struct SkinnedMeshInstance
 struct Particle
 {
 	v3 pos;
-	v3 color;
+	v4 color;
 	f32 size;
 };
 
@@ -63,6 +63,13 @@ struct ParticleSystem
 	EntityHandle entityHandle;
 	DeviceMesh deviceBuffer;
 	f32 timer;
+	f32 spawnRate;
+	f32 maxLife;
+	v3 initialVel;
+	v3 initialVelSpread;
+	v3 acceleration;
+	v4 initialColor;
+	v4 colorDelta;
 	bool alive[256]; // @Improve
 	ParticleBookkeep bookkeeps[256];
 	Particle particles[256];

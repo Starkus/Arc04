@@ -62,6 +62,17 @@ PLATFORMPROC void DisableDepthTest()
 	glDisable(GL_DEPTH_TEST);
 }
 
+PLATFORMPROC void EnableAlphaBlending()
+{
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+}
+
+PLATFORMPROC void DisableAlphaBlending()
+{
+	glDisable(GL_BLEND);
+}
+
 PLATFORMPROC void ClearBuffers(v4 clearColor)
 {
 	glClearColor(clearColor.x, clearColor.y, clearColor.z, clearColor.w);
@@ -156,7 +167,8 @@ int GLEnableAttribs(u32 attribs, int first = 0)
 	if (attribs & RENDERATTRIB_NORMAL)		stride += sizeof(v3);
 	if (attribs & RENDERATTRIB_INDICES)		stride += sizeof(u16) * 4;
 	if (attribs & RENDERATTRIB_WEIGHTS)		stride += sizeof(f32) * 4;
-	if (attribs & RENDERATTRIB_COLOR)		stride += sizeof(v3);
+	if (attribs & RENDERATTRIB_COLOR3)		stride += sizeof(v3);
+	if (attribs & RENDERATTRIB_COLOR4)		stride += sizeof(v4);
 	if (attribs & RENDERATTRIB_VERTEXNUM)	stride += sizeof(u8);
 
 	for (int i = 0; i < 4; ++i)
@@ -207,13 +219,21 @@ int GLEnableAttribs(u32 attribs, int first = 0)
 		++attribIdx;
 		offset += sizeof(f32) * 4;
 	}
-	// Color
-	if (attribs & RENDERATTRIB_COLOR)
+	// Color RGB
+	if (attribs & RENDERATTRIB_COLOR3)
 	{
 		glVertexAttribPointer(attribIdx, 3, GL_FLOAT, GL_FALSE, stride, (GLvoid *)offset);
 		glEnableVertexAttribArray(attribIdx);
 		++attribIdx;
 		offset += sizeof(v3);
+	}
+	// Color RGBA
+	if (attribs & RENDERATTRIB_COLOR4)
+	{
+		glVertexAttribPointer(attribIdx, 4, GL_FLOAT, GL_FALSE, stride, (GLvoid *)offset);
+		glEnableVertexAttribArray(attribIdx);
+		++attribIdx;
+		offset += sizeof(v4);
 	}
 	// Vertex number
 	if (attribs & RENDERATTRIB_VERTEXNUM)

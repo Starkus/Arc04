@@ -251,15 +251,24 @@ void ImguiShowEditWindow(GameState *gameState)
 	ParticleSystem *particleSystem = selectedEntity->particleSystem;
 	if (particleSystem)
 	{
+		ImGui::DragFloat("Spawn rate", &particleSystem->spawnRate, 0.005f, 0.001f, +FLT_MAX, "%.3f");
+		ImGui::DragFloat("Particle duration", &particleSystem->maxLife, 0.005f, 0.001f, +FLT_MAX, "%.3f");
+		ImGui::DragFloat3("Initial velocity", particleSystem->initialVel.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
+		ImGui::DragFloat3("Initial velocity spread", particleSystem->initialVelSpread.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
+		ImGui::DragFloat3("Acceleration over time", particleSystem->acceleration.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
+		ImGui::DragFloat4("Initial color", particleSystem->initialColor.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
+		ImGui::DragFloat4("Color over time", particleSystem->colorDelta.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
 		if (ImGui::Button("Remove particle system"))
 		{
+			DestroyDeviceMesh(particleSystem->deviceBuffer);
+
 			ParticleSystem *last = &gameState->particleSystems[--gameState->particleSystemCount];
 			Entity *entityOfLast = GetEntity(gameState, last->entityHandle);
+			ASSERT(entityOfLast);
 
 			*particleSystem = *last;
 			entityOfLast->particleSystem = particleSystem;
 
-			DestroyDeviceMesh(particleSystem->deviceBuffer);
 			selectedEntity->particleSystem = nullptr;
 		}
 	}
@@ -268,6 +277,7 @@ void ImguiShowEditWindow(GameState *gameState)
 		if (ImGui::Button("Add particle system"))
 		{
 			ParticleSystem *newParticleSystem = &gameState->particleSystems[gameState->particleSystemCount++];
+			*newParticleSystem = {};
 			newParticleSystem->entityHandle = FindEntityHandle(gameState, selectedEntity);
 			newParticleSystem->deviceBuffer = CreateDeviceMesh(0);
 			memset(newParticleSystem->alive, 0, sizeof(newParticleSystem->alive));

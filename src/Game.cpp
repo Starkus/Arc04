@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <stddef.h>
 #include <memory.h>
 
@@ -250,7 +251,7 @@ GAMEDLL START_GAME(StartGame)
 #if DEBUG_BUILD
 		// Debug geometry buffer
 		{
-			int attribs = RENDERATTRIB_POSITION | RENDERATTRIB_COLOR;
+			int attribs = RENDERATTRIB_POSITION | RENDERATTRIB_COLOR3;
 			DebugGeometryBuffer *dgb = &g_debugContext->debugGeometryBuffer;
 			dgb->triangleData = (DebugVertex *)TransientAlloc(2048 * sizeof(DebugVertex));
 			dgb->lineData = (DebugVertex *)TransientAlloc(2048 * sizeof(DebugVertex));
@@ -358,6 +359,8 @@ GAMEDLL START_GAME(StartGame)
 			&gameState->particleSystems[gameState->particleSystemCount++];
 		particleSystem->entityHandle = playerEntityHandle;
 		particleSystem->deviceBuffer = CreateDeviceMesh(0);
+		particleSystem->spawnRate = 0.01f;
+		particleSystem->maxLife = 2.0f;
 		playerEnt->particleSystem = particleSystem;
 	}
 
@@ -1027,41 +1030,39 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			Entity *entity = GetEntity(gameState, particleSystem->entityHandle);
 
 			const int maxCount = ArrayCount(particleSystem->particles);
-			const f32 spawnRate = 0.013f;
-			const f32 maxLife = 2.0f;
 			particleSystem->timer += deltaTime;
-			while (particleSystem->timer > spawnRate)
-			{
-				particleSystem->timer -= spawnRate;
-
-				// Spawn particle
-				for (int i = 0; i < maxCount; ++i)
+			if (particleSystem->spawnRate > 0)
+				while (particleSystem->timer > particleSystem->spawnRate)
 				{
-					if (!particleSystem->alive[i])
+					particleSystem->timer -= particleSystem->spawnRate;
+
+					// Spawn particle
+					for (int i = 0; i < maxCount; ++i)
 					{
-						particleSystem->alive[i] = true;
-
-						particleSystem->bookkeeps[i].lifeTime = 0;
-						particleSystem->bookkeeps[i].duration = GetRandom() / (f32)U32_MAX * maxLife;
-						particleSystem->bookkeeps[i].velocity =
+						if (!particleSystem->alive[i])
 						{
-							GetRandom() / (f32)U32_MAX - 0.5f,
-							GetRandom() / (f32)U32_MAX - 0.5f,
-							1
-						};
+							particleSystem->alive[i] = true;
 
-						particleSystem->particles[i].pos = entity->pos;
-						particleSystem->particles[i].size = 0.1f;
-						particleSystem->particles[i].color =
-						{
-							GetRandom() / (f32)U32_MAX,
-							GetRandom() / (f32)U32_MAX,
-							GetRandom() / (f32)U32_MAX,
-						};
-						break;
+							particleSystem->bookkeeps[i].lifeTime = 0;
+							particleSystem->bookkeeps[i].duration = GetRandom() / (f32)U32_MAX *
+								particleSystem->maxLife;
+
+							v3 spread =
+							{
+								GetRandom() / (f32)U32_MAX - 0.5f,
+								GetRandom() / (f32)U32_MAX - 0.5f,
+								GetRandom() / (f32)U32_MAX - 0.5f
+							};
+							spread = V3Scale(spread, particleSystem->initialVelSpread);
+							particleSystem->bookkeeps[i].velocity = particleSystem->initialVel + spread;
+
+							particleSystem->particles[i].pos = entity->pos;
+							particleSystem->particles[i].size = 0.1f;
+							particleSystem->particles[i].color = particleSystem->initialColor;
+							break;
+						}
 					}
 				}
-			}
 			for (int i = 0; i < maxCount; ++i)
 			{
 				if (!particleSystem->alive[i])
@@ -1078,19 +1079,39 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					particleSystem->alive[i] = false;
 				}
 
+				bookkeep->velocity += particleSystem->acceleration * deltaTime;
 				particleSystem->particles[i].pos += bookkeep->velocity * deltaTime;
+				particleSystem->particles[i].color += particleSystem->colorDelta * deltaTime;
 				particleSystem->particles[i].size += 0.1f * deltaTime;
 			}
 
+			// Sort!
+			// @Improve: change this once we have a proper camera
+			static v3 camPos;
+			camPos = Mat4TransformPosition(Mat4Adjugate(view), v3{});
+			auto compareParticles = [](const void *a, const void *b)
+			{
+				f32 aDist = V3SqrLen(((Particle *)a)->pos - camPos);
+				f32 bDist = V3SqrLen(((Particle *)b)->pos - camPos);
+				return (int)((aDist < bDist) - (aDist > bDist));
+			};
+			Particle *particlesCopy = (Particle *)FrameAlloc(sizeof(particleSystem->particles));
+			memcpy(particlesCopy, particleSystem->particles, sizeof(particleSystem->particles));
+			qsort(particlesCopy, maxCount, sizeof(Particle), compareParticles);
+
 			SendMesh(&particleSystem->deviceBuffer,
-					particleSystem->particles,
+					particlesCopy,
 					ArrayCount(particleSystem->particles),
 					sizeof(particleSystem->particles[0]), true);
 
+			//DisableDepthTest();
+			EnableAlphaBlending();
 			u32 meshAttribs = RENDERATTRIB_VERTEXNUM;
-			u32 instAttribs = RENDERATTRIB_POSITION | RENDERATTRIB_COLOR | RENDERATTRIB_1CUSTOMF32;
+			u32 instAttribs = RENDERATTRIB_POSITION | RENDERATTRIB_COLOR4 | RENDERATTRIB_1CUSTOMF32;
 			RenderMeshInstanced(gameState->particleMesh, particleSystem->deviceBuffer, meshAttribs,
 					instAttribs);
+			DisableAlphaBlending();
+			//EnableDepthTest();
 		}
 
 #if DEBUG_BUILD
@@ -1132,7 +1153,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 						dgb->debugCubeCount, sizeof(DebugCube), true);
 
 				u32 meshAttribs = RENDERATTRIB_POSITION;
-				u32 instAttribs = RENDERATTRIB_POSITION | RENDERATTRIB_COLOR |
+				u32 instAttribs = RENDERATTRIB_POSITION | RENDERATTRIB_COLOR3 |
 					RENDERATTRIB_1CUSTOMV3 | RENDERATTRIB_2CUSTOMV3 | RENDERATTRIB_1CUSTOMF32;
 				RenderIndexedMeshInstanced(dgb->cubeMesh, dgb->cubePositionsBuffer,
 						meshAttribs, instAttribs);
