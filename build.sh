@@ -18,3 +18,5 @@ else
 	clang -o bin/Game_debug.so src/Game.cpp $common_compiler  $debug_options -fPIC -shared
 	clang -o bin/Bakery_debug tools/Bakery.cpp $common_compiler $debug_options -Isrc -ldl -lstdc++
 fi
+
+ctags -R .

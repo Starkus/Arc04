@@ -60,7 +60,7 @@ PLATFORMPROC const Resource *LoadResource(ResourceType type, const char *filenam
 
 	u8 *fileBuffer;
 	u64 fileSize;
-	int error = PlatformReadEntireFile(filename, &fileBuffer, &fileSize, FrameAlloc);
+	int error = LinuxReadEntireFile(filename, &fileBuffer, &fileSize, FrameAlloc);
 	if (error != 0)
 		return nullptr;
 
@@ -159,11 +159,13 @@ int main(int argc, char **argv)
 	Memory memory = {};
 	g_memory = &memory;
 	const int prot = PROT_READ | PROT_WRITE;
-	const int flags = MAP_ANONYMOUS;
-	memory.frameMem = mmap((void *)0x1000000000000000, Memory::frameSize, prot, flags, 0, 0);
-	memory.stackMem = mmap((void *)0x2000000000000000, Memory::stackSize, prot, flags, 0, 0);
-	memory.transientMem = mmap((void *)0x3000000000000000, Memory::transientSize, prot, flags, 0, 0);
-	memory.buddyMem = mmap((void *)0x4000000000000000, Memory::buddySize, prot, flags, 0, 0);
+	const int flags = MAP_PRIVATE | MAP_ANONYMOUS;
+	memory.frameMem = mmap((void *)0x1000000000, Memory::frameSize, prot, flags, -1, 0);
+	memory.stackMem = mmap((void *)0x2000000000, Memory::stackSize, prot, flags, -1, 0);
+	memory.transientMem = mmap((void *)0x3000000000, Memory::transientSize, prot, flags, -1, 0);
+	memory.buddyMem = mmap((void *)0x4000000000, Memory::buddySize, prot, flags, -1, 0);
+	Log("%p %p %p %p\n", memory.frameMem, memory.stackMem, memory.transientMem, memory.buddyMem);
+	Log("Error: %s\n", strerror(errno));
 
 	const u32 maxNumOfBuddyBlocks = Memory::buddySize / Memory::buddySmallest;
 	memory.buddyBookkeep = (u8 *)malloc( maxNumOfBuddyBlocks);
@@ -245,6 +247,8 @@ int main(int argc, char **argv)
 		UpdateAndRenderGame(&controller, deltaTime);
 
 		glXSwapBuffers(display, window);
+
+		FrameWipe();
 	}
 
 	glXMakeCurrent(display, None, nullptr);

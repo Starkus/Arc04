@@ -96,7 +96,11 @@ bool PlatformFileExists(const char *filename)
 FileHandle PlatformOpenForWrite(const char *filename)
 {
 	int file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
-	ASSERT(file != -1);
+	if (file == -1)
+	{
+		Log("ERROR! Opening file \"%s\"\n", strerror(errno));
+		ASSERT(false);
+	}
 	return file;
 }
 
