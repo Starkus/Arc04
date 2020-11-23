@@ -1,3 +1,5 @@
+const char *protectedMemoryErrorStr = "Can't read memory!";
+
 void ImguiShowDebugWindow(GameState *gameState)
 {
 #if DEBUG_BUILD && USING_IMGUI
@@ -70,6 +72,203 @@ void ImguiShowDebugWindow(GameState *gameState)
 #endif
 }
 
+bool ImguiStructAsControls(void *object, const StructInfo *structInfo);
+
+// Returns true if value changed
+bool ImguiMemberAsControl(void *object, const StructMember *memberInfo)
+{
+	if (!PlatformCanReadMemory(object))
+	{
+		ImGui::Text(protectedMemoryErrorStr);
+		return false;
+	}
+
+	// Special treatment for resource pointers
+	if (memberInfo->type == TYPE_STRUCT && memberInfo->pointerLevels == 1 &&
+			memberInfo->typeInfo == &typeInfo_Resource)
+	{
+		static char resInputName[128];
+		const Resource **resourcePtr = (const Resource**)object;
+
+		if (*resourcePtr)
+		{
+			if (PlatformCanReadMemory(*resourcePtr))
+				strcpy(resInputName, (*resourcePtr)->filename);
+			else
+				strcpy(resInputName, protectedMemoryErrorStr);
+		}
+		else
+		{
+			resInputName[0] = 0;
+		}
+
+		if (ImGui::InputText(memberInfo->name, resInputName,
+					ArrayCount(resInputName), ImGuiInputTextFlags_EnterReturnsTrue))
+		{
+			const Resource *res = GetResource(resInputName);
+			if (res)
+				*resourcePtr = res;
+			else
+				*resourcePtr = nullptr;
+			return true;
+		}
+		return false;
+	}
+
+	if (memberInfo->pointerLevels)
+	{
+		bool somethingChanged = false;
+		if (ImGui::TreeNode(memberInfo->name))
+		{
+			StructMember dereferencedType = *memberInfo;
+			--dereferencedType.pointerLevels;
+
+			void *ptr = *(void **)object;
+			somethingChanged = ImguiMemberAsControl(ptr, &dereferencedType);
+
+			ImGui::TreePop();
+		}
+		return somethingChanged;
+	}
+
+	// Arrays
+	if (memberInfo->arrayCount > 0)
+	{
+		bool somethingChanged = false;
+		if (ImGui::TreeNode(memberInfo->name))
+		{
+			char enumeratedName[512];
+			StructMember nonArrayType = *memberInfo;
+			nonArrayType.arrayCount = 0;
+			nonArrayType.name = enumeratedName;
+			for (u32 i = 0; i < memberInfo->arrayCount; ++i)
+			{
+				sprintf(enumeratedName, "%s, %d", memberInfo->name, i);
+				void *itemOffset = ((u8 *)object) + memberInfo->size / memberInfo->arrayCount * i;
+				somethingChanged = ImguiMemberAsControl(itemOffset, &nonArrayType)
+					|| somethingChanged;
+			}
+			ImGui::TreePop();
+		}
+		return somethingChanged;
+	}
+
+	const f32 speed = 0.005f;
+
+	switch (memberInfo->type)
+	{
+	case TYPE_U8:
+		return ImGui::DragScalar(memberInfo->name, ImGuiDataType_U8, object, speed);
+	case TYPE_U16:
+		return ImGui::DragScalar(memberInfo->name, ImGuiDataType_U16, object, speed);
+	case TYPE_U32:
+		return ImGui::DragScalar(memberInfo->name, ImGuiDataType_U32, object, speed);
+	case TYPE_U64:
+		return ImGui::DragScalar(memberInfo->name, ImGuiDataType_U64, object, speed);
+	case TYPE_I8:
+		return ImGui::DragScalar(memberInfo->name, ImGuiDataType_S8, object, speed);
+	case TYPE_I16:
+		return ImGui::DragScalar(memberInfo->name, ImGuiDataType_S16, object, speed);
+	case TYPE_I32:
+		return ImGui::DragScalar(memberInfo->name, ImGuiDataType_S32, object, speed);
+	case TYPE_I64:
+		return ImGui::DragScalar(memberInfo->name, ImGuiDataType_S64, object, speed);
+	case TYPE_F32:
+		return ImGui::DragScalar(memberInfo->name, ImGuiDataType_Float, object, speed);
+	case TYPE_F64:
+		return ImGui::DragScalar(memberInfo->name, ImGuiDataType_Double, object, speed);
+	case TYPE_BOOL:
+		return ImGui::Checkbox(memberInfo->name, (bool *)object);
+	case TYPE_STRUCT:
+	{
+		if (memberInfo->typeInfo == &typeInfo_v3)
+		{
+			return ImGui::DragFloat3(memberInfo->name, (f32 *)object, speed);
+		}
+		else if (memberInfo->typeInfo == &typeInfo_v4)
+		{
+			return ImGui::DragFloat4(memberInfo->name, (f32 *)object, speed);
+		}
+		else
+		{
+			//ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
+			if (ImGui::TreeNode(memberInfo->name))
+			{
+				bool changed = ImguiStructAsControls(object, (const StructInfo *)memberInfo->typeInfo);
+				ImGui::TreePop();
+				return changed;
+			}
+			return false;
+		}
+	}
+	case TYPE_ENUM:
+	{
+		bool changed = false;
+		i64 *value = (i64 *)object;
+		const EnumInfo *enumInfo = (const EnumInfo *)memberInfo->typeInfo;
+
+		u32 currentValueIdx = 0;
+		for (u32 enumValueIdx = 0; enumValueIdx < enumInfo->valueCount; enumValueIdx++)
+		{
+			i64 v = enumInfo->values[enumValueIdx].value;
+			if (v == *value)
+			{
+				currentValueIdx = enumValueIdx;
+				break;
+			}
+		}
+
+		if (ImGui::BeginCombo(memberInfo->name, enumInfo->values[currentValueIdx].name))
+		{
+			for (u32 enumValueIdx = 0; enumValueIdx < enumInfo->valueCount; enumValueIdx++)
+			{
+				i64 v = enumInfo->values[enumValueIdx].value;
+				const bool isSelected = (v == *value);
+				if (ImGui::Selectable(enumInfo->values[enumValueIdx].name, isSelected))
+				{
+					changed = *value != v;
+					*value = v;
+				}
+
+				// Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+				if (isSelected)
+					ImGui::SetItemDefaultFocus();
+			}
+			ImGui::EndCombo();
+		}
+		return changed;
+	}
+	}
+
+	return false;
+}
+
+bool ImguiStructAsControls(void *object, const StructInfo *structInfo)
+{
+	bool somethingChanged = false;
+	u8 *const o = (u8 *)object;
+	for (u32 i = 0; i < structInfo->memberCount; ++i)
+	{
+		const StructMember *memberInfo = &structInfo->members[i];
+		somethingChanged = ImguiMemberAsControl(o + memberInfo->offset, memberInfo) ||
+			somethingChanged;
+	}
+	return somethingChanged;
+}
+
+void ImguiShowGameStateWindow(GameState *gameState)
+{
+	if (!ImGui::Begin("Game state", nullptr, 0))
+	{
+		ImGui::End();
+		return;
+	}
+
+	ImguiStructAsControls(gameState, &typeInfo_GameState);
+
+	ImGui::End();
+}
+
 void ImguiShowEditWindow(GameState *gameState)
 {
 #if EDITOR_PRESENT
@@ -136,28 +335,7 @@ void ImguiShowEditWindow(GameState *gameState)
 	SkinnedMeshInstance *skinnedMesh = selectedEntity->skinnedMeshInstance;
 	if (skinnedMesh)
 	{
-		static char skinnedMeshResInputName[128] = "";
-		if (ImGui::InputText("Skinned mesh resource", skinnedMeshResInputName,
-					ArrayCount(skinnedMeshResInputName), ImGuiInputTextFlags_EnterReturnsTrue) |
-			ImGui::Button("Change skinned mesh"))
-		{
-			const Resource *res = GetResource(skinnedMeshResInputName);
-			if (res)
-			{
-				skinnedMesh->meshRes = res;
-			}
-		}
-
-		if (ImGui::InputInt("Animation", &skinnedMesh->animationIdx))
-		{
-			skinnedMesh->animationTime = 0;
-		}
-		if (skinnedMesh->animationIdx < 0)
-			skinnedMesh->animationIdx = 0;
-		else if (skinnedMesh->meshRes &&
-				skinnedMesh->animationIdx >= (int)skinnedMesh->meshRes->skinnedMesh.animationCount)
-			skinnedMesh->animationIdx = skinnedMesh->meshRes->skinnedMesh.animationCount - 1;
-
+		ImguiStructAsControls(skinnedMesh, &typeInfo_SkinnedMeshInstance);
 		if (ImGui::Button("Remove skinned mesh"))
 		{
 			SkinnedMeshInstance *last = &gameState->skinnedMeshInstances[--gameState->skinnedMeshCount];
@@ -184,65 +362,18 @@ void ImguiShowEditWindow(GameState *gameState)
 
 	ImGui::Text("Collider");
 	{
-		const char* items[] = { "COLLIDER_CONVEX_HULL", "COLLIDER_SPHERE", "COLLIDER_CYLINDER", "COLLIDER_CAPSULE" };
-		int itemCurrentIdx = (int)selectedEntity->collider.type;
-		const char* comboLabel = items[itemCurrentIdx];
-		if (ImGui::BeginCombo("Type", comboLabel))
-		{
-			for (int n = 0; n < ArrayCount(items); n++)
-			{
-				const bool isSelected = (itemCurrentIdx == n);
-				if (ImGui::Selectable(items[n], isSelected))
-					itemCurrentIdx = n;
+		Collider *collider = &selectedEntity->collider;
+		bool changedType = ImguiMemberAsControl(&collider->type,
+				&typeInfo_Collider.members[0]); // @Hardcoded
 
-				// Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
-				if (isSelected)
-					ImGui::SetItemDefaultFocus();
-			}
-			ImGui::EndCombo();
-		}
-		if (selectedEntity->collider.type != (ColliderType)itemCurrentIdx)
+		if (changedType && collider->type == COLLIDER_CONVEX_HULL)
 		{
-			selectedEntity->collider.type = (ColliderType)itemCurrentIdx;
-			if (selectedEntity->collider.type == COLLIDER_CONVEX_HULL)
-			{
-				selectedEntity->collider.convexHull.meshRes = 0;
-			}
+			// Set pointer to null, it had garbage anyways
+			collider->convexHull.meshRes = nullptr;
 		}
-	}
-	Collider *collider = &selectedEntity->collider;
-	switch (collider->type)
-	{
-	case COLLIDER_CONVEX_HULL:
-	{
-		static char colMeshResInputName[128] = "";
-		ImGui::InputText("Collision mesh resource", colMeshResInputName, ArrayCount(colMeshResInputName));
-		if (ImGui::Button("Change collision mesh"))
-		{
-			const Resource *res = GetResource(colMeshResInputName);
-			if (res)
-			{
-				collider->convexHull.meshRes = res;
-			}
-		}
-	} break;
-	case COLLIDER_SPHERE:
-	{
-		ImGui::DragFloat3("Offset", collider->sphere.offset.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
-		ImGui::InputFloat("Radius", &collider->sphere.radius);
-	} break;
-	case COLLIDER_CYLINDER:
-	{
-		ImGui::DragFloat3("Offset", collider->cylinder.offset.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
-		ImGui::InputFloat("Radius", &collider->cylinder.radius);
-		ImGui::InputFloat("Height", &collider->cylinder.height);
-	} break;
-	case COLLIDER_CAPSULE:
-	{
-		ImGui::DragFloat3("Offset", collider->capsule.offset.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
-		ImGui::InputFloat("Radius", &collider->capsule.radius);
-		ImGui::InputFloat("Height", &collider->capsule.height);
-	} break;
+
+		const StructMember *member = &typeInfo_Collider.members[collider->type + 1];
+		ImguiMemberAsControl(((u8 *)&selectedEntity->collider) + member->offset, member);
 	}
 
 	ImGui::Separator();
@@ -251,13 +382,7 @@ void ImguiShowEditWindow(GameState *gameState)
 	ParticleSystem *particleSystem = selectedEntity->particleSystem;
 	if (particleSystem)
 	{
-		ImGui::DragFloat("Spawn rate", &particleSystem->spawnRate, 0.005f, 0.001f, +FLT_MAX, "%.3f");
-		ImGui::DragFloat("Particle duration", &particleSystem->maxLife, 0.005f, 0.001f, +FLT_MAX, "%.3f");
-		ImGui::DragFloat3("Initial velocity", particleSystem->initialVel.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
-		ImGui::DragFloat3("Initial velocity spread", particleSystem->initialVelSpread.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
-		ImGui::DragFloat3("Acceleration over time", particleSystem->acceleration.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
-		ImGui::DragFloat4("Initial color", particleSystem->initialColor.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
-		ImGui::DragFloat4("Color over time", particleSystem->colorDelta.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
+		ImguiStructAsControls(particleSystem, &typeInfo_ParticleSystem);
 		if (ImGui::Button("Remove particle system"))
 		{
 			DestroyDeviceMesh(particleSystem->deviceBuffer);

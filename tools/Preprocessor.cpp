@@ -64,6 +64,7 @@ enum Type
 	TYPE_F64,
 	TYPE_BOOL,
 	TYPE_STRUCT,
+	TYPE_ENUM,
 	TYPE_COUNT
 };
 
@@ -81,7 +82,8 @@ const char *TypeStrings[] =
 	"TYPE_F32",
 	"TYPE_F64",
 	"TYPE_BOOL",
-	"TYPE_STRUCT"
+	"TYPE_STRUCT",
+	"TYPE_ENUM"
 };
 
 const char *basicTypeStrings[] =
@@ -98,7 +100,8 @@ const char *basicTypeStrings[] =
 	"f32",
 	"f64",
 	"bool",
-	"struct"
+	"struct",
+	"enum"
 };
 
 struct TypeInfo
@@ -140,9 +143,21 @@ struct Struct
 {
 	Token name;
 	int memberCount;
-	StructMember members[64];
+	StructMember members[64]; // @Improve: no fixed size array?
 };
 DECLARE_DYNAMIC_ARRAY(Struct);
+
+struct EnumValue
+{
+	Token name;
+};
+DECLARE_DYNAMIC_ARRAY(EnumValue);
+struct Enum
+{
+	Token name;
+	DynamicArray_EnumValue values;
+};
+DECLARE_DYNAMIC_ARRAY(Enum);
 
 inline bool IsAlpha(char c)
 {
@@ -235,13 +250,17 @@ Token ReadTokenAndAdvance(Tokenizer *tokenizer)
 
 	EatWhitespace(tokenizer);
 
-	if (*tokenizer->cursor == '/')
+	while (*tokenizer->cursor == '/')
 	{
 		if (*(tokenizer->cursor + 1) == '/')
 			ProcessCppComment(tokenizer);
 		else if (*(tokenizer->cursor + 1) == '*')
 			ProcessCComment(tokenizer);
+		else
+			break;
 	}
+
+	EatWhitespace(tokenizer);
 
 	if (!*tokenizer->cursor)
 	{
@@ -352,6 +371,13 @@ void PrintTypeInfo(char *buffer, const TypeInfo *type)
 			stars);
 }
 
+inline bool TokenIsStr(Token *token, const char *str)
+{
+	return token->type == TOKEN_IDENTIFIER &&
+		token->size == strlen(str) &&
+		strncmp(token->begin, str, token->size) == 0;
+}
+
 void ParseFile(const char *filename, DynamicArray_Token &tokens)
 {
 	auto MallocPlus1 = [](u64 size) { return malloc(size + 1); };
@@ -366,9 +392,7 @@ void ParseFile(const char *filename, DynamicArray_Token &tokens)
 	{
 		Token newToken = ReadTokenAndAdvance(&tokenizer);
 		newToken.file = filename;
-		if (newToken.type == TOKEN_END_OF_FILE)
-			break;
-		else if (newToken.type == TOKEN_PREPROCESSOR_DIRECTIVE)
+		if (newToken.type == TOKEN_PREPROCESSOR_DIRECTIVE)
 		{
 			if (strncmp(newToken.begin, "#include", 8) == 0)
 			{
@@ -395,63 +419,73 @@ void ParseFile(const char *filename, DynamicArray_Token &tokens)
 				if (PlatformFileExists(fullname))
 				{
 					ParseFile(fullname, tokens);
+					// Remove EOF token
+					ASSERT(tokens[tokens.size - 1].type == TOKEN_END_OF_FILE);
+					--tokens.size;
 				}
 			}
 		}
 		else
 			tokens[DynamicArrayAdd_Token(&tokens, realloc)] = newToken;
+
+		if (newToken.type == TOKEN_END_OF_FILE)
+			break;
 	}
 }
 
-Type ParseType(Token token, DynamicArray_Struct &structs)
+Type ParseType(Token token, DynamicArray_Struct &structs, DynamicArray_Enum &enums)
 {
 	Type result = TYPE_INVALID;
 
-	if (strncmp("u8", token.begin, token.size) == 0)
+	if (TokenIsStr(&token, "u8") ||
+			TokenIsStr(&token, "char"))
 	{
 		result = TYPE_U8;
 	}
-	else if (strncmp("u16", token.begin, token.size) == 0)
+	else if (TokenIsStr(&token, "u16"))
 	{
 		result = TYPE_U16;
 	}
-	else if (strncmp("u32", token.begin, token.size) == 0)
+	else if (TokenIsStr(&token, "u32"))
 	{
 		result = TYPE_U32;
 	}
-	else if (strncmp("u64", token.begin, token.size) == 0)
+	else if (TokenIsStr(&token, "u64"))
 	{
 		result = TYPE_U64;
 	}
 
-	else if (strncmp("i8", token.begin, token.size) == 0)
+	else if (TokenIsStr(&token, "i8"))
 	{
 		result = TYPE_I8;
 	}
-	else if (strncmp("i16", token.begin, token.size) == 0)
+	else if (TokenIsStr(&token, "i16"))
 	{
 		result = TYPE_I16;
 	}
-	else if (strncmp("i32", token.begin, token.size) == 0)
+	else if (TokenIsStr(&token, "i32"))
 	{
 		result = TYPE_I32;
 	}
-	else if (strncmp("i64", token.begin, token.size) == 0 ||
-			strncmp("int", token.begin, token.size) == 0)
+	else if (TokenIsStr(&token, "i64") ||
+			TokenIsStr(&token, "int") ||
+			TokenIsStr(&token, "long"))
 	{
 		result = TYPE_I64;
 	}
 
-	else if (strncmp("f32", token.begin, token.size) == 0)
+	else if (TokenIsStr(&token, "f32") ||
+			TokenIsStr(&token, "float"))
 	{
 		result = TYPE_F32;
 	}
-	else if (strncmp("f64", token.begin, token.size) == 0)
+	else if (TokenIsStr(&token, "f64") ||
+			TokenIsStr(&token, "double"))
 	{
 		result = TYPE_F64;
 	}
 
-	else if (strncmp("bool", token.begin, token.size) == 0)
+	else if (TokenIsStr(&token, "bool"))
 	{
 		result = TYPE_BOOL;
 	}
@@ -460,11 +494,20 @@ Type ParseType(Token token, DynamicArray_Struct &structs)
 	{
 		for (u32 i = 0; i < structs.size; ++i)
 		{
-			if (structs[i].name.type == TOKEN_IDENTIFIER && // Avoid annonymous structs
+			if (structs[i].name.type == TOKEN_IDENTIFIER && // Avoid anonymous structs
 					strncmp(structs[i].name.begin, token.begin, Min(structs[i].name.size, token.size)) == 0)
 			{
 				result = TYPE_STRUCT;
-				break;
+				return result;
+			}
+		}
+		for (u32 i = 0; i < enums.size; ++i)
+		{
+			if (enums[i].name.type == TOKEN_IDENTIFIER && // Avoid anonymous enums
+					strncmp(enums[i].name.begin, token.begin, Min(enums[i].name.size, token.size)) == 0)
+			{
+				result = TYPE_ENUM;
+				return result;
 			}
 		}
 	}
@@ -472,213 +515,310 @@ Type ParseType(Token token, DynamicArray_Struct &structs)
 	return result;
 }
 
-void PrintStructs(DynamicArray_Struct &structs)
+Token *ReadStruct(Token *token, Struct *struct_, DynamicArray_Struct &structs, DynamicArray_Enum
+		&enums)
 {
-	for (u32 structIdx = 0; structIdx < structs.size; ++structIdx)
+	if (token->type != '{')
 	{
-		Struct *struct_ = &structs[structIdx];
+		Log("ERROR! Reading struct, expected {\n");
+		return token;
+	}
+	++token;
 
-		Log("Struct '%.*s'\n", struct_->name.size, struct_->name.begin);
+	int scopeLevel = 1;
+	while (scopeLevel && token->type != TOKEN_END_OF_FILE)
+	{
+		StructMember member = {};
 
-		for (int memberIdx = 0; memberIdx < struct_->memberCount; ++memberIdx)
+		while (token->type == TOKEN_PREPROCESSOR_DIRECTIVE)
+			++token;
+
+		if (TokenIsStr(token, "static"))
 		{
-			StructMember *member = &struct_->members[memberIdx];
-			Log("    Member: %s ", basicTypeStrings[member->type],
-					member->typeInfo.name.size, member->typeInfo.name.begin,
-					member->name.size, member->name.begin);
+			member.typeInfo.isStatic = true;
+			++token;
+		}
 
-			char buffer[256];
-			PrintTypeInfo(buffer, &member->typeInfo);
-			Log("%s", buffer);
+		if (TokenIsStr(token, "const"))
+		{
+			member.typeInfo.isConst = true;
+			++token;
+		}
 
-			Log("%.*s\n", member->name.size, member->name.begin);
+		bool anonymousType = false;
+		char *anonymousTypeName = nullptr;
+		while (TokenIsStr(token, "struct") || TokenIsStr(token, "union"))
+		{
+			++token;
+			if (token->type != '{')
+			{
+				Log("ERROR! Parsing struct, expected {\n");
+				break;
+			}
+
+			// Check if it's unnamed union/struct
+			Token *lookAheadToken = token + 1;
+			int lookAheadScopeLevel = 1;
+			while (lookAheadScopeLevel && lookAheadToken->type != TOKEN_END_OF_FILE)
+			{
+				if (lookAheadToken->type == '{')
+					++lookAheadScopeLevel;
+				else if (lookAheadToken->type == '}')
+					--lookAheadScopeLevel;
+				++lookAheadToken;
+			}
+
+			if (lookAheadToken->type != TOKEN_IDENTIFIER)
+			{
+				// Unnamed union/struct
+				// We ignore anonymous, name-less strucs/unions. They only group things together
+				// but since we don't care about the offset of things we don't care about them
+				// at all!
+				++scopeLevel;
+				++token;
+			}
+			else
+			{
+				// Named union/struct
+				anonymousType = true;
+
+				anonymousTypeName = (char *)malloc(512);
+				sprintf(anonymousTypeName, "anonstruct_%.*s_%.*s",
+						struct_->name.size, struct_->name.begin,
+						lookAheadToken->size, lookAheadToken->begin);
+				Log("generated name: %s\n", anonymousTypeName);
+				break;
+			}
+		}
+
+		if (anonymousType)
+		{
+			member.type = TYPE_STRUCT;
+			Token nameToken = {};
+			nameToken.type = TOKEN_IDENTIFIER;
+			nameToken.begin = anonymousTypeName;
+			nameToken.size = (int)strlen(anonymousTypeName);
+			member.typeInfo.name = nameToken;
+
+			Struct anonstruct = {};
+			anonstruct.name = nameToken;
+			token = ReadStruct(token, &anonstruct, structs, enums);
+			structs[DynamicArrayAdd_Struct(&structs, realloc)] = anonstruct;
+		}
+		else if (token->type == TOKEN_IDENTIFIER)
+		{
+			member.type = ParseType(*token, structs, enums);
+			member.typeInfo.name = *token;
+			++token;
+		}
+
+		while (1)
+		{
+			member.typeInfo.ptrLevels = 0;
+
+			while (token->type == '*')
+			{
+				++member.typeInfo.ptrLevels;
+				++token;
+			}
+
+			if (token->type == TOKEN_IDENTIFIER)
+			{
+				member.name = *token;
+				++token;
+			}
+
+			if (token->type == '[')
+			{
+				++token;
+				if (token->type != TOKEN_LITERAL_NUMBER)
+				{
+					Log("ERROR! Non-literal array sizes not supported yet!\n");
+					// @Incomplete: parse array members!
+					while (token->type != ']')
+					{
+						++token;
+					}
+				}
+				else
+				{
+					member.typeInfo.count = atoi(token->begin);
+					++token;
+					ASSERT(token->type == ']');
+				}
+				++token;
+			}
+
+			// @Hack: Ignore default values
+			if (token->type == '=')
+			{
+				++token;
+				while (token->type != ';' && token->type != ',')
+					++token;
+			}
+
+			if (member.name.type == TOKEN_IDENTIFIER && member.name.size)
+			{
+				if (!member.typeInfo.isStatic)
+					struct_->members[struct_->memberCount++] = member;
+			}
+			else
+			{
+				Log("WARNING! member with empty name!\n");
+			}
+
+			if (token->type == ',')
+				++token;
+			else
+				break;
+		}
+
+		while (token->type == TOKEN_PREPROCESSOR_DIRECTIVE)
+			++token;
+
+		if (token->type != ';')
+		{
+			Log("ERROR! Reading struct, expected ; got %c\n", token->type);
+		}
+		++token;
+
+		if (token->type == '}')
+		{
+			--scopeLevel;
+			++token;
 		}
 	}
+	ASSERT(token->type != TOKEN_END_OF_FILE);
+	return token;
 }
 
-void ReadStructs(DynamicArray_Token &tokens, DynamicArray_Struct &structs)
+void ReadStructsAndEnums(DynamicArray_Token &tokens, DynamicArray_Struct &structs, DynamicArray_Enum &enums)
 {
 	DynamicArrayInit_Struct(&structs, 256, malloc);
+	DynamicArrayInit_Enum(&enums, 256, malloc);
 
-	for (u32 tokenIdx = 0; tokenIdx < tokens.size; ++tokenIdx)
+	for (Token *token = &tokens[0]; token->type != TOKEN_END_OF_FILE; )
 	{
-		Token *token = &tokens[tokenIdx];
 		if (token->type == TOKEN_IDENTIFIER)
 		{
-			if (strncmp(token->begin, "struct", token->size) == 0 ||
-				strncmp(token->begin, "union", token->size) == 0) // @Improve
+			if (TokenIsStr(token, "struct") || TokenIsStr(token, "union")) // @Improve
 			{
 				Struct struct_ = {};
 
-				token = &tokens[++tokenIdx];
+				++token;
 				if (token->type == TOKEN_IDENTIFIER)
 				{
 					struct_.name = *token;
 					Log("Found struct of name '%.*s'\n", token->size, token->begin);
-					token = &tokens[++tokenIdx];
+					++token;
 				}
 				else
 				{
-					Log("Found annonymous struct\n");
+					Log("Found anonymous struct\n");
 				}
 
 				if (token->type == ';')
 				{
 					// Just declaration
-					token = &tokens[++tokenIdx];
+					++token;
 					continue;
 				}
 
-				if (token->type != '{')
-				{
-					Log("ERROR! Reading struct, expected {\n");
-					return;
-				}
-				token = &tokens[++tokenIdx];
-
-				int scopeLevel = 1;
-				while (scopeLevel && token->type != TOKEN_END_OF_FILE)
-				{
-					StructMember member = {};
-
-					while (token->type == TOKEN_PREPROCESSOR_DIRECTIVE)
-						token = &tokens[++tokenIdx];
-
-					if (token->type == TOKEN_IDENTIFIER &&
-							strncmp(token->begin, "static", token->size) == 0)
-					{
-						member.typeInfo.isStatic = true;
-						token = &tokens[++tokenIdx];
-					}
-
-					if (token->type == TOKEN_IDENTIFIER &&
-							strncmp(token->begin, "const", token->size) == 0)
-					{
-						member.typeInfo.isConst = true;
-						token = &tokens[++tokenIdx];
-					}
-
-					bool annonymousType = false;
-					if (token->type == TOKEN_IDENTIFIER && (
-							strncmp(token->begin, "struct", token->size) == 0 ||
-							strncmp(token->begin, "union", token->size) == 0))
-					{
-						// @Hack
-						if ((token + 1)->type == '{')
-						{
-							// Check if it's unnamed union/struct
-							Token *t = token + 1;
-							while (t->type != '}' && t->type != TOKEN_END_OF_FILE)
-								++t;
-							++t;
-							if (t->type != TOKEN_IDENTIFIER)
-							{
-								// Unnamed union/struct
-								++scopeLevel;
-								token = &tokens[++tokenIdx];
-								token = &tokens[++tokenIdx];
-							}
-							else
-							{
-								// Named union/struct
-								annonymousType = true;
-
-								while (token->type != '}' && token->type != TOKEN_END_OF_FILE)
-									token = &tokens[++tokenIdx];
-								token = &tokens[++tokenIdx];
-							}
-						}
-					}
-
-					if (!annonymousType && token->type == TOKEN_IDENTIFIER)
-					{
-						member.type = ParseType(*token, structs);
-						member.typeInfo.name = *token;
-						token = &tokens[++tokenIdx];
-					}
-
-					while (1)
-					{
-						member.typeInfo.ptrLevels = 0;
-
-						while (token->type == '*')
-						{
-							++member.typeInfo.ptrLevels;
-							token = &tokens[++tokenIdx];
-						}
-
-						if (token->type == TOKEN_IDENTIFIER)
-						{
-							member.name = *token;
-							token = &tokens[++tokenIdx];
-						}
-
-						if (token->type == '[')
-						{
-							token = &tokens[++tokenIdx];
-							if (token->type != TOKEN_LITERAL_NUMBER)
-							{
-								Log("ERROR! Non-literal array sizes not supported yet!\n");
-								// @Incomplete: parse array members!
-								while (token->type != ']')
-								{
-									token = &tokens[++tokenIdx];
-								}
-							}
-							else
-							{
-								member.typeInfo.count = atoi(token->begin);
-								token = &tokens[++tokenIdx];
-								ASSERT(token->type == ']');
-							}
-							token = &tokens[++tokenIdx];
-						}
-
-						// @Hack: Ignore default values
-						if (token->type == '=')
-						{
-							token = &tokens[++tokenIdx];
-							while (token->type != ';' && token->type != ',')
-								token = &tokens[++tokenIdx];
-						}
-
-						if (member.name.type == TOKEN_IDENTIFIER && member.name.size)
-						{
-							if (!member.typeInfo.isStatic)
-								struct_.members[struct_.memberCount++] = member;
-						}
-						else
-						{
-							Log("WARNING! member with empty name!\n");
-						}
-
-						if (token->type == ',')
-							token = &tokens[++tokenIdx];
-						else
-							break;
-					}
-
-					while (token->type == TOKEN_PREPROCESSOR_DIRECTIVE)
-						token = &tokens[++tokenIdx];
-
-					if (token->type != ';')
-					{
-						Log("ERROR! Reading struct, expected ; got %c\n", token->type);
-					}
-					token = &tokens[++tokenIdx];
-
-					if (token->type == '}')
-					{
-						--scopeLevel;
-						token = &tokens[++tokenIdx];
-					}
-				}
+				token = ReadStruct(token, &struct_, structs, enums);
 
 				if (struct_.name.type == TOKEN_IDENTIFIER && struct_.name.size)
 				{
 					structs[DynamicArrayAdd_Struct(&structs, realloc)] = struct_;
 				}
 			}
+			else if (strncmp(token->begin, "enum", token->size) == 0)
+			{
+				Enum enum_ = {};
+				DynamicArrayInit_EnumValue(&enum_.values, 32, malloc);
+
+				++token;
+				if (token->type == TOKEN_IDENTIFIER)
+				{
+					enum_.name = *token;
+					Log("Found enum of name '%.*s'\n", token->size, token->begin);
+					++token;
+				}
+				else
+				{
+					Log("Found anonymous enum\n");
+				}
+
+				if (token->type == ';')
+				{
+					// Just declaration
+					++token;
+					continue;
+				}
+
+				if (token->type != '{')
+				{
+					Log("ERROR! Reading enum, expected {\n");
+					return;
+				}
+				++token;
+
+				while (token->type != TOKEN_END_OF_FILE)
+				{
+					EnumValue enumValue = {};
+
+					while (token->type == TOKEN_PREPROCESSOR_DIRECTIVE)
+						++token;
+
+					if (token->type == TOKEN_IDENTIFIER)
+					{
+						enumValue.name = *token;
+						++token;
+					}
+
+					// Ignore values, we can offload them to the compiler
+					if (token->type == '=')
+					{
+						++token;
+						while (token->type != ',' && token->type != '}')
+							++token;
+					}
+
+					//Log("%.*s.%.*s\n", enum_.name.size, enum_.name.begin, enumValue.name.size,
+							//enumValue.name.begin);
+					enum_.values[DynamicArrayAdd_EnumValue(&enum_.values, realloc)] = enumValue;
+
+					if (token->type == ',')
+					{
+						++token;
+						continue;
+					}
+					else if (token->type == '}')
+					{
+						++token;
+						break;
+					}
+					else
+					{
+						Log("ERROR! Reading enum, expected ,/} got %c(0x%X)\n", token->type,
+								token->type);
+						break;
+					}
+				}
+				ASSERT(token->type != TOKEN_END_OF_FILE);
+
+				if (enum_.name.type == TOKEN_IDENTIFIER && enum_.name.size)
+				{
+					enums[DynamicArrayAdd_Enum(&enums, realloc)] = enum_;
+				}
+			}
+			else
+			{
+				++token;
+			}
+		}
+		else
+		{
+			++token;
 		}
 	}
 }
@@ -992,9 +1132,9 @@ void WritePlatformCodeFiles(DynamicArray_Procedure &procedures)
 	PlatformCloseFile(file);
 }
 
-void WriteReflectionFile(DynamicArray_Struct &structs)
+void WriteTypeInfoFiles(DynamicArray_Struct &structs, DynamicArray_Enum &enums)
 {
-	FileHandle file = PlatformOpenForWrite("gen/Reflection.h");
+	FileHandle file = PlatformOpenForWrite("gen/TypeInfo.h");
 
 	PrintToFile(file, "#if DEBUG_BUILD\n");
 
@@ -1003,15 +1143,27 @@ void WriteReflectionFile(DynamicArray_Struct &structs)
 		PrintToFile(file, "\t%s,\n", TypeStrings[i]);
 	PrintToFile(file, "};\n\n");
 
-	PrintToFile(file, "struct StructInfo;\n");
+	PrintToFile(file, "struct EnumValue\n{\n");
+	PrintToFile(file,   "\tconst char *name;\n");
+	PrintToFile(file,   "\ti64 value;\n");
+	PrintToFile(file, "};\n\n");
+
+	PrintToFile(file, "struct EnumInfo\n{\n");
+	PrintToFile(file,   "\tconst char *name;\n");
+	PrintToFile(file,   "\tu32 valueCount;\n");
+	PrintToFile(file,   "\tconst EnumValue *values;\n");
+	PrintToFile(file, "};\n\n");
+
+	//PrintToFile(file, "struct StructInfo;\n");
 
 	PrintToFile(file, "struct StructMember\n{\n");
 	PrintToFile(file,   "\tconst char *name;\n");
 	PrintToFile(file,   "\tType type;\n");
 	PrintToFile(file,   "\tu32 pointerLevels;\n");
 	PrintToFile(file,   "\tu32 arrayCount;\n");
+	PrintToFile(file,   "\tu64 size;\n");
 	PrintToFile(file,   "\tu64 offset;\n");
-	PrintToFile(file,   "\tconst StructInfo *structInfo;\n");
+	PrintToFile(file,   "\tconst void *typeInfo;\n");
 	PrintToFile(file, "};\n\n");
 
 	PrintToFile(file, "struct StructInfo\n{\n");
@@ -1020,6 +1172,57 @@ void WriteReflectionFile(DynamicArray_Struct &structs)
 	PrintToFile(file,   "\tconst StructMember *members;\n");
 	PrintToFile(file, "};\n\n");
 
+	// ENUMS
+	for (u32 enumIdx = 0; enumIdx < enums.size; ++enumIdx)
+	{
+		Enum *enum_ = &enums[enumIdx];
+
+		PrintToFile(file, "extern const EnumInfo enumInfo_%.*s;\n", enum_->name.size,
+				enum_->name.begin);
+	}
+
+	// STRUCTS
+	for (u32 structIdx = 0; structIdx < structs.size; ++structIdx)
+	{
+		Struct *struct_ = &structs[structIdx];
+
+		PrintToFile(file, "extern const StructInfo typeInfo_%.*s;\n", struct_->name.size,
+				struct_->name.begin);
+	}
+
+	PrintToFile(file, "#endif\n");
+	PlatformCloseFile(file);
+
+	file = PlatformOpenForWrite("gen/TypeInfo.cpp");
+	PrintToFile(file, "#if DEBUG_BUILD\n");
+
+	// ENUMS
+	for (u32 enumIdx = 0; enumIdx < enums.size; ++enumIdx)
+	{
+		Enum *enum_ = &enums[enumIdx];
+
+		PrintToFile(file, "const EnumValue _enumInfoValues_%.*s[] =\n{\n", enum_->name.size,
+				enum_->name.begin);
+		for (u32 valueIdx = 0; valueIdx < enum_->values.size; ++valueIdx)
+		{
+			EnumValue *value = &enum_->values[valueIdx];
+			PrintToFile(file, "\t{ \"%.*s\", ", value->name.size, value->name.begin);
+			PrintToFile(file, "%.*s", value->name.size, value->name.begin);
+			PrintToFile(file, " },\n");
+		}
+		PrintToFile(file, "};\n");
+
+		PrintToFile(file, "const EnumInfo enumInfo_%.*s = { ", enum_->name.size,
+				enum_->name.begin);
+
+		PrintToFile(file, "\"%.*s\", ", enum_->name.size, enum_->name.begin);
+		PrintToFile(file, "%d, ", enum_->values.size);
+		PrintToFile(file, "_enumInfoValues_%.*s ", enum_->name.size, enum_->name.begin);
+
+		PrintToFile(file, "};\n\n");
+	}
+
+	// STRUCTS
 	for (u32 structIdx = 0; structIdx < structs.size; ++structIdx)
 	{
 		Struct *struct_ = &structs[structIdx];
@@ -1033,15 +1236,55 @@ void WriteReflectionFile(DynamicArray_Struct &structs)
 			PrintToFile(file, "%s, ", TypeStrings[member->type]);
 			PrintToFile(file, "%d, ", member->typeInfo.ptrLevels);
 			PrintToFile(file, "%d, ", member->typeInfo.count);
-			PrintToFile(file, "offsetof(%.*s, %.*s)", struct_->name.size,
-					struct_->name.begin, member->name.size, member->name.begin);
+
+			// Offset of
+			const char *anonstruct = "anonstruct_";
+			bool isAnonstruct = strncmp(struct_->name.begin, anonstruct, strlen(anonstruct)) == 0;
+			if (isAnonstruct)
+			{
+				// name is of the form "anonstruct_ParentStruct_Member"
+				const char *parentStruct = struct_->name.begin + strlen(anonstruct);
+
+				const char *memberName = parentStruct;
+				while (*memberName != '_')
+					++memberName;
+				++memberName;
+
+				const i64 parentStructSize = memberName - parentStruct - 1; // -1 for the _
+				const i64 memberNameSize = struct_->name.begin + struct_->name.size - memberName;
+
+				PrintToFile(file, "sizeof(%.*s::%.*s.%.*s), ",
+						parentStructSize, parentStruct,
+						memberNameSize, memberName,
+						member->name.size, member->name.begin);
+
+				PrintToFile(file, "offsetof(%.*s, %.*s.%.*s) - offsetof(%.*s, %.*s)",
+						parentStructSize, parentStruct,
+						memberNameSize, memberName,
+						member->name.size, member->name.begin,
+						parentStructSize, parentStruct,
+						memberNameSize, memberName);
+			}
+			else
+			{
+				PrintToFile(file, "sizeof(%.*s::%.*s), ", struct_->name.size,
+						struct_->name.begin, member->name.size, member->name.begin);
+
+				PrintToFile(file, "offsetof(%.*s, %.*s)", struct_->name.size,
+						struct_->name.begin, member->name.size, member->name.begin);
+			}
+
 			if (member->type == TYPE_STRUCT)
 			{
 				PrintToFile(file, ", &typeInfo_%.*s", member->typeInfo.name.size,
 						member->typeInfo.name.begin);
 			}
-			PrintToFile(file, " },\n", struct_->name.size,
-					struct_->name.begin, member->name.size, member->name.begin);
+			else if (member->type == TYPE_ENUM)
+			{
+				PrintToFile(file, ", &enumInfo_%.*s", member->typeInfo.name.size,
+						member->typeInfo.name.begin);
+			}
+			PrintToFile(file, " },\n");
 		}
 		PrintToFile(file, "};\n");
 
@@ -1052,7 +1295,7 @@ void WriteReflectionFile(DynamicArray_Struct &structs)
 		PrintToFile(file, "%d, ", struct_->memberCount);
 		PrintToFile(file, "_typeInfoMembers_%.*s ", struct_->name.size, struct_->name.begin);
 
-		PrintToFile(file, "};\n\n");
+		PrintToFile(file, "};\n");
 	}
 
 	PrintToFile(file, "#endif\n");
@@ -1072,17 +1315,17 @@ int main(int argc, char **argv)
 
 	Log("%s - %s\n", argv[0], argv[1]);
 
-#if 0
+#if 1
 	const char *gameFile = "src/Game.cpp";
 	DynamicArray_Token gameTokens;
 	DynamicArrayInit_Token(&gameTokens, 4096, malloc);
 	ParseFile(gameFile, gameTokens);
 
 	DynamicArray_Struct structs;
-	ReadStructs(gameTokens, structs);
-	PrintStructs(structs);
+	DynamicArray_Enum enums;
+	ReadStructsAndEnums(gameTokens, structs, enums);
 
-	WriteReflectionFile(structs);
+	WriteTypeInfoFiles(structs, enums);
 #endif
 
 	DynamicArray_Procedure procedures;

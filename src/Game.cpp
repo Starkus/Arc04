@@ -23,6 +23,7 @@
 #define EDITOR_PRESENT 0
 #endif
 
+#include "TypeInfo.h"
 #include "RandomTable.h"
 #include "Maths.h"
 #include "MemoryAlloc.h"
@@ -33,7 +34,6 @@
 #include "PlatformCode.h"
 #include "Containers.h"
 #include "Game.h"
-//#include "Reflection.h"
 
 Memory *g_memory;
 #if DEBUG_BUILD
@@ -470,6 +470,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 #endif
 
 	ImguiShowDebugWindow(gameState);
+	ImguiShowGameStateWindow(gameState);
 	ImguiShowEditWindow(gameState);
 #endif
 
@@ -1203,3 +1204,5 @@ void CleanupGame(GameState *gameState)
 	(void) gameState;
 	return;
 }
+
+#include "TypeInfo.cpp"

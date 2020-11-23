@@ -40,7 +40,7 @@ struct SkinnedMeshInstance
 {
 	EntityHandle entityHandle;
 	const Resource *meshRes;
-	int animationIdx;
+	i32 animationIdx;
 	f32 animationTime;
 };
 

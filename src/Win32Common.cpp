@@ -234,3 +234,18 @@ bool PlatformIsDirectory(const char *filename)
 {
 	return GetFileAttributesA(filename) & FILE_ATTRIBUTE_DIRECTORY;
 }
+
+PLATFORMPROC bool PlatformCanReadMemory(const void *ptr)
+{
+	MEMORY_BASIC_INFORMATION info;
+	if (VirtualQuery(ptr, &info, sizeof(info)) == 0)
+		return false;
+
+	if (info.State != MEM_COMMIT)
+		return false;
+
+	if (info.Protect == PAGE_NOACCESS || info.Protect == PAGE_EXECUTE)
+		return false;
+
+	return true;
+}
