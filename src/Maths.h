@@ -526,6 +526,11 @@ inline v4 V4Normalize(const v4 &a)
 	return result;
 }
 
+inline v4 V4Scale(const v4 &v, const v4 &scale)
+{
+	return v4{ v.x * scale.x, v.y * scale.y, v.z * scale.z, v.w * scale.w };
+}
+
 inline f32 Mat4Determinant(const mat4 &m)
 {
 	f32 result = m.m00 *

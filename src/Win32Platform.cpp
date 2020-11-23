@@ -59,8 +59,8 @@ ResourceBank *g_resourceBank;
 ImGuiTextBuffer *g_imguiLogBuffer;
 bool g_showConsole;
 #endif
-u32 g_windowWidth = 1440;
-u32 g_windowHeight = 810;
+u32 g_windowWidth = 1888;
+u32 g_windowHeight = 1062;
 Win32GameCode g_gameCode;
 
 #include "Win32Common.cpp"

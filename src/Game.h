@@ -63,12 +63,17 @@ struct ParticleSystem
 	EntityHandle entityHandle;
 	DeviceMesh deviceBuffer;
 	f32 timer;
-	f32 spawnRate;
-	f32 maxLife;
+	u8 atlasIdx;
+	f32 spawnRate = 0.1f;
+	f32 maxLife = 1.0f;
+	f32 initialSize = 0.1f;
+	f32 sizeSpread;
+	f32 sizeOverTime;
 	v3 initialVel;
 	v3 initialVelSpread;
 	v3 acceleration;
-	v4 initialColor;
+	v4 initialColor = { 1, 1, 1, 1 };
+	v4 colorSpread;
 	v4 colorDelta;
 	bool alive[256]; // @Improve
 	ParticleBookkeep bookkeeps[256];

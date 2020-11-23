@@ -653,8 +653,16 @@ Token *ReadStruct(Token *token, Struct *struct_, DynamicArray_Struct &structs, D
 			if (token->type == '=')
 			{
 				++token;
-				while (token->type != ';' && token->type != ',')
+				Log("Ignoring default value!\n");
+				int defaultValueScopeLevel = 0;
+				while (defaultValueScopeLevel || (token->type != ';' && token->type != ','))
+				{
+					if (token->type == '{')
+						++defaultValueScopeLevel;
+					else if (token->type == '}')
+						--defaultValueScopeLevel;
 					++token;
+				}
 			}
 
 			if (member.name.type == TOKEN_IDENTIFIER && member.name.size)
@@ -678,7 +686,7 @@ Token *ReadStruct(Token *token, Struct *struct_, DynamicArray_Struct &structs, D
 
 		if (token->type != ';')
 		{
-			Log("ERROR! Reading struct, expected ; got %c\n", token->type);
+			Log("ERROR! Reading struct, expected ; got 0x%X(%c)\n", token->type, token->type);
 		}
 		++token;
 

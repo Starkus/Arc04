@@ -239,6 +239,7 @@ GAMEDLL START_GAME(StartGame)
 		LoadResource(RESOURCETYPE_SKINNEDMESH, "data/Jumper.b");
 		LoadResource(RESOURCETYPE_LEVELGEOMETRYGRID, "data/level.b");
 		LoadResource(RESOURCETYPE_COLLISIONMESH, "data/anvil_collision.b");
+		LoadResource(RESOURCETYPE_TEXTURE, "data/particle_atlas.b");
 
 		const Resource *texAlb = LoadResource(RESOURCETYPE_TEXTURE, "data/sparkus_albedo.b");
 		const Resource *texNor = LoadResource(RESOURCETYPE_TEXTURE, "data/sparkus_normal.b");
@@ -354,14 +355,6 @@ GAMEDLL START_GAME(StartGame)
 		skinnedMeshInstance->animationIdx = PLAYERANIM_IDLE;
 		skinnedMeshInstance->animationTime = 0;
 		playerEnt->skinnedMeshInstance = skinnedMeshInstance;
-
-		ParticleSystem *particleSystem =
-			&gameState->particleSystems[gameState->particleSystemCount++];
-		particleSystem->entityHandle = playerEntityHandle;
-		particleSystem->deviceBuffer = CreateDeviceMesh(0);
-		particleSystem->spawnRate = 0.01f;
-		particleSystem->maxLife = 2.0f;
-		playerEnt->particleSystem = particleSystem;
 	}
 
 	// Init camera
@@ -470,7 +463,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 #endif
 
 	ImguiShowDebugWindow(gameState);
-	ImguiShowGameStateWindow(gameState);
+	//ImguiShowGameStateWindow(gameState);
 	ImguiShowEditWindow(gameState);
 #endif
 
@@ -1024,11 +1017,18 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		UniformMat4Array(projUniform, 1, proj.m);
 		UniformMat4Array(viewUniform, 1, view.m);
 
+		DeviceUniform atlasIdxUniform = GetUniform(gameState->particleSystemProgram, "atlasIdx");
+
+		const Resource *tex = GetResource("data/particle_atlas.b");
+		BindTexture(tex->texture.deviceTexture, 0);
+
 		for (u32 partSysIdx = 0; partSysIdx < gameState->particleSystemCount;
 				++partSysIdx)
 		{
 			ParticleSystem *particleSystem = &gameState->particleSystems[partSysIdx];
 			Entity *entity = GetEntity(gameState, particleSystem->entityHandle);
+
+			UniformInt(atlasIdxUniform, particleSystem->atlasIdx);
 
 			const int maxCount = ArrayCount(particleSystem->particles);
 			particleSystem->timer += deltaTime;
@@ -1050,16 +1050,28 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 							v3 spread =
 							{
-								GetRandom() / (f32)U32_MAX - 0.5f,
-								GetRandom() / (f32)U32_MAX - 0.5f,
-								GetRandom() / (f32)U32_MAX - 0.5f
+								GetRandomF32() - 0.5f,
+								GetRandomF32() - 0.5f,
+								GetRandomF32() - 0.5f
 							};
 							spread = V3Scale(spread, particleSystem->initialVelSpread);
 							particleSystem->bookkeeps[i].velocity = particleSystem->initialVel + spread;
 
 							particleSystem->particles[i].pos = entity->pos;
-							particleSystem->particles[i].size = 0.1f;
-							particleSystem->particles[i].color = particleSystem->initialColor;
+
+							particleSystem->particles[i].size = particleSystem->initialSize +
+								(GetRandomF32() - 0.5f) * particleSystem->sizeSpread;
+
+							v4 colorSpread =
+							{
+								GetRandomF32() - 0.5f,
+								GetRandomF32() - 0.5f,
+								GetRandomF32() - 0.5f,
+								GetRandomF32() - 0.5f
+							};
+							colorSpread = V4Scale(colorSpread, particleSystem->colorSpread);
+							particleSystem->particles[i].color = particleSystem->initialColor +
+								colorSpread;
 							break;
 						}
 					}
@@ -1083,7 +1095,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				bookkeep->velocity += particleSystem->acceleration * deltaTime;
 				particleSystem->particles[i].pos += bookkeep->velocity * deltaTime;
 				particleSystem->particles[i].color += particleSystem->colorDelta * deltaTime;
-				particleSystem->particles[i].size += 0.1f * deltaTime;
+				particleSystem->particles[i].size += particleSystem->sizeOverTime * deltaTime;
 			}
 
 			// Sort!
@@ -1100,19 +1112,28 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			memcpy(particlesCopy, particleSystem->particles, sizeof(particleSystem->particles));
 			qsort(particlesCopy, maxCount, sizeof(Particle), compareParticles);
 
+			// Assert order is right
+			for (int i = 0; i < maxCount - 1; ++i)
+			{
+				v3 cam = Mat4TransformPosition(Mat4Adjugate(view), v3{});
+				f32 aDist = V3SqrLen(particlesCopy[i].pos - cam);
+				f32 bDist = V3SqrLen(particlesCopy[i + 1].pos - cam);
+				ASSERT(aDist >= bDist);
+			}
+
 			SendMesh(&particleSystem->deviceBuffer,
 					particlesCopy,
-					ArrayCount(particleSystem->particles),
+					maxCount,
 					sizeof(particleSystem->particles[0]), true);
 
-			//DisableDepthTest();
+			DisableDepthWriting();
 			EnableAlphaBlending();
 			u32 meshAttribs = RENDERATTRIB_VERTEXNUM;
 			u32 instAttribs = RENDERATTRIB_POSITION | RENDERATTRIB_COLOR4 | RENDERATTRIB_1CUSTOMF32;
 			RenderMeshInstanced(gameState->particleMesh, particleSystem->deviceBuffer, meshAttribs,
 					instAttribs);
 			DisableAlphaBlending();
-			//EnableDepthTest();
+			EnableDepthWriting();
 		}
 
 #if DEBUG_BUILD

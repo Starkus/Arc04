@@ -520,3 +520,8 @@ inline u32 GetRandom()
 	randomIndex %= ArrayCount(RANDOM);
 	return result;
 }
+
+inline f32 GetRandomF32()
+{
+	return GetRandom() / (f32)U32_MAX;
+}

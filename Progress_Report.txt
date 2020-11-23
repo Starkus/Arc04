@@ -1,6 +1,6 @@
 ## PROGRESS REPORT
 
-* Code hot reload (mod game to push things)
-* Bakery daemon
-* Resource hot reload (modify level/shaders)
-* Imgui
+* Collider picking with mouse cursor
+* Type info structs generation (show anonymous unions/structs too)
+* Generated editor windows
+* Particle systems

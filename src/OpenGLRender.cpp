@@ -62,6 +62,16 @@ PLATFORMPROC void DisableDepthTest()
 	glDisable(GL_DEPTH_TEST);
 }
 
+PLATFORMPROC void EnableDepthWriting()
+{
+	glDepthMask(true);
+}
+
+PLATFORMPROC void DisableDepthWriting()
+{
+	glDepthMask(false);
+}
+
 PLATFORMPROC void EnableAlphaBlending()
 {
 	glEnable(GL_BLEND);
@@ -408,8 +418,27 @@ PLATFORMPROC void SendTexture(DeviceTexture texture, const void *imageData, u32 
 {
 	GLDeviceTexture *glTexture = (GLDeviceTexture *)&texture;
 	glBindTexture(GL_TEXTURE_2D, glTexture->texture);
-	const GLenum mode = components == 4 ? GL_RGBA : GL_RGB;
-	const GLenum format = components == 4 ? GL_RGBA : GL_RGB;
+	GLenum mode = GL_RGB8;
+	GLenum format = GL_RGB;
+	switch (components)
+	{
+	case 1:
+		mode = GL_R8;
+		format = GL_RED;
+		break;
+	case 2:
+		mode = GL_RG8;
+		format = GL_RG;
+		break;
+	case 3:
+		mode = GL_RGB8;
+		format = GL_RGB;
+		break;
+	case 4:
+		mode = GL_RGBA8;
+		format = GL_RGBA;
+		break;
+	}
 	glTexImage2D(GL_TEXTURE_2D, 0, mode, width, height, 0, format, GL_UNSIGNED_BYTE, imageData);
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);

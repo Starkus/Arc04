@@ -5,7 +5,6 @@ layout (location = 2) in vec3 nor;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
-uniform sampler2D texSampler;
 out vec2 uv;
 out vec3 normal;
 
