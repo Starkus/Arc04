@@ -1,12 +1,10 @@
-// @Todo: remove capacity_ from Array outside debug builds
-
 #ifndef DECLARE_ARRAY
 #define DECLARE_ARRAY(_TYPE) \
 struct Array_##_TYPE \
 { \
 	_TYPE *data; \
 	u32 size; \
-	u32 capacity_; \
+	DEBUG_ONLY(u32 capacity_;) \
 	\
 	_TYPE &operator[](int idx) \
 	{ \
@@ -26,7 +24,7 @@ inline void ArrayInit_##_TYPE(Array_##_TYPE *array, u32 capacity, \
 { \
 	array->data = (_TYPE *)allocFunc(sizeof(_TYPE) * capacity); \
 	array->size = 0; \
-	array->capacity_ = capacity; \
+	DEBUG_ONLY(array->capacity_ = capacity;) \
 } \
 \
 inline _TYPE *ArrayAdd_##_TYPE(Array_##_TYPE *array) \

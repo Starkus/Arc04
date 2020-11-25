@@ -20,6 +20,12 @@
 #define EPA_LOGGING 0
 #define EPA_ERROR_LOGGING 1
 
+#if DEBUG_BUILD
+#define DEBUG_ONLY(...) __VA_ARGS__
+#else
+#define DEBUG_ONLY(...)
+#endif
+
 typedef int8_t  i8;
 typedef int16_t i16;
 typedef int32_t i32;
