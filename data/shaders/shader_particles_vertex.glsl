@@ -8,6 +8,7 @@ uniform mat4 projection;
 uniform int atlasIdx;
 out vec2 uv;
 out vec4 color;
+out vec2 screenPos;
 
 vec2 corners[] = vec2[4](
 	vec2(-1, -1),
@@ -36,4 +37,6 @@ void main()
 	uv = (uvs[vertexNum] + vec2(atlasX, atlasY)) * 0.25;
 
 	color = inColor;
+
+	screenPos = 0.5 * gl_Position.xy / gl_Position.w - vec2(0.5);
 }

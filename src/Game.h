@@ -224,6 +224,10 @@ struct GameState
 	// @Cleanup: move to some Render Device Context or something?
 	DeviceProgram program, skinnedMeshProgram, particleSystemProgram;
 	DeviceMesh particleMesh;
+	// Frame buffer
+	DeviceFrameBuffer frameBuffer;
+	DeviceTexture frameBufferColorTex, frameBufferDepthTex;
+	DeviceProgram frameBufferProgram;
 };
 
 struct Button

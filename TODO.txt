@@ -1,10 +1,11 @@
 ## TODO
 
 # Next up?
+- Soft particles (smooth-out clipping using Z-buffer)
 - Implement some persistent state with save/load (option to reset easily)
 - Design how to link entities with 'components' (mesh to render, collider, etc.)
 - Materials... bind textures/programs depending on mesh.
-- Raycast against AABBs before colliders.
+- Raycast against AABBs/sphere before colliders.
 - BVH for entities
 - Non axis aligned colliders
 - Import scenes/levels from .dae? We already do geometry but should we import more things?

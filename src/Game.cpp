@@ -229,6 +229,21 @@ GAMEDLL START_GAME(StartGame)
 	{
 		SetUpDevice();
 
+		// Render buffer
+		{
+			u32 w, h;
+			GetWindowSize(&w, &h);
+
+			gameState->frameBufferColorTex = CreateDeviceTexture();
+			SendTexture(gameState->frameBufferColorTex, nullptr, w, h, RENDERIMAGECOMPONENTS_3);
+
+			gameState->frameBufferDepthTex = CreateDeviceTexture();
+			SendTexture(gameState->frameBufferDepthTex, nullptr, w, h, RENDERIMAGECOMPONENTS_DEPTH24);
+
+			gameState->frameBuffer = CreateDeviceFrameBuffer(gameState->frameBufferColorTex,
+					gameState->frameBufferDepthTex);
+		}
+
 		LoadResource(RESOURCETYPE_MESH, "data/anvil.b");
 		LoadResource(RESOURCETYPE_MESH, "data/cube.b");
 		LoadResource(RESOURCETYPE_MESH, "data/sphere.b");
@@ -301,6 +316,9 @@ GAMEDLL START_GAME(StartGame)
 		const Resource *shaderParticleRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_particles.b");
 		gameState->particleSystemProgram = shaderParticleRes->shader.programHandle;
 
+		const Resource *shaderFrameBufferRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_framebuffer.b");
+		gameState->frameBufferProgram = shaderFrameBufferRes->shader.programHandle;
+
 #if DEBUG_BUILD
 		const Resource *shaderDebugRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_debug.b");
 		g_debugContext->debugDrawProgram = shaderDebugRes->shader.programHandle;
@@ -317,7 +335,7 @@ GAMEDLL START_GAME(StartGame)
 	{
 		// @Improve: render attribs don't matter when the mesh will be used for instanced rendering.
 		// Make more consistent!!
-		DeviceMesh particleMesh = CreateDeviceMesh(0);
+		DeviceMesh particleMesh = CreateDeviceMesh(RENDERATTRIB_VERTEXNUM);
 		// @Improve: triangle strip?
 		u8 data[] = { 0, 1, 2, 2, 1, 3 };
 		SendMesh(&particleMesh, data, ArrayCount(data), sizeof(data[0]), false);
@@ -716,6 +734,24 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 	// Draw
 	{
+		BindFrameBuffer(gameState->frameBuffer);
+		{
+			static u32 lastW, lastH;
+			u32 w, h;
+			GetWindowSize(&w, &h);
+			if (lastW != w || lastH != h)
+			{
+				SetViewport(0, 0, w, h);
+
+				// Update size of frame buffer textures
+				SendTexture(gameState->frameBufferColorTex, nullptr, w, h, RENDERIMAGECOMPONENTS_3);
+				SendTexture(gameState->frameBufferDepthTex, nullptr, w, h, RENDERIMAGECOMPONENTS_DEPTH24);
+
+				lastW = w;
+				lastH = h;
+			}
+		}
+
 		// Projection matrix
 		mat4 proj;
 		{
@@ -1017,10 +1053,16 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		UniformMat4Array(projUniform, 1, proj.m);
 		UniformMat4Array(viewUniform, 1, view.m);
 
+		DeviceUniform texUniform = GetUniform(gameState->particleSystemProgram, "tex");
+		UniformInt(texUniform, 0);
+		DeviceUniform depthBufferUniform = GetUniform(gameState->particleSystemProgram, "depthBuffer");
+		UniformInt(depthBufferUniform, 1);
+
 		DeviceUniform atlasIdxUniform = GetUniform(gameState->particleSystemProgram, "atlasIdx");
 
 		const Resource *tex = GetResource("data/particle_atlas.b");
 		BindTexture(tex->texture.deviceTexture, 0);
+		BindTexture(gameState->frameBufferDepthTex, 1);
 
 		for (u32 partSysIdx = 0; partSysIdx < gameState->particleSystemCount;
 				++partSysIdx)
@@ -1126,14 +1168,14 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					maxCount,
 					sizeof(particleSystem->particles[0]), true);
 
-			DisableDepthWriting();
+			DisableDepthTest();
 			EnableAlphaBlending();
 			u32 meshAttribs = RENDERATTRIB_VERTEXNUM;
 			u32 instAttribs = RENDERATTRIB_POSITION | RENDERATTRIB_COLOR4 | RENDERATTRIB_1CUSTOMF32;
 			RenderMeshInstanced(gameState->particleMesh, particleSystem->deviceBuffer, meshAttribs,
 					instAttribs);
 			DisableAlphaBlending();
-			EnableDepthWriting();
+			EnableDepthTest();
 		}
 
 #if DEBUG_BUILD
@@ -1217,6 +1259,34 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			SetFillMode(RENDER_FILL);
 		}
 #endif
+
+		UnbindFrameBuffer();
+		{
+			static u32 lastW, lastH;
+			u32 w, h;
+			GetWindowSize(&w, &h);
+			if (lastW != w || lastH != h)
+			{
+				SetViewport(0, 0, w, h);
+				lastW = w;
+				lastH = h;
+			}
+		}
+
+		DisableDepthTest();
+
+		UseProgram(gameState->frameBufferProgram);
+
+		DeviceUniform colorUniform = GetUniform(gameState->frameBufferProgram, "texColor");
+		UniformInt(colorUniform, 0);
+		DeviceUniform depthUniform = GetUniform(gameState->frameBufferProgram, "texDepth");
+		UniformInt(depthUniform, 1);
+
+		BindTexture(gameState->frameBufferColorTex, 0);
+		BindTexture(gameState->frameBufferDepthTex, 1);
+		RenderMesh(gameState->particleMesh);
+
+		EnableDepthTest();
 	}
 }
 

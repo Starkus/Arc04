@@ -29,6 +29,7 @@ void LoadOpenGLProcs()
 	GL_GetProc(glBlendFuncSeparate);
 	GL_GetProc(glGenFramebuffers);
 	GL_GetProc(glBindFramebuffer);
+	GL_GetProc(glFramebufferTexture);
 	GL_GetProc(glFramebufferTexture2D);
 	GL_GetProc(glFramebufferRenderbuffer);
 	GL_GetProc(glDrawBuffers);

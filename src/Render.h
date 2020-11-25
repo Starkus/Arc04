@@ -35,6 +35,18 @@ enum RenderBufferAttribs
 	RENDERATTRIB_4CUSTOMF32	= 0x8000
 };
 
+enum RenderImageComponents
+{
+	RENDERIMAGECOMPONENTS_INVALID,
+	RENDERIMAGECOMPONENTS_1,
+	RENDERIMAGECOMPONENTS_2,
+	RENDERIMAGECOMPONENTS_3,
+	RENDERIMAGECOMPONENTS_4,
+	RENDERIMAGECOMPONENTS_DEPTH16,
+	RENDERIMAGECOMPONENTS_DEPTH24,
+	RENDERIMAGECOMPONENTS_DEPTH32
+};
+
 struct DeviceMesh
 {
 	u32 vertexCount; // @Cleanup: remove if unnecessary.
@@ -62,3 +74,7 @@ struct DeviceUniform
 	u8 reserved[4];
 };
 
+struct DeviceFrameBuffer
+{
+	u8 reserved[4];
+};

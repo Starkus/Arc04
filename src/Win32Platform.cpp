@@ -68,6 +68,12 @@ Win32GameCode g_gameCode;
 #include "OpenGLRender.cpp"
 #include "MemoryAlloc.cpp"
 
+PLATFORMPROC void GetWindowSize(u32 *width, u32 *height)
+{
+	*width = g_windowWidth;
+	*height = g_windowHeight;
+}
+
 Resource *CreateResource(const char *filename);
 PLATFORMPROC const Resource *LoadResource(ResourceType type, const char *filename)
 {

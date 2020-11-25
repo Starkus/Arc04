@@ -44,6 +44,13 @@ struct GLDeviceUniform
 static_assert(sizeof(GLDeviceUniform) <= sizeof(DeviceUniform),
 		"Size of GLDeviceUniform greater than handle");
 
+struct GLDeviceFrameBuffer
+{
+	GLuint frameBuffer;
+};
+static_assert(sizeof(GLDeviceFrameBuffer) <= sizeof(DeviceFrameBuffer),
+		"Size of GLDeviceFrameBuffer greater than handle");
+
 PLATFORMPROC void SetUpDevice()
 {
 	glEnable(GL_CULL_FACE);
@@ -414,7 +421,8 @@ PLATFORMPROC void SendIndexedMesh(DeviceMesh *mesh, void *vertexData, u32 vertex
 			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
 }
 
-PLATFORMPROC void SendTexture(DeviceTexture texture, const void *imageData, u32 width, u32 height, u32 components)
+PLATFORMPROC void SendTexture(DeviceTexture texture, const void *imageData, u32 width, u32 height,
+		RenderImageComponents components)
 {
 	GLDeviceTexture *glTexture = (GLDeviceTexture *)&texture;
 	glBindTexture(GL_TEXTURE_2D, glTexture->texture);
@@ -422,21 +430,25 @@ PLATFORMPROC void SendTexture(DeviceTexture texture, const void *imageData, u32 
 	GLenum format = GL_RGB;
 	switch (components)
 	{
-	case 1:
+	case RENDERIMAGECOMPONENTS_1:
 		mode = GL_R8;
 		format = GL_RED;
 		break;
-	case 2:
+	case RENDERIMAGECOMPONENTS_2:
 		mode = GL_RG8;
 		format = GL_RG;
 		break;
-	case 3:
+	case RENDERIMAGECOMPONENTS_3:
 		mode = GL_RGB8;
 		format = GL_RGB;
 		break;
-	case 4:
+	case RENDERIMAGECOMPONENTS_4:
 		mode = GL_RGBA8;
 		format = GL_RGBA;
+		break;
+	case RENDERIMAGECOMPONENTS_DEPTH24:
+		mode = GL_DEPTH_COMPONENT24;
+		format = GL_DEPTH_COMPONENT;
 		break;
 	}
 	glTexImage2D(GL_TEXTURE_2D, 0, mode, width, height, 0, format, GL_UNSIGNED_BYTE, imageData);
@@ -580,7 +592,45 @@ PLATFORMPROC void SetFillMode(RenderFillMode mode)
 	}
 }
 
-void SetViewport(int posX, int posY, int width, int height)
+PLATFORMPROC void SetViewport(int posX, int posY, int width, int height)
 {
 	glViewport(posX, posY, width, height);
+}
+
+PLATFORMPROC DeviceFrameBuffer CreateDeviceFrameBuffer(DeviceTexture colorTex,
+		DeviceTexture depthTex)
+{
+	DeviceFrameBuffer result;
+	GLDeviceFrameBuffer *glBuffer = (GLDeviceFrameBuffer *)&result;
+	GLDeviceTexture *glColorTex = (GLDeviceTexture *)&colorTex;
+	GLDeviceTexture *glDepthTex = (GLDeviceTexture *)&depthTex;
+
+	glGenFramebuffers(1, &glBuffer->frameBuffer);
+	glBindFramebuffer(GL_FRAMEBUFFER, glBuffer->frameBuffer);
+
+	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, glColorTex->texture, 0);
+
+	glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, glDepthTex->texture, 0);
+
+	GLenum drawBuffer = GL_COLOR_ATTACHMENT0;
+	glDrawBuffers(1, &drawBuffer);
+
+	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	if (status != GL_FRAMEBUFFER_COMPLETE)
+	{
+		Log("ERROR! Creating framebuffer! glCheckFramebufferStatus returned 0x%X\n", status);
+	}
+
+	return result;
+}
+
+PLATFORMPROC void BindFrameBuffer(DeviceFrameBuffer buffer)
+{
+	GLDeviceFrameBuffer *glBuffer = (GLDeviceFrameBuffer *)&buffer;
+	glBindFramebuffer(GL_FRAMEBUFFER, glBuffer->frameBuffer);
+}
+
+PLATFORMPROC void UnbindFrameBuffer()
+{
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }

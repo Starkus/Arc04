@@ -84,6 +84,8 @@ void ResourceLoadTexture(Resource *resource, const u8 *fileBuffer, bool initiali
 		resource->texture.deviceTexture = CreateDeviceTexture();
 	}
 
+	ASSERT(resource->texture.components >= RENDERIMAGECOMPONENTS_1 &&
+			resource->texture.components <= RENDERIMAGECOMPONENTS_4);
 	SendTexture(resource->texture.deviceTexture, imageData, resource->texture.width,
-			resource->texture.height, resource->texture.components);
+			resource->texture.height, (RenderImageComponents)resource->texture.components);
 }
