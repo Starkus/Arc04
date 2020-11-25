@@ -79,7 +79,7 @@ EntityHandle FindEntityHandle(GameState *gameState, Entity *entityPtr)
 
 EntityHandle AddEntity(GameState *gameState, Entity **outEntity)
 {
-	Entity *newEntity = &gameState->entities[gameState->entityCount++];
+	Entity *newEntity = ArrayAdd_Entity(&gameState->entities);
 	*newEntity = {};
 	newEntity->rot = QUATERNION_IDENTITY;
 
@@ -124,7 +124,8 @@ void RemoveEntity(GameState *gameState, EntityHandle handle)
 	SkinnedMeshInstance *skinnedMeshInstance = entityPtr->skinnedMeshInstance;
 	if (skinnedMeshInstance)
 	{
-		SkinnedMeshInstance *last = &gameState->skinnedMeshInstances[--gameState->skinnedMeshCount];
+		SkinnedMeshInstance *last =
+			&gameState->skinnedMeshInstances[--gameState->skinnedMeshInstances.size];
 		Entity *lastsEntity = GetEntity(gameState, last->entityHandle);
 		if (lastsEntity)
 		{
@@ -135,7 +136,7 @@ void RemoveEntity(GameState *gameState, EntityHandle handle)
 	}
 
 	// Erase from entity array by swapping with last
-	Entity *ptrOfLast = &gameState->entities[--gameState->entityCount];
+	Entity *ptrOfLast = &gameState->entities[--gameState->entities.size];
 	Log("Moving entity at 0x%p to 0x%p\n", ptrOfLast, entityPtr);
 	*entityPtr = *ptrOfLast;
 
@@ -220,10 +221,12 @@ GAMEDLL START_GAME(StartGame)
 	g_debugContext = (DebugContext *)TransientAlloc(sizeof(DebugContext));
 #endif
 
+	// Init game state
 	memset(gameState, 0, sizeof(GameState));
 	gameState->timeMultiplier = 1.0f;
-	gameState->entityCount = 0;
-	gameState->skinnedMeshCount = 0;
+	ArrayInit_Entity(&gameState->entities, 512, TransientAlloc);
+	ArrayInit_SkinnedMeshInstance(&gameState->skinnedMeshInstances, 64, TransientAlloc);
+	ArrayInit_ParticleSystem(&gameState->particleSystems, 256, TransientAlloc);
 
 	// Initialize
 	{
@@ -367,7 +370,7 @@ GAMEDLL START_GAME(StartGame)
 		gameState->player.state = PLAYERSTATE_IDLE;
 
 		SkinnedMeshInstance *skinnedMeshInstance =
-			&gameState->skinnedMeshInstances[gameState->skinnedMeshCount++];
+			ArrayAdd_SkinnedMeshInstance(&gameState->skinnedMeshInstances);
 		skinnedMeshInstance->entityHandle = playerEntityHandle;
 		skinnedMeshInstance->meshRes = GetResource("data/Sparkus.b");
 		skinnedMeshInstance->animationIdx = PLAYERANIM_IDLE;
@@ -450,7 +453,7 @@ GAMEDLL START_GAME(StartGame)
 		testEntity->collider.sphere.radius = 0.3f;
 		testEntity->collider.sphere.offset = { 0, 0, 1 };
 		SkinnedMeshInstance *skinnedMeshInstance =
-			&gameState->skinnedMeshInstances[gameState->skinnedMeshCount++];
+			ArrayAdd_SkinnedMeshInstance(&gameState->skinnedMeshInstances);
 		skinnedMeshInstance->entityHandle = testEntityHandle;
 		skinnedMeshInstance->meshRes = GetResource("data/Jumper.b");
 		skinnedMeshInstance->animationIdx = 0;
@@ -594,7 +597,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		// Collision
 		bool touchedGround = false;
 
-		for (u32 entityIndex = 0; entityIndex < gameState->entityCount; ++entityIndex)
+		for (u32 entityIndex = 0; entityIndex < gameState->entities.size; ++entityIndex)
 		{
 			Entity *entity = &gameState->entities[entityIndex];
 			if (entity != playerEntity)
@@ -819,7 +822,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			v3 origin = camPos;
 			v3 dir = cursorXYZ - origin;
 			g_debugContext->hoveredEntityIdx = -1;
-			for (u32 entityIndex = 0; entityIndex < gameState->entityCount; ++entityIndex)
+			for (u32 entityIndex = 0; entityIndex < gameState->entities.size; ++entityIndex)
 			{
 				Entity *entity = &gameState->entities[entityIndex];
 				v3 hit;
@@ -854,7 +857,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		BindTexture(texNor->texture.deviceTexture, 1);
 
 		// Entity
-		for (u32 entityIdx = 0; entityIdx < gameState->entityCount; ++entityIdx)
+		for (u32 entityIdx = 0; entityIdx < gameState->entities.size; ++entityIdx)
 		{
 			Entity *entity = &gameState->entities[entityIdx];
 			if (!entity->mesh)
@@ -896,7 +899,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		DeviceUniform jointScalesUniform = GetUniform(gameState->skinnedMeshProgram, "jointScales");
 		UniformMat4Array(viewUniform, 1, view.m);
 
-		for (u32 meshInstanceIdx = 0; meshInstanceIdx < gameState->skinnedMeshCount;
+		for (u32 meshInstanceIdx = 0; meshInstanceIdx < gameState->skinnedMeshInstances.size;
 				++meshInstanceIdx)
 		{
 			SkinnedMeshInstance *skinnedMeshInstance =
@@ -1064,7 +1067,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		BindTexture(tex->texture.deviceTexture, 0);
 		BindTexture(gameState->frameBufferDepthTex, 1);
 
-		for (u32 partSysIdx = 0; partSysIdx < gameState->particleSystemCount;
+		for (u32 partSysIdx = 0; partSysIdx < gameState->particleSystems.size;
 				++partSysIdx)
 		{
 			ParticleSystem *particleSystem = &gameState->particleSystems[partSysIdx];

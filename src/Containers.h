@@ -1,3 +1,5 @@
+// @Todo: remove capacity_ from Array outside debug builds
+
 #ifndef DECLARE_ARRAY
 #define DECLARE_ARRAY(_TYPE) \
 struct Array_##_TYPE \
@@ -25,6 +27,12 @@ inline void ArrayInit_##_TYPE(Array_##_TYPE *array, u32 capacity, \
 	array->data = (_TYPE *)allocFunc(sizeof(_TYPE) * capacity); \
 	array->size = 0; \
 	array->capacity_ = capacity; \
+} \
+\
+inline _TYPE *ArrayAdd_##_TYPE(Array_##_TYPE *array) \
+{ \
+	ASSERT(array->size < array->capacity_); \
+	return &array->data[array->size++]; \
 }
 #endif
 
@@ -57,7 +65,7 @@ inline void DynamicArrayInit_##_TYPE(DynamicArray_##_TYPE *array, u32 capacity, 
 	array->capacity = capacity; \
 } \
 \
-inline u32 DynamicArrayAdd_##_TYPE(DynamicArray_##_TYPE *array, \
+inline _TYPE *DynamicArrayAdd_##_TYPE(DynamicArray_##_TYPE *array, \
 		void *(*reallocFunc)(void *, u64)) \
 { \
 	if (array->size >= array->capacity) \
@@ -65,6 +73,6 @@ inline u32 DynamicArrayAdd_##_TYPE(DynamicArray_##_TYPE *array, \
 		array->capacity *= 2; \
 		array->data = (_TYPE *)reallocFunc(array->data, array->capacity * sizeof(_TYPE)); \
 	} \
-	return array->size++; \
+	return &array->data[array->size++]; \
 }
 #endif

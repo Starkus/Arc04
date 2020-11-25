@@ -481,7 +481,7 @@ ErrorCode ReadColladaController(XMLElement *rootEl, Skeleton *skeleton, WeightDa
 					if (strcmp(type, "JOINT") == 0)
 					{
 						// Push joint to stack!
-						stack[DynamicArrayAdd_XMLElementPtr(&stack, FrameRealloc)] = nodeEl;
+						*DynamicArrayAdd_XMLElementPtr(&stack, FrameRealloc) = nodeEl;
 					}
 
 					nodeEl = childEl;
@@ -509,7 +509,7 @@ ErrorCode ReadColladaController(XMLElement *rootEl, Skeleton *skeleton, WeightDa
 	return ERROR_OK;
 }
 
-ErrorCode ReadColladaAnimation(XMLElement *rootEl, Animation &animation, Skeleton &skeleton)
+ErrorCode ReadColladaAnimation(XMLElement *rootEl, Animation *animation, Skeleton &skeleton)
 {
 	DynamicArray_AnimationChannel channels;
 	DynamicArrayInit_AnimationChannel(&channels, skeleton.jointCount, FrameAlloc);
@@ -580,15 +580,15 @@ ErrorCode ReadColladaAnimation(XMLElement *rootEl, Animation &animation, Skeleto
 		}
 
 		// Read timestamps
-		if (animation.timestamps == nullptr)
+		if (animation->timestamps == nullptr)
 		{
 			// We assume an equal amount of samples per channel, so we only save timestamps
 			// once per animation
 			XMLElement *arrayEl = timestampsSource->FirstChildElement("float_array");
-			animation.frameCount = arrayEl->FindAttribute("count")->IntValue();
-			animation.timestamps = (f32 *)FrameAlloc(sizeof(f32) * animation.frameCount);
-			ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), animation.timestamps,
-					animation.frameCount);
+			animation->frameCount = arrayEl->FindAttribute("count")->IntValue();
+			animation->timestamps = (f32 *)FrameAlloc(sizeof(f32) * animation->frameCount);
+			ReadStringToFloats(arrayEl->FirstChild()->ToText()->Value(), animation->timestamps,
+					animation->frameCount);
 		}
 
 		AnimationChannel channel = {};
@@ -600,7 +600,7 @@ ErrorCode ReadColladaAnimation(XMLElement *rootEl, Animation &animation, Skeleto
 			XMLElement *arrayEl = matricesSource->FirstChildElement("float_array");
 			int count = arrayEl->FindAttribute("count")->IntValue();
 			int transformCount = count / 16;
-			ASSERT(animation.frameCount == (u32)(transformCount));
+			ASSERT(animation->frameCount == (u32)(transformCount));
 			channel.transforms = (Transform *)FrameAlloc(sizeof(Transform) * transformCount);
 
 			Array_mat4 matrices;
@@ -656,19 +656,18 @@ ErrorCode ReadColladaAnimation(XMLElement *rootEl, Animation &animation, Skeleto
 		}
 
 		// Move start to 0
-		f32 oldStart = animation.timestamps[0];
-		for (u32 i = 0; i < animation.frameCount; ++i)
+		f32 oldStart = animation->timestamps[0];
+		for (u32 i = 0; i < animation->frameCount; ++i)
 		{
-			animation.timestamps[i] -= oldStart;
+			animation->timestamps[i] -= oldStart;
 		}
 
-		int newChannelIdx = DynamicArrayAdd_AnimationChannel(&channels, FrameRealloc);
-		channels[newChannelIdx] = channel;
+		*DynamicArrayAdd_AnimationChannel(&channels, FrameRealloc) = channel;
 
 		subAnimEl = subAnimEl->NextSiblingElement("animation");
 	}
-	animation.channels = channels.data;
-	animation.channelCount = channels.size;
+	animation->channels = channels.data;
+	animation->channelCount = channels.size;
 
 	return ERROR_OK;
 }
@@ -781,7 +780,7 @@ ErrorCode GetMergedSceneGeometry(XMLElement *sceneRootEl, DynamicArray_RawVertex
 					v.normal = { nor.x, nor.y, nor.z };
 					v.normal = V3Normalize(v.normal);
 
-					finalVertices[DynamicArrayAdd_RawVertex(&finalVertices, FrameRealloc)] = v;
+					*DynamicArrayAdd_RawVertex(&finalVertices, FrameRealloc) = v;
 				}
 
 				for (u32 indexIdx = 0; indexIdx < meshIndices.size; ++indexIdx)
@@ -789,7 +788,7 @@ ErrorCode GetMergedSceneGeometry(XMLElement *sceneRootEl, DynamicArray_RawVertex
 					u32 i = meshIndices[indexIdx];
 					i += indexShift;
 					ASSERT(i < U16_MAX);
-					finalIndices[DynamicArrayAdd_u16(&finalIndices, FrameRealloc)] = (u16)i;
+					*DynamicArrayAdd_u16(&finalIndices, FrameRealloc) = (u16)i;
 				}
 			}
 		}
@@ -802,8 +801,8 @@ ErrorCode GetMergedSceneGeometry(XMLElement *sceneRootEl, DynamicArray_RawVertex
 				if (strcmp(nodeType, "NODE") == 0)
 				{
 					// Push joint to stack!
-					stack[DynamicArrayAdd_XMLElementPtr(&stack, FrameRealloc)] = nodeEl;
-					transformStack[DynamicArrayAdd_mat4(&transformStack, FrameRealloc)] = transform;
+					*DynamicArrayAdd_XMLElementPtr(&stack, FrameRealloc) = nodeEl;
+					*DynamicArrayAdd_mat4(&transformStack, FrameRealloc) = transform;
 				}
 
 				nodeEl = childEl;
@@ -989,9 +988,9 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 				if (error != ERROR_OK)
 					return error;
 
-				Animation &animation = animations[DynamicArrayAdd_Animation(&animations, FrameRealloc)];
-				animation = {};
-				animation.loop = loop;
+				Animation *animation = DynamicArrayAdd_Animation(&animations, FrameRealloc);
+				*animation = {};
+				animation->loop = loop;
 				error = ReadColladaAnimation(dataRootEl, animation, skeleton);
 				if (error)
 					return error;
@@ -1043,12 +1042,12 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 
 		for (u32 i = 0; i < finalVertices.size; ++i)
 		{
-			positions[positions.size++] = finalVertices[i].skinnedPos.pos;
+			*ArrayAdd_v3(&positions) = finalVertices[i].skinnedPos.pos;
 		}
 
 		for (u32 i = 0; i < finalIndices.size / 3; ++i)
 		{
-			IndexTriangle *triangle = &triangles[triangles.size++];
+			IndexTriangle *triangle = ArrayAdd_IndexTriangle(&triangles);
 
 			u16 ai = finalIndices[i * 3 + 0];
 			u16 bi = finalIndices[i * 3 + 1];
@@ -1141,7 +1140,7 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 
 		for (int i = 0; i < rawGeometry.triangleCount; ++i)
 		{
-			IndexTriangle *triangle = &triangles[triangles.size++];
+			IndexTriangle *triangle = ArrayAdd_IndexTriangle(&triangles);
 
 			int ai = rawGeometry.triangleIndices[(i * 3 + 0) * attrCount + rawGeometry.verticesOffset];
 			int bi = rawGeometry.triangleIndices[(i * 3 + 2) * attrCount + rawGeometry.verticesOffset];

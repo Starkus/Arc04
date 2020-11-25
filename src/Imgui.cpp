@@ -285,15 +285,15 @@ void ImguiShowEditWindow(GameState *gameState)
 	ImGui::InputInt("Entity", &g_debugContext->selectedEntityIdx);
 	if (g_debugContext->selectedEntityIdx < 0)
 		g_debugContext->selectedEntityIdx = 0;
-	else if (g_debugContext->selectedEntityIdx >= (int)gameState->entityCount)
-		g_debugContext->selectedEntityIdx = gameState->entityCount - 1;
+	else if (g_debugContext->selectedEntityIdx >= (int)gameState->entities.size)
+		g_debugContext->selectedEntityIdx = gameState->entities.size - 1;
 	Entity *selectedEntity = &gameState->entities[g_debugContext->selectedEntityIdx];
 
 	if (ImGui::Button("Add"))
 	{
 		Entity *newEntity;
 		AddEntity(gameState, &newEntity);
-		g_debugContext->selectedEntityIdx = gameState->entityCount - 1;
+		g_debugContext->selectedEntityIdx = gameState->entities.size - 1;
 	}
 
 	ImGui::SameLine();
@@ -338,7 +338,8 @@ void ImguiShowEditWindow(GameState *gameState)
 		ImguiStructAsControls(skinnedMesh, &typeInfo_SkinnedMeshInstance);
 		if (ImGui::Button("Remove skinned mesh"))
 		{
-			SkinnedMeshInstance *last = &gameState->skinnedMeshInstances[--gameState->skinnedMeshCount];
+			SkinnedMeshInstance *last =
+				&gameState->skinnedMeshInstances[--gameState->skinnedMeshInstances.size];
 			Entity *entityOfLast = GetEntity(gameState, last->entityHandle);
 
 			*skinnedMesh = *last;
@@ -351,7 +352,7 @@ void ImguiShowEditWindow(GameState *gameState)
 	{
 		if (ImGui::Button("Add skinned mesh"))
 		{
-			skinnedMesh = &gameState->skinnedMeshInstances[gameState->skinnedMeshCount++];
+			skinnedMesh = ArrayAdd_SkinnedMeshInstance(&gameState->skinnedMeshInstances);
 			*skinnedMesh = {};
 			skinnedMesh->entityHandle = FindEntityHandle(gameState, selectedEntity);
 			selectedEntity->skinnedMeshInstance = skinnedMesh;
@@ -387,7 +388,7 @@ void ImguiShowEditWindow(GameState *gameState)
 		{
 			DestroyDeviceMesh(particleSystem->deviceBuffer);
 
-			ParticleSystem *last = &gameState->particleSystems[--gameState->particleSystemCount];
+			ParticleSystem *last = &gameState->particleSystems[--gameState->particleSystems.size];
 			Entity *entityOfLast = GetEntity(gameState, last->entityHandle);
 			ASSERT(entityOfLast);
 
@@ -401,7 +402,7 @@ void ImguiShowEditWindow(GameState *gameState)
 	{
 		if (ImGui::Button("Add particle system"))
 		{
-			ParticleSystem *newParticleSystem = &gameState->particleSystems[gameState->particleSystemCount++];
+			ParticleSystem *newParticleSystem = ArrayAdd_ParticleSystem(&gameState->particleSystems);
 			*newParticleSystem = {};
 			newParticleSystem->entityHandle = FindEntityHandle(gameState, selectedEntity);
 			newParticleSystem->deviceBuffer = CreateDeviceMesh(0);

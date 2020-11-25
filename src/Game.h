@@ -43,6 +43,7 @@ struct SkinnedMeshInstance
 	i32 animationIdx;
 	f32 animationTime;
 };
+DECLARE_ARRAY(SkinnedMeshInstance);
 
 struct Particle
 {
@@ -79,6 +80,7 @@ struct ParticleSystem
 	ParticleBookkeep bookkeeps[256];
 	Particle particles[256];
 };
+DECLARE_ARRAY(ParticleSystem);
 
 struct Entity
 {
@@ -92,6 +94,7 @@ struct Entity
 
 	Collider collider;
 };
+DECLARE_ARRAY(Entity);
 
 struct LevelGeometry
 {
@@ -206,20 +209,16 @@ struct GameState
 	v3 camPos;
 	f32 camYaw;
 	f32 camPitch;
-	u32 entityCount;
 
-	Entity entities[256];
+	Array_Entity entities;
 	Entity *entityPointers[256];
 	u8 entityGenerations[256];
 
 	LevelGeometry levelGeometry;
 	Player player;
 
-	SkinnedMeshInstance skinnedMeshInstances[64];
-	u32 skinnedMeshCount;
-
-	ParticleSystem particleSystems[64];
-	u32 particleSystemCount;
+	Array_SkinnedMeshInstance skinnedMeshInstances;
+	Array_ParticleSystem particleSystems;
 
 	// @Cleanup: move to some Render Device Context or something?
 	DeviceProgram program, skinnedMeshProgram, particleSystemProgram;

@@ -109,7 +109,7 @@ bool DidFileChange(const char *fullName, Array_FileCacheEntry &cache)
 	{
 		if (!cacheEntry)
 		{
-			cacheEntry = &cache[cache.size++];
+			cacheEntry = ArrayAdd_FileCacheEntry(&cache);
 			strcpy(cacheEntry->filename, fullName);
 		}
 		cacheEntry->lastWriteTime = newWriteTime;

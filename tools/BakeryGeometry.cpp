@@ -19,7 +19,7 @@ ErrorCode ConstructSkinnedMesh(const RawGeometry *geometry, const WeightData *we
 	ArrayInit_SkinnedPosition(&skinnedPositions, vertexTotal, StackAlloc);
 	for (u32 i = 0; i < vertexTotal; ++i)
 	{
-		SkinnedPosition *skinnedPos = &skinnedPositions[skinnedPositions.size++];
+		SkinnedPosition *skinnedPos = ArrayAdd_SkinnedPosition(&skinnedPositions);
 		*skinnedPos = {};
 		skinnedPos->pos = geometry->positions[i];
 	}
@@ -126,16 +126,17 @@ ErrorCode ConstructSkinnedMesh(const RawGeometry *geometry, const WeightData *we
 			if (index == 0xFFFF)
 			{
 				// Push back vertex
-				u16 newVertexIdx = (u16)DynamicArrayAdd_RawVertex(&finalVertices, FrameRealloc);
-				finalVertices[newVertexIdx] = newVertex;
-				finalIndices[finalIndices.size++] = newVertexIdx;
+				*DynamicArrayAdd_RawVertex(&finalVertices, FrameRealloc) = newVertex;
+				u64 newVertexIdx = finalVertices.size - 1;
+				ASSERT(newVertexIdx < U16_MAX);
+				*DynamicArrayAdd_u16(&finalIndices, FrameRealloc) = (u16)newVertexIdx;
 
 				// Add to map
-				bucket[DynamicArrayAdd_u16(&bucket, StackRealloc)] = newVertexIdx;
+				*DynamicArrayAdd_u16(&bucket, StackRealloc) = (u16)newVertexIdx;
 			}
 			else
 			{
-				finalIndices[finalIndices.size++] = index;
+				*DynamicArrayAdd_u16(&finalIndices, FrameRealloc) = index;
 			}
 		}
 
@@ -417,7 +418,7 @@ void GenerateGeometryGrid(const Array_v3 &positions, const Array_IndexTriangle &
 			{
 				ASSERT(scanX >= 0 && scanX < cellsSide);
 				DynamicArray_IndexTriangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
-				bucket[DynamicArrayAdd_IndexTriangle(&bucket, StackRealloc)] = *curTriangle;
+				*DynamicArrayAdd_IndexTriangle(&bucket, StackRealloc) = *curTriangle;
 				++totalTriangleCount;
 			}
 			continue;
@@ -440,7 +441,7 @@ void GenerateGeometryGrid(const Array_v3 &positions, const Array_IndexTriangle &
 			{
 				ASSERT(scanX >= 0 && scanX < cellsSide);
 				DynamicArray_IndexTriangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
-				bucket[DynamicArrayAdd_IndexTriangle(&bucket, StackRealloc)] = *curTriangle;
+				*DynamicArrayAdd_IndexTriangle(&bucket, StackRealloc) = *curTriangle;
 				++totalTriangleCount;
 			}
 		}
@@ -476,7 +477,7 @@ void GenerateGeometryGrid(const Array_v3 &positions, const Array_IndexTriangle &
 					ASSERT(scanX >= 0 && scanX < cellsSide);
 
 					DynamicArray_IndexTriangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
-					bucket[DynamicArrayAdd_IndexTriangle(&bucket, StackRealloc)] = *curTriangle;
+					*DynamicArrayAdd_IndexTriangle(&bucket, StackRealloc) = *curTriangle;
 					++totalTriangleCount;
 				}
 				curX1 = nextX1;
@@ -508,7 +509,7 @@ void GenerateGeometryGrid(const Array_v3 &positions, const Array_IndexTriangle &
 			{
 				ASSERT(scanX >= 0 && scanX < cellsSide);
 				DynamicArray_IndexTriangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
-				bucket[DynamicArrayAdd_IndexTriangle(&bucket, StackRealloc)] = *curTriangle;
+				*DynamicArrayAdd_IndexTriangle(&bucket, StackRealloc) = *curTriangle;
 				++totalTriangleCount;
 			}
 		}
@@ -541,7 +542,7 @@ void GenerateGeometryGrid(const Array_v3 &positions, const Array_IndexTriangle &
 					ASSERT(scanX >= 0 && scanX < cellsSide);
 
 					DynamicArray_IndexTriangle &bucket = cellBuckets[scanX + scanlineY * cellsSide];
-					bucket[DynamicArrayAdd_IndexTriangle(&bucket, StackRealloc)] = *curTriangle;
+					*DynamicArrayAdd_IndexTriangle(&bucket, StackRealloc) = *curTriangle;
 					++totalTriangleCount;
 				}
 				curX1 = nextX1;

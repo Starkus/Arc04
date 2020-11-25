@@ -223,7 +223,6 @@ int EatRestOfLine(Tokenizer *tokenizer)
 
 void ProcessCppComment(Tokenizer *tokenizer)
 {
-	tokenizer->cursor += 2; // Skip both '/'
 	EatRestOfLine(tokenizer);
 }
 
@@ -253,14 +252,18 @@ Token ReadTokenAndAdvance(Tokenizer *tokenizer)
 	while (*tokenizer->cursor == '/')
 	{
 		if (*(tokenizer->cursor + 1) == '/')
+		{
 			ProcessCppComment(tokenizer);
+			EatWhitespace(tokenizer);
+		}
 		else if (*(tokenizer->cursor + 1) == '*')
+		{
 			ProcessCComment(tokenizer);
+			EatWhitespace(tokenizer);
+		}
 		else
 			break;
 	}
-
-	EatWhitespace(tokenizer);
 
 	if (!*tokenizer->cursor)
 	{
@@ -414,7 +417,7 @@ void ParseFile(const char *filename, DynamicArray_Token &tokens)
 					}
 				}
 
-				char fullname[MAX_PATH];
+				char *fullname = (char *)malloc(MAX_PATH);
 				sprintf(fullname, "src/%.*s", (int)(fileEnd - fileBegin), fileBegin);
 				if (PlatformFileExists(fullname))
 				{
@@ -426,7 +429,7 @@ void ParseFile(const char *filename, DynamicArray_Token &tokens)
 			}
 		}
 		else
-			tokens[DynamicArrayAdd_Token(&tokens, realloc)] = newToken;
+			*DynamicArrayAdd_Token(&tokens, realloc) = newToken;
 
 		if (newToken.type == TOKEN_END_OF_FILE)
 			break;
@@ -603,7 +606,7 @@ Token *ReadStruct(Token *token, Struct *struct_, DynamicArray_Struct &structs, D
 			Struct anonstruct = {};
 			anonstruct.name = nameToken;
 			token = ReadStruct(token, &anonstruct, structs, enums);
-			structs[DynamicArrayAdd_Struct(&structs, realloc)] = anonstruct;
+			*DynamicArrayAdd_Struct(&structs, realloc) = anonstruct;
 		}
 		else if (token->type == TOKEN_IDENTIFIER)
 		{
@@ -736,7 +739,7 @@ void ReadStructsAndEnums(DynamicArray_Token &tokens, DynamicArray_Struct &struct
 
 				if (struct_.name.type == TOKEN_IDENTIFIER && struct_.name.size)
 				{
-					structs[DynamicArrayAdd_Struct(&structs, realloc)] = struct_;
+					*DynamicArrayAdd_Struct(&structs, realloc) = struct_;
 				}
 			}
 			else if (strncmp(token->begin, "enum", token->size) == 0)
@@ -793,7 +796,7 @@ void ReadStructsAndEnums(DynamicArray_Token &tokens, DynamicArray_Struct &struct
 
 					//Log("%.*s.%.*s\n", enum_.name.size, enum_.name.begin, enumValue.name.size,
 							//enumValue.name.begin);
-					enum_.values[DynamicArrayAdd_EnumValue(&enum_.values, realloc)] = enumValue;
+					*DynamicArrayAdd_EnumValue(&enum_.values, realloc) = enumValue;
 
 					if (token->type == ',')
 					{
@@ -816,7 +819,7 @@ void ReadStructsAndEnums(DynamicArray_Token &tokens, DynamicArray_Struct &struct
 
 				if (enum_.name.type == TOKEN_IDENTIFIER && enum_.name.size)
 				{
-					enums[DynamicArrayAdd_Enum(&enums, realloc)] = enum_;
+					*DynamicArrayAdd_Enum(&enums, realloc) = enum_;
 				}
 			}
 			else
@@ -1028,7 +1031,7 @@ int ExtractPlatformProcedures(DynamicArray_Token &tokens, DynamicArray_Procedure
 				int error = ReadProcedure(curToken, &newProcedure);
 				if (error)
 					return error;
-				procedures[DynamicArrayAdd_Procedure(&procedures, realloc)] = newProcedure;
+				*DynamicArrayAdd_Procedure(&procedures, realloc) = newProcedure;
 			}
 		}
 	}
