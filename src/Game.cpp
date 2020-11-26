@@ -506,9 +506,9 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				gameState->camPitch -= camRotSpeed * deltaTime;
 
 			if (controller->camLeft.endedDown)
-				gameState->camYaw -= camRotSpeed * deltaTime;
-			else if (controller->camRight.endedDown)
 				gameState->camYaw += camRotSpeed * deltaTime;
+			else if (controller->camRight.endedDown)
+				gameState->camYaw -= camRotSpeed * deltaTime;
 
 			const f32 deadzone = 0.2f;
 			if (Abs(controller->rightStick.x) > deadzone)
@@ -532,13 +532,19 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			else if (controller->right.endedDown)
 				inputDir.x = 1;
 
-			if (inputDir.x + inputDir.y == 0)
+			if (inputDir.x == 0 && inputDir.y == 0)
 			{
 				const f32 deadzone = 0.2f;
 				if (Abs(controller->leftStick.x) > deadzone)
 					inputDir.x = (controller->leftStick.x - deadzone) / (1 - deadzone);
 				if (Abs(controller->leftStick.y) > deadzone)
 					inputDir.y = (controller->leftStick.y - deadzone) / (1 - deadzone);
+			}
+
+			f32 inputSqrLen = V2SqrLen(inputDir);
+			if (inputSqrLen > 1)
+			{
+				inputDir /= Sqrt(inputSqrLen);
 			}
 
 			v3 worldInputDir =
@@ -548,7 +554,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				0
 			};
 
-			if (V3SqrLen(worldInputDir))
+			if (inputSqrLen)
 			{
 				f32 targetYaw = Atan2(-worldInputDir.x, worldInputDir.y);
 				playerEntity->rot = QuaternionFromEuler(v3{ 0, 0, targetYaw });
@@ -698,6 +704,140 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		}
 
 		gameState->camPos = playerEntity->pos;
+
+		// Update skinned meshes
+		for (u32 meshInstanceIdx = 0; meshInstanceIdx < gameState->skinnedMeshInstances.size;
+				++meshInstanceIdx)
+		{
+			SkinnedMeshInstance *skinnedMeshInstance = &gameState->skinnedMeshInstances[meshInstanceIdx];
+
+#if DEBUG_BUILD
+			// Avoid crash when adding these in the editor
+			if (!skinnedMeshInstance->meshRes)
+				continue;
+#endif
+
+			for (int i = 0; i < 128; ++i)
+				skinnedMeshInstance->jointTranslations[i] = {};
+			for (int i = 0; i < 128; ++i)
+				skinnedMeshInstance->jointRotations[i] = QUATERNION_IDENTITY;
+			for (int i = 0; i < 128; ++i)
+				skinnedMeshInstance->jointScales[i] = v3{ 1, 1, 1 };
+
+			const Resource *skinnedMeshRes = skinnedMeshInstance->meshRes;
+			const ResourceSkinnedMesh *skinnedMesh = &skinnedMeshRes->skinnedMesh;
+
+			Animation *animation = &skinnedMesh->animations[skinnedMeshInstance->animationIdx];
+
+			f32 lastTimestamp = animation->timestamps[animation->frameCount - 1];
+
+			f32 currentTime = skinnedMeshInstance->animationTime;
+
+			int currentFrame = -1;
+			for (u32 i = 0; i < animation->frameCount; ++i)
+			{
+				if (currentFrame == -1 && currentTime <= animation->timestamps[i])
+					currentFrame = i - 1;
+			}
+			f32 prevStamp = animation->timestamps[currentFrame];
+			f32 nextStamp = animation->timestamps[currentFrame + 1];
+			f32 lerpWindow = nextStamp - prevStamp;
+			f32 lerpTime = currentTime - prevStamp;
+			f32 lerpT = lerpTime / lerpWindow;
+
+			for (u32 jointIdx = 0; jointIdx < skinnedMesh->jointCount; ++jointIdx)
+			{
+				// Find channel for joint
+				AnimationChannel *channel = 0;
+				for (u32 chanIdx = 0; chanIdx < animation->channelCount; ++chanIdx)
+				{
+					if (animation->channels[chanIdx].jointIndex == jointIdx)
+					{
+						channel = &animation->channels[chanIdx];
+						break;
+					}
+				}
+
+				Transform transform = TRANSFORM_IDENTITY;
+
+				// Stack to apply transforms in reverse order
+				u32 stack[32];
+				int stackCount = 1;
+				stack[0] = jointIdx;
+
+				u8 parentJoint = skinnedMesh->jointParents[jointIdx];
+				while (parentJoint != 0xFF)
+				{
+					stack[stackCount++] = parentJoint;
+					parentJoint = skinnedMesh->jointParents[parentJoint];
+				}
+				bool first = true;
+				while (stackCount)
+				{
+					const u32 currentJoint = stack[--stackCount];
+
+					// Find channel for current joint
+					AnimationChannel *currentChannel = 0;
+					for (u32 chanIdx = 0; chanIdx < animation->channelCount; ++chanIdx)
+					{
+						if (animation->channels[chanIdx].jointIndex == currentJoint)
+						{
+							currentChannel = &animation->channels[chanIdx];
+							break;
+						}
+					}
+
+					if (currentChannel == nullptr)
+					{
+						// If this joint has no channel, it must not be moving at all,
+						// even considering parents
+						transform = TransformChain(transform, skinnedMesh->restPoses[currentJoint]);
+						first = false;
+						continue;
+					}
+
+					Transform a = currentChannel->transforms[currentFrame];
+					Transform b = currentChannel->transforms[currentFrame + 1];
+
+					f32 aWeight = (1 - lerpT);
+					f32 bWeight = lerpT;
+					bool invertRot = V4Dot(a.rotation, b.rotation) < 0;
+
+					Transform r =
+					{
+						a.translation * aWeight + b.translation * bWeight,
+						V4Normalize(a.rotation * aWeight + b.rotation * (invertRot ? -bWeight : bWeight)),
+						a.scale * aWeight + b.scale * bWeight
+					};
+
+					mat4 T = Mat4Compose(r);
+
+					if (first)
+					{
+						transform = r;
+						first = false;
+					}
+					else
+					{
+						transform = TransformChain(transform, r);
+					}
+				}
+				transform = TransformChain(transform, skinnedMesh->bindPoses[jointIdx]);
+
+				skinnedMeshInstance->jointTranslations[jointIdx] = transform.translation;
+				skinnedMeshInstance->jointRotations[jointIdx] = transform.rotation;
+				skinnedMeshInstance->jointScales[jointIdx] = transform.scale;
+			}
+			currentTime += deltaTime;
+			if (currentTime >= lastTimestamp)
+			{
+				if (animation->loop)
+					currentTime = 0;
+				else
+					currentTime = lastTimestamp;
+			}
+			skinnedMeshInstance->animationTime = currentTime;
+		}
 
 		// Update particle systems
 		auto SimulateParticle = [](ParticleSystem *particleSystem, int i, f32 dt)
@@ -978,235 +1118,113 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			RenderIndexedMesh(level->renderMesh->mesh.deviceMesh);
 		}
 
-		// Skinned meshes
-		UseProgram(gameState->skinnedMeshProgram);
-		viewUniform = GetUniform(gameState->skinnedMeshProgram, "view");
-		modelUniform = GetUniform(gameState->skinnedMeshProgram, "model");
-		projUniform = GetUniform(gameState->skinnedMeshProgram, "projection");
-		UniformMat4Array(projUniform, 1, proj.m);
-
-		const Resource *sparkusAlb = GetResource("data/sparkus_albedo.b");
-		const Resource *sparkusNor = GetResource("data/sparkus_normal.b");
-		BindTexture(sparkusAlb->texture.deviceTexture, 0);
-		BindTexture(sparkusNor->texture.deviceTexture, 1);
-
-		albedoUniform = GetUniform(gameState->skinnedMeshProgram, "texAlbedo");
-		UniformInt(albedoUniform, 0);
-		normalUniform = GetUniform(gameState->skinnedMeshProgram, "texNormal");
-		UniformInt(normalUniform, 1);
-
-		DeviceUniform jointTranslationsUniform = GetUniform(gameState->skinnedMeshProgram, "jointTranslations");
-		DeviceUniform jointRotationsUniform = GetUniform(gameState->skinnedMeshProgram, "jointRotations");
-		DeviceUniform jointScalesUniform = GetUniform(gameState->skinnedMeshProgram, "jointScales");
-		UniformMat4Array(viewUniform, 1, view.m);
-
-		for (u32 meshInstanceIdx = 0; meshInstanceIdx < gameState->skinnedMeshInstances.size;
-				++meshInstanceIdx)
+		// Draw skinned meshes
 		{
-			SkinnedMeshInstance *skinnedMeshInstance =
-				&gameState->skinnedMeshInstances[meshInstanceIdx];
+			UseProgram(gameState->skinnedMeshProgram);
+			viewUniform = GetUniform(gameState->skinnedMeshProgram, "view");
+			modelUniform = GetUniform(gameState->skinnedMeshProgram, "model");
+			projUniform = GetUniform(gameState->skinnedMeshProgram, "projection");
+			UniformMat4Array(projUniform, 1, proj.m);
+
+			const Resource *sparkusAlb = GetResource("data/sparkus_albedo.b");
+			const Resource *sparkusNor = GetResource("data/sparkus_normal.b");
+			BindTexture(sparkusAlb->texture.deviceTexture, 0);
+			BindTexture(sparkusNor->texture.deviceTexture, 1);
+
+			albedoUniform = GetUniform(gameState->skinnedMeshProgram, "texAlbedo");
+			UniformInt(albedoUniform, 0);
+			normalUniform = GetUniform(gameState->skinnedMeshProgram, "texNormal");
+			UniformInt(normalUniform, 1);
+
+			DeviceUniform jointTranslationsUniform = GetUniform(gameState->skinnedMeshProgram, "jointTranslations");
+			DeviceUniform jointRotationsUniform = GetUniform(gameState->skinnedMeshProgram, "jointRotations");
+			DeviceUniform jointScalesUniform = GetUniform(gameState->skinnedMeshProgram, "jointScales");
+			UniformMat4Array(viewUniform, 1, view.m);
+
+			for (u32 meshInstanceIdx = 0; meshInstanceIdx < gameState->skinnedMeshInstances.size;
+					++meshInstanceIdx)
+			{
+				SkinnedMeshInstance *skinnedMeshInstance = &gameState->skinnedMeshInstances[meshInstanceIdx];
 
 #if DEBUG_BUILD
-			// Avoid crash when adding these in the editor
-			if (!skinnedMeshInstance->meshRes)
-				continue;
+				// Avoid crash when adding these in the editor
+				if (!skinnedMeshInstance->meshRes)
+					continue;
 #endif
+				const Resource *skinnedMeshRes = skinnedMeshInstance->meshRes;
+				const ResourceSkinnedMesh *skinnedMesh = &skinnedMeshRes->skinnedMesh;
 
-			Transform joints[128];
-			for (int i = 0; i < 128; ++i)
-			{
-				joints[i] = TRANSFORM_IDENTITY;
+				Entity *entity = GetEntity(gameState, skinnedMeshInstance->entityHandle);
+				const mat4 model = Mat4Compose(entity->pos, entity->rot);
+				UniformMat4Array(modelUniform, 1, model.m);
+
+				UniformV3Array(jointTranslationsUniform, 128, skinnedMeshInstance->jointTranslations[0].v);
+				UniformV4Array(jointRotationsUniform, 128, skinnedMeshInstance->jointRotations[0].v);
+				UniformV3Array(jointScalesUniform, 128, skinnedMeshInstance->jointScales[0].v);
+
+				RenderIndexedMesh(skinnedMesh->deviceMesh);
 			}
-
-			const Resource *skinnedMeshRes = skinnedMeshInstance->meshRes;
-			const ResourceSkinnedMesh *skinnedMesh = &skinnedMeshRes->skinnedMesh;
-
-			Animation *animation = &skinnedMesh->animations[skinnedMeshInstance->animationIdx];
-
-			f32 lastTimestamp = animation->timestamps[animation->frameCount - 1];
-
-			f32 currentTime = skinnedMeshInstance->animationTime;
-
-			int currentFrame = -1;
-			for (u32 i = 0; i < animation->frameCount; ++i)
-			{
-				if (currentFrame == -1 && currentTime <= animation->timestamps[i])
-					currentFrame = i - 1;
-			}
-			f32 prevStamp = animation->timestamps[currentFrame];
-			f32 nextStamp = animation->timestamps[currentFrame + 1];
-			f32 lerpWindow = nextStamp - prevStamp;
-			f32 lerpTime = currentTime - prevStamp;
-			f32 lerpT = lerpTime / lerpWindow;
-
-			for (u32 jointIdx = 0; jointIdx < skinnedMesh->jointCount; ++jointIdx)
-			{
-				// Find channel for joint
-				AnimationChannel *channel = 0;
-				for (u32 chanIdx = 0; chanIdx < animation->channelCount; ++chanIdx)
-				{
-					if (animation->channels[chanIdx].jointIndex == jointIdx)
-					{
-						channel = &animation->channels[chanIdx];
-						break;
-					}
-				}
-
-				Transform transform = TRANSFORM_IDENTITY;
-
-				// Stack to apply transforms in reverse order
-				u32 stack[32];
-				int stackCount = 1;
-				stack[0] = jointIdx;
-
-				u8 parentJoint = skinnedMesh->jointParents[jointIdx];
-				while (parentJoint != 0xFF)
-				{
-					stack[stackCount++] = parentJoint;
-					parentJoint = skinnedMesh->jointParents[parentJoint];
-				}
-				bool first = true;
-				while (stackCount)
-				{
-					const u32 currentJoint = stack[--stackCount];
-
-					// Find channel for current joint
-					AnimationChannel *currentChannel = 0;
-					for (u32 chanIdx = 0; chanIdx < animation->channelCount; ++chanIdx)
-					{
-						if (animation->channels[chanIdx].jointIndex == currentJoint)
-						{
-							currentChannel = &animation->channels[chanIdx];
-							break;
-						}
-					}
-
-					if (currentChannel == nullptr)
-					{
-						// If this joint has no channel, it must not be moving at all,
-						// even considering parents
-						transform = TransformChain(transform, skinnedMesh->restPoses[currentJoint]);
-						first = false;
-						continue;
-					}
-
-					Transform a = currentChannel->transforms[currentFrame];
-					Transform b = currentChannel->transforms[currentFrame + 1];
-
-					f32 aWeight = (1 - lerpT);
-					f32 bWeight = lerpT;
-					bool invertRot = V4Dot(a.rotation, b.rotation) < 0;
-
-					Transform r =
-					{
-						a.translation * aWeight + b.translation * bWeight,
-						V4Normalize(a.rotation * aWeight + b.rotation * (invertRot ? -bWeight : bWeight)),
-						a.scale * aWeight + b.scale * bWeight
-					};
-
-					mat4 T = Mat4Compose(r);
-
-					if (first)
-					{
-						transform = r;
-						first = false;
-					}
-					else
-					{
-						transform = TransformChain(transform, r);
-					}
-				}
-				transform = TransformChain(transform, skinnedMesh->bindPoses[jointIdx]);
-
-				joints[jointIdx] = transform;
-			}
-			currentTime += deltaTime;
-			if (currentTime >= lastTimestamp)
-			{
-				if (animation->loop)
-					currentTime = 0;
-				else
-					currentTime = lastTimestamp;
-			}
-			skinnedMeshInstance->animationTime = currentTime;
-
-			Entity *entity = GetEntity(gameState, skinnedMeshInstance->entityHandle);
-			const mat4 model = Mat4Compose(entity->pos, entity->rot);
-			UniformMat4Array(modelUniform, 1, model.m);
-
-			v3 ts[128];
-			v4 rs[128];
-			v3 ss[128];
-			for (int i = 0; i < 128; ++i)
-			{
-				ts[i] = joints[i].translation;
-				rs[i] = joints[i].rotation;
-				ss[i] = joints[i].scale;
-			}
-			UniformV3Array(jointTranslationsUniform, 128, ts[0].v);
-			UniformV4Array(jointRotationsUniform, 128, rs[0].v);
-			UniformV3Array(jointScalesUniform, 128, ss[0].v);
-
-			RenderIndexedMesh(skinnedMesh->deviceMesh);
 		}
 
 		// Draw particles
-		UseProgram(gameState->particleSystemProgram);
-		viewUniform = GetUniform(gameState->particleSystemProgram, "view");
-		projUniform = GetUniform(gameState->particleSystemProgram, "projection");
-		UniformMat4Array(projUniform, 1, proj.m);
-		UniformMat4Array(viewUniform, 1, view.m);
-
-		DeviceUniform texUniform = GetUniform(gameState->particleSystemProgram, "tex");
-		UniformInt(texUniform, 0);
-		DeviceUniform depthBufferUniform = GetUniform(gameState->particleSystemProgram, "depthBuffer");
-		UniformInt(depthBufferUniform, 1);
-
-		DeviceUniform atlasIdxUniform = GetUniform(gameState->particleSystemProgram, "atlasIdx");
-
-		const Resource *tex = GetResource("data/particle_atlas.b");
-		BindTexture(tex->texture.deviceTexture, 0);
-		BindTexture(gameState->frameBufferDepthTex, 1);
-
-		DisableDepthTest();
-		EnableAlphaBlending();
-		const u32 particleMeshAttribs = RENDERATTRIB_VERTEXNUM;
-		const u32 particleInstAttribs = RENDERATTRIB_POSITION | RENDERATTRIB_COLOR4 | RENDERATTRIB_1CUSTOMF32;
-
-		for (u32 partSysIdx = 0; partSysIdx < gameState->particleSystems.size;
-				++partSysIdx)
 		{
-			ParticleSystem *particleSystem = &gameState->particleSystems[partSysIdx];
+			UseProgram(gameState->particleSystemProgram);
+			viewUniform = GetUniform(gameState->particleSystemProgram, "view");
+			projUniform = GetUniform(gameState->particleSystemProgram, "projection");
+			UniformMat4Array(projUniform, 1, proj.m);
+			UniformMat4Array(viewUniform, 1, view.m);
 
-			UniformInt(atlasIdxUniform, particleSystem->atlasIdx);
+			DeviceUniform texUniform = GetUniform(gameState->particleSystemProgram, "tex");
+			UniformInt(texUniform, 0);
+			DeviceUniform depthBufferUniform = GetUniform(gameState->particleSystemProgram, "depthBuffer");
+			UniformInt(depthBufferUniform, 1);
 
-			const int maxCount = ArrayCount(particleSystem->particles);
+			DeviceUniform atlasIdxUniform = GetUniform(gameState->particleSystemProgram, "atlasIdx");
 
-			// Sort!
-			// @Improve: change this once we have a proper camera
-			static v3 camPos;
-			camPos = Mat4TransformPosition(Mat4Adjugate(view), v3{});
-			auto compareParticles = [](const void *a, const void *b)
+			const Resource *tex = GetResource("data/particle_atlas.b");
+			BindTexture(tex->texture.deviceTexture, 0);
+			BindTexture(gameState->frameBufferDepthTex, 1);
+
+			DisableDepthTest();
+			EnableAlphaBlending();
+			const u32 particleMeshAttribs = RENDERATTRIB_VERTEXNUM;
+			const u32 particleInstAttribs = RENDERATTRIB_POSITION | RENDERATTRIB_COLOR4 | RENDERATTRIB_1CUSTOMF32;
+
+			for (u32 partSysIdx = 0; partSysIdx < gameState->particleSystems.size;
+					++partSysIdx)
 			{
-				f32 aDist = V3SqrLen(((Particle *)a)->pos - camPos);
-				f32 bDist = V3SqrLen(((Particle *)b)->pos - camPos);
-				return (int)((aDist < bDist) - (aDist > bDist));
-			};
-			Particle *particlesCopy = (Particle *)FrameAlloc(sizeof(particleSystem->particles));
-			memcpy(particlesCopy, particleSystem->particles, sizeof(particleSystem->particles));
-			qsort(particlesCopy, maxCount, sizeof(Particle), compareParticles);
+				ParticleSystem *particleSystem = &gameState->particleSystems[partSysIdx];
 
-			SendMesh(&particleSystem->deviceBuffer,
-					particlesCopy,
-					maxCount,
-					sizeof(particleSystem->particles[0]), true);
+				UniformInt(atlasIdxUniform, particleSystem->atlasIdx);
 
-			RenderMeshInstanced(gameState->particleMesh, particleSystem->deviceBuffer,
-					particleMeshAttribs, particleInstAttribs);
+				const int maxCount = ArrayCount(particleSystem->particles);
+
+				// Sort!
+				// @Improve: change this once we have a proper camera
+				static v3 camPos;
+				camPos = Mat4TransformPosition(Mat4Adjugate(view), v3{});
+				auto compareParticles = [](const void *a, const void *b)
+				{
+					f32 aDist = V3SqrLen(((Particle *)a)->pos - camPos);
+					f32 bDist = V3SqrLen(((Particle *)b)->pos - camPos);
+					return (int)((aDist < bDist) - (aDist > bDist));
+				};
+				Particle *particlesCopy = (Particle *)FrameAlloc(sizeof(particleSystem->particles));
+				memcpy(particlesCopy, particleSystem->particles, sizeof(particleSystem->particles));
+				qsort(particlesCopy, maxCount, sizeof(Particle), compareParticles);
+
+				SendMesh(&particleSystem->deviceBuffer,
+						particlesCopy,
+						maxCount,
+						sizeof(particleSystem->particles[0]), true);
+
+				RenderMeshInstanced(gameState->particleMesh, particleSystem->deviceBuffer,
+						particleMeshAttribs, particleInstAttribs);
+			}
+
+			DisableAlphaBlending();
+			EnableDepthTest();
 		}
-
-		DisableAlphaBlending();
-		EnableDepthTest();
 
 #if DEBUG_BUILD
 		// Debug meshes
@@ -1272,18 +1290,44 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			UniformMat4Array(projUniform, 1, proj.m);
 			modelUniform = GetUniform(g_debugContext->editorSelectedProgram, "model");
 
+			DeviceUniform isSkinnedUniform = GetUniform(g_debugContext->editorSelectedProgram, "skinned");
+
 			static f32 t = 0;
 			t += deltaTime;
 			DeviceUniform timeUniform = GetUniform(g_debugContext->editorSelectedProgram, "time");
 			UniformFloat(timeUniform, t);
 
 			Entity *entity = &gameState->entities[g_debugContext->selectedEntityIdx];
+
+			const mat4 model = Mat4Compose(entity->pos, entity->rot);
+			UniformMat4Array(modelUniform, 1, model.m);
+
 			if (entity->mesh)
 			{
-				const mat4 model = Mat4Compose(entity->pos, entity->rot);
-				UniformMat4Array(modelUniform, 1, model.m);
-
+				UniformInt(isSkinnedUniform, false);
 				RenderIndexedMesh(entity->mesh->mesh.deviceMesh);
+			}
+
+			SkinnedMeshInstance *skinnedMeshInstance = entity->skinnedMeshInstance;
+			if (skinnedMeshInstance)
+			{
+				UniformInt(isSkinnedUniform, true);
+
+				const Resource *skinnedMeshRes = skinnedMeshInstance->meshRes;
+				if (skinnedMeshRes)
+				{
+					const ResourceSkinnedMesh *skinnedMesh = &skinnedMeshRes->skinnedMesh;
+
+					DeviceUniform jointTranslationsUniform = GetUniform(g_debugContext->editorSelectedProgram, "jointTranslations");
+					DeviceUniform jointRotationsUniform = GetUniform(g_debugContext->editorSelectedProgram, "jointRotations");
+					DeviceUniform jointScalesUniform = GetUniform(g_debugContext->editorSelectedProgram, "jointScales");
+
+					UniformV3Array(jointTranslationsUniform, 128, skinnedMeshInstance->jointTranslations[0].v);
+					UniformV4Array(jointRotationsUniform, 128, skinnedMeshInstance->jointRotations[0].v);
+					UniformV3Array(jointScalesUniform, 128, skinnedMeshInstance->jointScales[0].v);
+
+					RenderIndexedMesh(skinnedMesh->deviceMesh);
+				}
 			}
 
 			SetFillMode(RENDER_FILL);

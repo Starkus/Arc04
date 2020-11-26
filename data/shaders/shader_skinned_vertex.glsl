@@ -4,13 +4,12 @@ layout (location = 1) in vec2 inUv;
 layout (location = 2) in vec3 nor;
 layout (location = 3) in uvec4 indices;
 layout (location = 4) in vec4 weights;
-uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform mat4 model;
 uniform vec3 jointTranslations[128];
 uniform vec4 jointRotations[128];
 uniform vec3 jointScales[128];
-uniform sampler2D texSampler;
 out vec2 uv;
 out vec3 normal;
 

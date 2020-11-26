@@ -42,6 +42,10 @@ struct SkinnedMeshInstance
 	const Resource *meshRes;
 	i32 animationIdx;
 	f32 animationTime;
+
+	v3 jointTranslations[128];
+	v4 jointRotations[128];
+	v3 jointScales[128];
 };
 DECLARE_ARRAY(SkinnedMeshInstance);
 

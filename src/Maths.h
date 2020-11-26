@@ -200,6 +200,16 @@ union v2
 	f32 v[2];
 };
 
+inline f32 V2Dot(const v2 &a, const v2 &b)
+{
+	return a.x * b.x + a.y * b.y;
+}
+
+inline f32 V2SqrLen(const v2 &a)
+{
+	return V2Dot(a, a);
+}
+
 union v3
 {
 	struct
