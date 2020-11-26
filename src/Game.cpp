@@ -66,7 +66,7 @@ Entity *GetEntity(GameState *gameState, EntityHandle handle)
 
 EntityHandle FindEntityHandle(GameState *gameState, Entity *entityPtr)
 {
-	for (u32 entityId = 0; entityId < ArrayCount(gameState->entities); ++entityId)
+	for (u32 entityId = 0; entityId < gameState->entities.size; ++entityId)
 	{
 		Entity *currentPtr = gameState->entityPointers[entityId];
 		if (currentPtr == entityPtr)
@@ -699,6 +699,107 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 		gameState->camPos = playerEntity->pos;
 
+		// Update particle systems
+		auto SimulateParticle = [](ParticleSystem *particleSystem, int i, f32 dt)
+		{
+			Particle *particle = &particleSystem->particles[i];
+			ParticleBookkeep *bookkeep = &particleSystem->bookkeeps[i];
+
+			bookkeep->lifeTime += dt;
+			if (bookkeep->lifeTime > bookkeep->duration)
+			{
+				// Despawn
+				particleSystem->alive[i] = false;
+			}
+
+			bookkeep->velocity += particleSystem->acceleration * dt;
+			particle->pos += bookkeep->velocity * dt;
+			particle->color += particleSystem->colorDelta * dt;
+			particle->size += particleSystem->sizeOverTime * dt;
+		};
+
+		for (u32 partSysIdx = 0; partSysIdx < gameState->particleSystems.size;
+				++partSysIdx)
+		{
+			ParticleSystem *particleSystem = &gameState->particleSystems[partSysIdx];
+			Entity *entity = GetEntity(gameState, particleSystem->entityHandle);
+
+			const int maxCount = ArrayCount(particleSystem->particles);
+			particleSystem->timer += deltaTime;
+			for (int i = 0; i < maxCount; ++i)
+			{
+				if (!particleSystem->alive[i])
+				{
+					particleSystem->particles[i].size = 0;
+					continue;
+				}
+
+				SimulateParticle(particleSystem, i, deltaTime);
+			}
+
+			if (particleSystem->spawnRate <= 0)
+			{
+				continue;
+			}
+
+			while (particleSystem->timer > particleSystem->spawnRate)
+			{
+				// Spawn particle
+				int newParticleIdx = -1;
+				for (int i = 0; i < maxCount; ++i)
+				{
+					if (!particleSystem->alive[i])
+					{
+						newParticleIdx = i;
+						break;
+					}
+				}
+
+				if (newParticleIdx != -1)
+				{
+					particleSystem->alive[newParticleIdx] = true;
+					Particle *p = &particleSystem->particles[newParticleIdx];
+					ParticleBookkeep *b = &particleSystem->bookkeeps[newParticleIdx];
+
+					b->lifeTime = 0;
+					b->duration = particleSystem->maxLife;
+
+					v3 spread =
+					{
+						GetRandomF32() - 0.5f,
+						GetRandomF32() - 0.5f,
+						GetRandomF32() - 0.5f
+					};
+					spread = V3Scale(spread, particleSystem->initialVelSpread);
+					b->velocity = particleSystem->initialVel + spread;
+					// @Speed: rotate velocity outside loop (might need fw, right, up vectors for spread)
+					b->velocity = QuaternionRotateVector(entity->rot, b->velocity);
+
+					p->pos = entity->pos;
+
+					p->size = particleSystem->initialSize +
+						(GetRandomF32() - 0.5f) * particleSystem->sizeSpread;
+
+					v4 colorSpread =
+					{
+						GetRandomF32() - 0.5f,
+						GetRandomF32() - 0.5f,
+						GetRandomF32() - 0.5f,
+						GetRandomF32() - 0.5f
+					};
+					colorSpread = V4Scale(colorSpread, particleSystem->colorSpread);
+					p->color = particleSystem->initialColor +
+						colorSpread;
+
+					// Simulate a bit to compensate spawn delay
+					f32 t = particleSystem->timer;
+					SimulateParticle(particleSystem, newParticleIdx, t);
+				}
+
+				particleSystem->timer -= particleSystem->spawnRate;
+			}
+		}
+
 #if DEBUG_BUILD
 		//Editor stuff
 		if (controller->mouseLeft.endedDown && controller->mouseLeft.changed)
@@ -1049,7 +1150,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			RenderIndexedMesh(skinnedMesh->deviceMesh);
 		}
 
-		// Particles
+		// Draw particles
 		UseProgram(gameState->particleSystemProgram);
 		viewUniform = GetUniform(gameState->particleSystemProgram, "view");
 		projUniform = GetUniform(gameState->particleSystemProgram, "projection");
@@ -1067,81 +1168,19 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		BindTexture(tex->texture.deviceTexture, 0);
 		BindTexture(gameState->frameBufferDepthTex, 1);
 
+		DisableDepthTest();
+		EnableAlphaBlending();
+		const u32 particleMeshAttribs = RENDERATTRIB_VERTEXNUM;
+		const u32 particleInstAttribs = RENDERATTRIB_POSITION | RENDERATTRIB_COLOR4 | RENDERATTRIB_1CUSTOMF32;
+
 		for (u32 partSysIdx = 0; partSysIdx < gameState->particleSystems.size;
 				++partSysIdx)
 		{
 			ParticleSystem *particleSystem = &gameState->particleSystems[partSysIdx];
-			Entity *entity = GetEntity(gameState, particleSystem->entityHandle);
 
 			UniformInt(atlasIdxUniform, particleSystem->atlasIdx);
 
 			const int maxCount = ArrayCount(particleSystem->particles);
-			particleSystem->timer += deltaTime;
-			if (particleSystem->spawnRate > 0)
-				while (particleSystem->timer > particleSystem->spawnRate)
-				{
-					particleSystem->timer -= particleSystem->spawnRate;
-
-					// Spawn particle
-					for (int i = 0; i < maxCount; ++i)
-					{
-						if (!particleSystem->alive[i])
-						{
-							particleSystem->alive[i] = true;
-
-							particleSystem->bookkeeps[i].lifeTime = 0;
-							particleSystem->bookkeeps[i].duration = GetRandom() / (f32)U32_MAX *
-								particleSystem->maxLife;
-
-							v3 spread =
-							{
-								GetRandomF32() - 0.5f,
-								GetRandomF32() - 0.5f,
-								GetRandomF32() - 0.5f
-							};
-							spread = V3Scale(spread, particleSystem->initialVelSpread);
-							particleSystem->bookkeeps[i].velocity = particleSystem->initialVel + spread;
-
-							particleSystem->particles[i].pos = entity->pos;
-
-							particleSystem->particles[i].size = particleSystem->initialSize +
-								(GetRandomF32() - 0.5f) * particleSystem->sizeSpread;
-
-							v4 colorSpread =
-							{
-								GetRandomF32() - 0.5f,
-								GetRandomF32() - 0.5f,
-								GetRandomF32() - 0.5f,
-								GetRandomF32() - 0.5f
-							};
-							colorSpread = V4Scale(colorSpread, particleSystem->colorSpread);
-							particleSystem->particles[i].color = particleSystem->initialColor +
-								colorSpread;
-							break;
-						}
-					}
-				}
-			for (int i = 0; i < maxCount; ++i)
-			{
-				if (!particleSystem->alive[i])
-				{
-					particleSystem->particles[i].size = 0;
-					continue;
-				}
-
-				ParticleBookkeep *bookkeep = &particleSystem->bookkeeps[i];
-				bookkeep->lifeTime += deltaTime;
-				if (bookkeep->lifeTime > bookkeep->duration)
-				{
-					// Despawn
-					particleSystem->alive[i] = false;
-				}
-
-				bookkeep->velocity += particleSystem->acceleration * deltaTime;
-				particleSystem->particles[i].pos += bookkeep->velocity * deltaTime;
-				particleSystem->particles[i].color += particleSystem->colorDelta * deltaTime;
-				particleSystem->particles[i].size += particleSystem->sizeOverTime * deltaTime;
-			}
 
 			// Sort!
 			// @Improve: change this once we have a proper camera
@@ -1157,29 +1196,17 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			memcpy(particlesCopy, particleSystem->particles, sizeof(particleSystem->particles));
 			qsort(particlesCopy, maxCount, sizeof(Particle), compareParticles);
 
-			// Assert order is right
-			for (int i = 0; i < maxCount - 1; ++i)
-			{
-				v3 cam = Mat4TransformPosition(Mat4Adjugate(view), v3{});
-				f32 aDist = V3SqrLen(particlesCopy[i].pos - cam);
-				f32 bDist = V3SqrLen(particlesCopy[i + 1].pos - cam);
-				ASSERT(aDist >= bDist);
-			}
-
 			SendMesh(&particleSystem->deviceBuffer,
 					particlesCopy,
 					maxCount,
 					sizeof(particleSystem->particles[0]), true);
 
-			DisableDepthTest();
-			EnableAlphaBlending();
-			u32 meshAttribs = RENDERATTRIB_VERTEXNUM;
-			u32 instAttribs = RENDERATTRIB_POSITION | RENDERATTRIB_COLOR4 | RENDERATTRIB_1CUSTOMF32;
-			RenderMeshInstanced(gameState->particleMesh, particleSystem->deviceBuffer, meshAttribs,
-					instAttribs);
-			DisableAlphaBlending();
-			EnableDepthTest();
+			RenderMeshInstanced(gameState->particleMesh, particleSystem->deviceBuffer,
+					particleMeshAttribs, particleInstAttribs);
 		}
+
+		DisableAlphaBlending();
+		EnableDepthTest();
 
 #if DEBUG_BUILD
 		// Debug meshes
