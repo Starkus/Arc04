@@ -1,17 +1,18 @@
 #include <windows.h>
 #include <strsafe.h>
-#include <GL/gl.h>
-#include <GLES3/gl32.h>
-#include <GLES3/glext.h>
-#include <GLES3/wglext.h>
-#include <GLES3/glcorearb.h>
 #include <Xinput.h>
-
-#include "General.h"
 
 #if DEBUG_BUILD
 #define USING_IMGUI 1
 #endif
+
+#if USING_IMGUI && DEBUG_BUILD
+#define EDITOR_PRESENT 1
+#else
+#define EDITOR_PRESENT 0
+#endif
+
+#include "General.h"
 
 #include "OpenGL.h"
 
@@ -64,8 +65,7 @@ u32 g_windowHeight = 1062;
 Win32GameCode g_gameCode;
 
 #include "Win32Common.cpp"
-#include "OpenGL.cpp"
-#include "OpenGLRender.cpp"
+#include "RenderOpenGL.cpp"
 #include "MemoryAlloc.cpp"
 
 PLATFORMPROC void GetWindowSize(u32 *width, u32 *height)
@@ -117,6 +117,8 @@ const char *gameDllName = "game.dll";
 #endif
 
 // WGL
+// nocheckin
+#if 0
 PFNWGLCHOOSEPIXELFORMATARBPROC wglChoosePixelFormatARB;
 PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB;
 void LoadWGLProcs()
@@ -124,6 +126,7 @@ void LoadWGLProcs()
 	wglChoosePixelFormatARB = (PFNWGLCHOOSEPIXELFORMATARBPROC)GL_GetProcAddress("wglChoosePixelFormatARB");
 	wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC)GL_GetProcAddress("wglCreateContextAttribsARB");
 }
+#endif
 /////////
 
 struct Win32Context
@@ -162,13 +165,13 @@ void Win32LoadXInput()
 	}
 }
 
-bool ProcessKeyboard(Controller *c)
+bool ProcessKeyboardAndMouse(Controller *c)
 {
 	MSG message;
 	while (PeekMessageA(&message, 0, 0, 0, PM_REMOVE))
 	{
 #if USING_IMGUI
-		if (!ImGui::GetIO().WantCaptureKeyboard)
+		if (!ImGui::GetIO().WantCaptureKeyboard && !ImGui::GetIO().WantCaptureMouse)
 #endif
 		switch (message.message)
 		{
@@ -176,7 +179,7 @@ bool ProcessKeyboard(Controller *c)
 		{
 			return true;
 		} break;
-#if DEBUG_BUILD
+#if EDITOR_PRESENT
 		case WM_LBUTTONDOWN:
 		{
 			c->mouseLeft.changed = !c->mouseLeft.endedDown;
@@ -264,21 +267,6 @@ bool ProcessKeyboard(Controller *c)
 				case VK_RIGHT:
 					checkButton(c->camRight);
 					break;
-
-#if DEBUG_BUILD
-				case 'H':
-					checkButton(c->debugUp);
-					break;
-				case 'J':
-					checkButton(c->debugDown);
-					break;
-				case 'K':
-					checkButton(c->debugUp);
-					break;
-				case 'L':
-					checkButton(c->debugDown);
-					break;
-#endif
 			}
 		} break;
 		default:
@@ -473,7 +461,6 @@ void InitOpenGLContext(Win32Context *context)
 
 	// Real context
 	LoadOpenGLProcs();
-	LoadWGLProcs();
 
 	context->windowHandle = CreateWindowA("window", "3DVania",
 			WS_OVERLAPPEDWINDOW | WS_VISIBLE, 16, 16, g_windowWidth, g_windowHeight, 0, 0, context->hInstance, 0);
@@ -657,7 +644,7 @@ void Win32Start(HINSTANCE hInstance)
 			for (int buttonIdx = 0; buttonIdx < ArrayCount(controller.b); ++buttonIdx)
 				controller.b[buttonIdx].changed = false;
 
-			bool stop = ProcessKeyboard(&controller);
+			bool stop = ProcessKeyboardAndMouse(&controller);
 			if (stop) running = false;
 
 			ProcessXInput(&oldController, &controller);

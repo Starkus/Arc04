@@ -283,11 +283,14 @@ void ImguiShowEditWindow(GameState *gameState)
 	}
 
 	ImGui::InputInt("Entity", &g_debugContext->selectedEntityIdx);
-	if (g_debugContext->selectedEntityIdx < 0)
-		g_debugContext->selectedEntityIdx = 0;
-	else if (g_debugContext->selectedEntityIdx >= (int)gameState->entities.size)
+	if (g_debugContext->selectedEntityIdx < -1)
+		g_debugContext->selectedEntityIdx = -1;
+	else if (g_debugContext->selectedEntityIdx >= (i32)gameState->entities.size)
 		g_debugContext->selectedEntityIdx = gameState->entities.size - 1;
-	Entity *selectedEntity = &gameState->entities[g_debugContext->selectedEntityIdx];
+
+	Entity *selectedEntity = nullptr;
+	if (g_debugContext->selectedEntityIdx != -1)
+		selectedEntity = &gameState->entities[g_debugContext->selectedEntityIdx];
 
 	if (ImGui::Button("Add"))
 	{
@@ -308,6 +311,12 @@ void ImguiShowEditWindow(GameState *gameState)
 				break;
 			}
 		}
+	}
+
+	if (!selectedEntity)
+	{
+		ImGui::End();
+		return;
 	}
 
 	ImGui::Separator();

@@ -63,17 +63,19 @@ struct ParticleBookkeep
 	v3 velocity;
 };
 
+// @Speed: Separate params so we don't bring them into cache when trying to render.
 struct ParticleSystem
 {
 	EntityHandle entityHandle;
 	DeviceMesh deviceBuffer;
 	f32 timer;
 	u8 atlasIdx;
+	v3 offset;
 	f32 spawnRate = 0.1f;
 	f32 maxLife = 1.0f;
 	f32 initialSize = 0.1f;
 	f32 sizeSpread;
-	f32 sizeOverTime;
+	f32 sizeDelta;
 	v3 initialVel;
 	v3 initialVelSpread;
 	v3 acceleration;
@@ -200,8 +202,8 @@ struct DebugContext
 	v3 epaNewPoint[epaMaxSteps];
 
 	// Editor
-	int selectedEntityIdx;
-	int hoveredEntityIdx;
+	i32 selectedEntityIdx = -1;
+	i32 hoveredEntityIdx;
 	DeviceProgram editorSelectedProgram;
 };
 #endif

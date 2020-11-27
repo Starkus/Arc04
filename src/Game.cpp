@@ -8,6 +8,12 @@
 #define USING_IMGUI 1
 #endif
 
+#if USING_IMGUI && DEBUG_BUILD
+#define EDITOR_PRESENT 1
+#else
+#define EDITOR_PRESENT 0
+#endif
+
 //#define IMGUI_SHOW_DEMO
 
 #if USING_IMGUI
@@ -15,12 +21,6 @@
 #ifdef IMGUI_SHOW_DEMO
 #include <imgui/imgui_demo.cpp> // @Todo: remove
 #endif
-#endif
-
-#if USING_IMGUI && DEBUG_BUILD
-#define EDITOR_PRESENT 1
-#else
-#define EDITOR_PRESENT 0
 #endif
 
 #include "TypeInfo.h"
@@ -219,6 +219,7 @@ GAMEDLL START_GAME(StartGame)
 	GameState *gameState = (GameState *)TransientAlloc(sizeof(GameState));
 #if DEBUG_BUILD
 	g_debugContext = (DebugContext *)TransientAlloc(sizeof(DebugContext));
+	*g_debugContext = {};
 #endif
 
 	// Init game state
@@ -855,7 +856,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			bookkeep->velocity += particleSystem->acceleration * dt;
 			particle->pos += bookkeep->velocity * dt;
 			particle->color += particleSystem->colorDelta * dt;
-			particle->size += particleSystem->sizeOverTime * dt;
+			particle->size += particleSystem->sizeDelta * dt;
 		};
 
 		for (u32 partSysIdx = 0; partSysIdx < gameState->particleSystems.size;
@@ -915,7 +916,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					// @Speed: rotate velocity outside loop (might need fw, right, up vectors for spread)
 					b->velocity = QuaternionRotateVector(entity->rot, b->velocity);
 
-					p->pos = entity->pos;
+					p->pos = entity->pos + particleSystem->offset;
 
 					p->size = particleSystem->initialSize +
 						(GetRandomF32() - 0.5f) * particleSystem->sizeSpread;
@@ -944,7 +945,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		//Editor stuff
 		if (controller->mouseLeft.endedDown && controller->mouseLeft.changed)
 		{
-			if (g_debugContext->hoveredEntityIdx != -1)
+			//if (g_debugContext->hoveredEntityIdx != -1)
 			{
 				g_debugContext->selectedEntityIdx = g_debugContext->hoveredEntityIdx;
 			}
@@ -1047,7 +1048,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 #if DEBUG_BUILD
 		// Mouse picking
-		// @Todo: move from rendering code
+		// @Todo: move out of rendering code
 		{
 			v4 worldCursorPos = { controller->mousePos.x, -controller->mousePos.y, -1, 1 };
 			mat4 invViewMatrix = Mat4Adjugate(view);
@@ -1280,6 +1281,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		}
 
 		// Selected entity
+		if (g_debugContext->selectedEntityIdx != -1)
 		{
 			SetFillMode(RENDER_LINE);
 
