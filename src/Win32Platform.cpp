@@ -1,6 +1,6 @@
-#include <windows.h>
-#include <strsafe.h>
-#include <Xinput.h>
+@Ignore #include <windows.h>
+@Ignore #include <strsafe.h>
+@Ignore #include <Xinput.h>
 
 #if DEBUG_BUILD
 #define USING_IMGUI 1
@@ -17,19 +17,20 @@
 #include "OpenGL.h"
 
 #if USING_IMGUI
-#define IMGUI_IMPL_OPENGL_LOADER_CUSTOM
-#include <imgui/imgui_impl_win32.cpp>
-#include <imgui/imgui_impl_opengl3.cpp>
-#include <imgui/imgui.h>
+@Ignore #define IMGUI_IMPL_OPENGL_LOADER_CUSTOM
+@Ignore #include <imgui/imgui_impl_win32.cpp>
+@Ignore #include <imgui/imgui_impl_opengl3.cpp>
+@Ignore #include <imgui/imgui.h>
 #endif
 
+#include "Strings.h"
 #include "MemoryAlloc.h"
 #include "Containers.h"
 #include "Maths.h"
 #include "Render.h"
 #include "Geometry.h"
 #include "Resource.h"
-#include "PlatformCode.h"
+@Ignore #include "PlatformCode.h"
 #include "Platform.h"
 #include "Game.h"
 
@@ -105,7 +106,7 @@ PLATFORMPROC const Resource *GetResource(const char *filename)
 }
 
 // We need the functions above before including this!
-#include "PlatformCode.cpp"
+@Ignore #include "PlatformCode.cpp"
 
 #if DEBUG_BUILD
 const char *gameDllName = "game_debug.dll";
@@ -325,16 +326,6 @@ void ProcessXInput(Controller *oldController, Controller *controller)
 	}
 }
 /////////
-
-void ChangeExtension(char *buffer, const char *newExtension)
-{
-	char *lastDot = 0;
-	for (char *scan = buffer; *scan; ++scan)
-		if (*scan == '.')
-			lastDot = scan;
-	ASSERT(lastDot);
-	strcpy(lastDot + 1, newExtension);
-}
 
 void Win32LoadGameCode(const char *dllFilename, const char *tempDllFilename)
 {

@@ -1,12 +1,16 @@
+#if PREPROCESSING
+@Ignore #include <stdint.h>
+@Ignore #include <stdio.h>
+#else
+#include <stdint.h>
+#include <stdio.h>
+#endif
+
 #if defined(WIN32) || defined(_WIN32)
 #define TARGET_WINDOWS 1
 #else
 #define TARGET_WINDOWS 0
 #endif
-
-#include <stdint.h>
-#include <stdio.h>
-#include <stdarg.h>
 
 #if !TARGET_WINDOWS
 #include <assert.h>

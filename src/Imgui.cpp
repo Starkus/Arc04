@@ -187,6 +187,13 @@ bool ImguiMemberAsControl(void *object, const StructMember *memberInfo)
 		}
 		else if (memberInfo->typeInfo == &typeInfo_v4)
 		{
+			for (u32 tagIdx = 0; tagIdx < memberInfo->tagCount; ++tagIdx)
+			{
+				if (strcmp("Color", memberInfo->tags[tagIdx]) == 0)
+				{
+					return ImGui::ColorEdit4(memberInfo->name, (f32 *)object);
+				}
+			}
 			return ImGui::DragFloat4(memberInfo->name, (f32 *)object, speed);
 		}
 		else

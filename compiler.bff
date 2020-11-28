@@ -10,6 +10,8 @@
 .WindowsSDKIncludePath = '$WindowsSDKBasePath$\Include\$WindowsSDKVersion$'
 .WindowsSDKLibPath = '$WindowsSDKBasePath$\Lib\$WindowsSDKVersion$'
 
+.CompilerExe = '$VSBinPath$\cl.exe'
+
 // Settings
 
 Settings
@@ -25,7 +27,7 @@ Settings
 
 Compiler('Compiler_x64')
 {
-	.Executable = '$VSBinPath$\cl.exe'
+	.Executable = '$CompilerExe$'
 }
 
 // Linker

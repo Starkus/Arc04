@@ -1,6 +1,17 @@
-#include <math.h> // MSVC math intrinsics
+#if PREPROCESSING
+
+@Ignore #include <math.h>
+#if TARGET_WINDOWS
+@Ignore #include <intrin.h>
+#endif
+
+#else
+
+#include <math.h>
 #if TARGET_WINDOWS
 #include <intrin.h>
+#endif
+
 #endif
 
 const f32 PI = 3.1415926535897932384626433832795f;

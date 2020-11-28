@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include "General.h"
 #include "Maths.h"
 #include "Platform.h"
@@ -19,6 +18,8 @@
 #include <dirent.h>
 #include "LinuxCommon.cpp"
 #endif
+
+#include "Strings.h"
 
 enum //TokenType
 {
@@ -137,6 +138,8 @@ struct StructMember
 	Token name;
 	Type type;
 	TypeInfo typeInfo;
+	i32 tagCount;
+	Token tags[8];
 };
 
 struct Struct
@@ -265,6 +268,8 @@ Token ReadTokenAndAdvance(Tokenizer *tokenizer)
 			break;
 	}
 
+	result.begin = tokenizer->cursor;
+
 	if (!*tokenizer->cursor)
 	{
 		result.type = TOKEN_END_OF_FILE;
@@ -291,10 +296,9 @@ Token ReadTokenAndAdvance(Tokenizer *tokenizer)
 		++tokenizer->cursor;
 		//Log("String literal: \"%.*s\"\n", result.size, result.begin);
 	}
-	else if (IsAlpha(*tokenizer->cursor))
+	else if (IsAlpha(*tokenizer->cursor) || *tokenizer->cursor == '_')
 	{
 		result.type = TOKEN_IDENTIFIER;
-		result.begin = tokenizer->cursor;
 		while (IsAlpha(*tokenizer->cursor) || IsNumeric(*tokenizer->cursor) || *tokenizer->cursor == '_')
 		{
 			++result.size;
@@ -305,7 +309,6 @@ Token ReadTokenAndAdvance(Tokenizer *tokenizer)
 	else if (IsNumeric(*tokenizer->cursor))
 	{
 		result.type = TOKEN_LITERAL_NUMBER;
-		result.begin = tokenizer->cursor;
 		bool done = false;
 		if (*tokenizer->cursor == '0')
 		{
@@ -340,7 +343,6 @@ Token ReadTokenAndAdvance(Tokenizer *tokenizer)
 	else if (*tokenizer->cursor == '#')
 	{
 		result.type = TOKEN_PREPROCESSOR_DIRECTIVE;
-		result.begin = tokenizer->cursor;
 		result.size = EatRestOfLine(tokenizer);
 		//Log("Preprocessor directive: %.*s\n", result.size, result.begin);
 	}
@@ -395,40 +397,8 @@ void ParseFile(const char *filename, DynamicArray_Token &tokens)
 	{
 		Token newToken = ReadTokenAndAdvance(&tokenizer);
 		newToken.file = filename;
-		if (newToken.type == TOKEN_PREPROCESSOR_DIRECTIVE)
-		{
-			if (strncmp(newToken.begin, "#include", 8) == 0)
-			{
-				char *fileBegin = 0;
-				char *fileEnd = 0;
-				for (char *scan = newToken.begin; scan < newToken.begin + newToken.size; ++scan)
-				{
-					if (*scan == '"')
-					{
-						if (!fileBegin)
-						{
-							fileBegin = scan + 1;
-						}
-						else
-						{
-							fileEnd = scan;
-							break;
-						}
-					}
-				}
 
-				char *fullname = (char *)malloc(MAX_PATH);
-				sprintf(fullname, "src/%.*s", (int)(fileEnd - fileBegin), fileBegin);
-				if (PlatformFileExists(fullname))
-				{
-					ParseFile(fullname, tokens);
-					// Remove EOF token
-					ASSERT(tokens[tokens.size - 1].type == TOKEN_END_OF_FILE);
-					--tokens.size;
-				}
-			}
-		}
-		else
+		if (newToken.type != TOKEN_PREPROCESSOR_DIRECTIVE)
 			*DynamicArrayAdd_Token(&tokens, realloc) = newToken;
 
 		if (newToken.type == TOKEN_END_OF_FILE)
@@ -518,8 +488,8 @@ Type ParseType(Token token, DynamicArray_Struct &structs, DynamicArray_Enum &enu
 	return result;
 }
 
-Token *ReadStruct(Token *token, Struct *struct_, DynamicArray_Struct &structs, DynamicArray_Enum
-		&enums)
+Token *ReadStruct(Token *token, Struct *struct_, DynamicArray_Struct &structs,
+		DynamicArray_Enum &enums)
 {
 	if (token->type != '{')
 	{
@@ -615,19 +585,31 @@ Token *ReadStruct(Token *token, Struct *struct_, DynamicArray_Struct &structs, D
 			++token;
 		}
 
+		bool isMemberFunction = false;
 		while (1)
 		{
 			member.typeInfo.ptrLevels = 0;
+			member.tagCount = 0;
 
-			while (token->type == '*')
+			while (token->type == '*' || token->type == '&')
 			{
-				++member.typeInfo.ptrLevels;
+				if (token->type == '*')
+					++member.typeInfo.ptrLevels;
+				else
+					Log("WARNING: Ignoring reference type, not supported!\n");
 				++token;
 			}
 
 			if (token->type == TOKEN_IDENTIFIER)
 			{
 				member.name = *token;
+				// operatorX should be the only member functions in this codebase
+				if (TokenIsStr(token, "operator"))
+				{
+					// C++ has such weird syntax
+					while (token->type != ')')
+						++token;
+				}
 				++token;
 			}
 
@@ -652,13 +634,20 @@ Token *ReadStruct(Token *token, Struct *struct_, DynamicArray_Struct &structs, D
 				++token;
 			}
 
+			if (token->type == TOKEN_IDENTIFIER && TokenIsStr(token, "const"))
+			{
+				// Constant member function :)
+				++token;
+			}
+
 			// @Hack: Ignore default values
 			if (token->type == '=')
 			{
 				++token;
 				Log("Ignoring default value!\n");
 				int defaultValueScopeLevel = 0;
-				while (defaultValueScopeLevel || (token->type != ';' && token->type != ','))
+				while (defaultValueScopeLevel ||
+						(token->type != ';' && token->type != ',' && token->type != '@'))
 				{
 					if (token->type == '{')
 						++defaultValueScopeLevel;
@@ -668,9 +657,36 @@ Token *ReadStruct(Token *token, Struct *struct_, DynamicArray_Struct &structs, D
 				}
 			}
 
+			// Ignore function body
+			else if (token->type == '{')
+			{
+				isMemberFunction = true;
+				++token;
+				Log("Function body!\n");
+				int functionBodyScopeLevel = 1;
+				while (functionBodyScopeLevel)
+				{
+					if (token->type == '{')
+						++functionBodyScopeLevel;
+					else if (token->type == '}')
+						--functionBodyScopeLevel;
+					++token;
+				}
+			}
+
+			// Tags
+			while (token->type == '@')
+			{
+				++token;
+				ASSERT(token->type == TOKEN_IDENTIFIER);
+				member.tags[member.tagCount++] = *token;
+				Log("Tag found: @%.*s\n", token->size, token->begin);
+				++token;
+			}
+
 			if (member.name.type == TOKEN_IDENTIFIER && member.name.size)
 			{
-				if (!member.typeInfo.isStatic)
+				if (!isMemberFunction && !member.typeInfo.isStatic)
 					struct_->members[struct_->memberCount++] = member;
 			}
 			else
@@ -687,11 +703,14 @@ Token *ReadStruct(Token *token, Struct *struct_, DynamicArray_Struct &structs, D
 		while (token->type == TOKEN_PREPROCESSOR_DIRECTIVE)
 			++token;
 
-		if (token->type != ';')
+		if (!isMemberFunction)
 		{
-			Log("ERROR! Reading struct, expected ; got 0x%X(%c)\n", token->type, token->type);
+			if (token->type != ';')
+			{
+				Log("ERROR! Reading struct, expected ; got 0x%X(%c)\n", token->type, token->type);
+			}
+			++token;
 		}
-		++token;
 
 		if (token->type == '}')
 		{
@@ -1175,6 +1194,8 @@ void WriteTypeInfoFiles(DynamicArray_Struct &structs, DynamicArray_Enum &enums)
 	PrintToFile(file,   "\tu64 size;\n");
 	PrintToFile(file,   "\tu64 offset;\n");
 	PrintToFile(file,   "\tconst void *typeInfo;\n");
+	PrintToFile(file,   "\tu32 tagCount;\n");
+	PrintToFile(file,   "\tconst char *const *tags;\n");
 	PrintToFile(file, "};\n\n");
 
 	PrintToFile(file, "struct StructInfo\n{\n");
@@ -1238,6 +1259,24 @@ void WriteTypeInfoFiles(DynamicArray_Struct &structs, DynamicArray_Enum &enums)
 	{
 		Struct *struct_ = &structs[structIdx];
 
+		// Tag lists
+		for (int memberIdx = 0; memberIdx < struct_->memberCount; ++memberIdx)
+		{
+			StructMember *member = &struct_->members[memberIdx];
+			if (member->tagCount)
+			{
+				PrintToFile(file, "const char *const %_tags_%.*s_%.*s[] { ",
+						struct_->name.size, struct_->name.begin,
+						member->name.size, member->name.begin);
+				for (int tagIdx = 0; tagIdx < member->tagCount; ++tagIdx)
+				{
+					PrintToFile(file, "\"%.*s\", ", member->tags[tagIdx].size,
+							member->tags[tagIdx].begin);
+				}
+				PrintToFile(file, " };\n");
+			}
+		}
+
 		PrintToFile(file, "const StructMember _typeInfoMembers_%.*s[] =\n{\n", struct_->name.size,
 				struct_->name.begin);
 		for (int memberIdx = 0; memberIdx < struct_->memberCount; ++memberIdx)
@@ -1295,6 +1334,14 @@ void WriteTypeInfoFiles(DynamicArray_Struct &structs, DynamicArray_Enum &enums)
 				PrintToFile(file, ", &enumInfo_%.*s", member->typeInfo.name.size,
 						member->typeInfo.name.begin);
 			}
+
+			if (member->tagCount)
+			{
+				PrintToFile(file, ", %d, _tags_%.*s_%.*s", member->tagCount,
+						struct_->name.size, struct_->name.begin,
+						member->name.size, member->name.begin);
+			}
+
 			PrintToFile(file, " },\n");
 		}
 		PrintToFile(file, "};\n");
@@ -1314,6 +1361,34 @@ void WriteTypeInfoFiles(DynamicArray_Struct &structs, DynamicArray_Enum &enums)
 	PlatformCloseFile(file);
 }
 
+void RemoveTags(DynamicArray_Token &tokens, const char *outputFile)
+{
+	FileHandle file = PlatformOpenForWrite(outputFile);
+
+	Token *token = &tokens[0];
+	char *begin = token->begin;
+	while (token->type != TOKEN_END_OF_FILE)
+	{
+		if (token->type == '@')
+		{
+			char *end = token->begin;
+			PlatformWriteToFile(file, begin, end - begin);
+
+			++token;
+			if (token->type != TOKEN_IDENTIFIER)
+			{
+				Log("ERROR! No identifier token after @\n");
+			}
+			begin = token->begin + token->size;
+		}
+		++token;
+	}
+	char *end = token->begin;
+	PlatformWriteToFile(file, begin, end - begin);
+
+	PlatformCloseFile(file);
+}
+
 int main(int argc, char **argv)
 {
 	if (argc == 1)
@@ -1324,35 +1399,65 @@ int main(int argc, char **argv)
 	g_hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
 #endif
 
-	Log("%s - %s\n", argv[0], argv[1]);
-
-#if 1
-	const char *gameFile = "src/Game.cpp";
-	DynamicArray_Token gameTokens;
-	DynamicArrayInit_Token(&gameTokens, 4096, malloc);
-	ParseFile(gameFile, gameTokens);
-
-	DynamicArray_Struct structs;
-	DynamicArray_Enum enums;
-	ReadStructsAndEnums(gameTokens, structs, enums);
-
-	WriteTypeInfoFiles(structs, enums);
-#endif
-
-	DynamicArray_Procedure procedures;
-	DynamicArrayInit_Procedure(&procedures, 64, malloc);
-
-	const char *platformFile = argv[1];
+	bool isGame = false;
+	bool isPlatform = false;
+	const char *srcFile = nullptr;
+	for (int argi = 0; argi < argc; ++argi)
+	{
+		Log("Arg %d: %s\n", argi, argv[argi]);
+		if (strcmp(argv[argi], "-game") == 0)
+		{
+			isGame = true;
+		}
+		else if (strcmp(argv[argi], "-platform") == 0)
+		{
+			isPlatform = true;
+		}
+		else
+		{
+			srcFile = argv[argi];
+		}
+	}
+	if (isGame == isPlatform)
+	{
+		Log("ERROR! Specify exactly one of -game or -platform\n");
+		return 1;
+	}
+	if (srcFile == nullptr)
+	{
+		Log("ERROR! Specify a source file to preprocess\n");
+		return 1;
+	}
 
 	DynamicArray_Token tokens;
 	DynamicArrayInit_Token(&tokens, 4096, malloc);
-	ParseFile(platformFile, tokens);
+	ParseFile(srcFile, tokens);
 
-	int error = ExtractPlatformProcedures(tokens, procedures);
-	if (error)
-		return error;
+	if (isGame)
+	{
+		DynamicArray_Struct structs;
+		DynamicArray_Enum enums;
+		ReadStructsAndEnums(tokens, structs, enums);
 
-	WritePlatformCodeFiles(procedures);
+		WriteTypeInfoFiles(structs, enums);
+	}
+
+	else if (isPlatform)
+	{
+		DynamicArray_Procedure procedures;
+		DynamicArrayInit_Procedure(&procedures, 64, malloc);
+
+		int error = ExtractPlatformProcedures(tokens, procedures);
+		if (error)
+			return error;
+
+		WritePlatformCodeFiles(procedures);
+	}
+
+	char outputFile[MAX_PATH];
+	strcpy(outputFile, srcFile);
+	ChangeExtension(outputFile, "cpp");
+	RemoveTags(tokens, outputFile);
 
 	return 0;
 }

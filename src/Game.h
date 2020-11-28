@@ -52,7 +52,7 @@ DECLARE_ARRAY(SkinnedMeshInstance);
 struct Particle
 {
 	v3 pos;
-	v4 color;
+	v4 color @Color;
 	f32 size;
 };
 
@@ -79,7 +79,7 @@ struct ParticleSystem
 	v3 initialVel;
 	v3 initialVelSpread;
 	v3 acceleration;
-	v4 initialColor = { 1, 1, 1, 1 };
+	v4 initialColor = { 1, 1, 1, 1 } @Color;
 	v4 colorSpread;
 	v4 colorDelta;
 	bool alive[256]; // @Improve
