@@ -1,4 +1,8 @@
+#if PREPROCESSING
+@Ignore #define PLATFORMPROC
+#else
 #define PLATFORMPROC
+#endif
 
 struct PlatformFileTime
 {

@@ -33,13 +33,6 @@ Executable('Preprocessor')
 		'PreprocessorSource',
 	}
 }
-Exec('Preprocessor_Run')
-{
-	.ExecExecutable = 'Preprocessor'
-	.ExecInputPath = '$SourcePath$'
-	.ExecOutput = 'gen/PlatformCode.h'
-	.ExecArguments = 'src/Win32Platform.cpp'
-}
 
 ForEach(.BuildType in .BuildTypes)
 {
@@ -56,11 +49,27 @@ ForEach(.BuildType in .BuildTypes)
 	}
 
 	// Win32 Platform
+	Exec('Win32PlatformCPreprocess_$BuildTypeName$')
+	{
+		.ExecExecutable = '$CompilerExe$'
+		.ExecOutput = '$GeneratedIncludePath$/Win32Platform$BuildTypeSufix$.i'
+		.ExecArguments = '$ExeCompilerOptions$ /DPREPROCESSING=1 src/Win32Platform.cpp /P /Fi$GeneratedIncludePath$/Win32Platform$BuildTypeSufix$.i'
+		.ExecAlways = true
+	}
+	Exec('Win32PlatformPreprocess_$BuildTypeName$')
+	{
+		.ExecExecutable = 'Preprocessor'
+		.ExecInput = '$GeneratedIncludePath$/Win32Platform$BuildTypeSufix$.i'
+		.ExecOutput = '$GeneratedIncludePath$/Win32Platform$BuildTypeSufix$.cpp'
+		.ExecArguments = '-platform $GeneratedIncludePath$/Win32Platform$BuildTypeSufix$.i'
+		.ExecAlways = true
+	}
+
 	ObjectList('Win32PlatformSource_$BuildTypeName$')
 	{
 		.CompilerOptions = '$ExeCompilerOptions$'
 		.CompilerInputFiles = {
-			'$SourcePath$/Win32Platform.cpp',
+			'$GeneratedIncludePath$/Win32Platform$BuildTypeSufix$.cpp',
 		}
 		.CompilerOutputPath = '$OutputPath$/$BuildTypeName$'
 	}
@@ -72,18 +81,34 @@ ForEach(.BuildType in .BuildTypes)
 			'Win32PlatformSource_$BuildTypeName$',
 			'ImGuiSource_$BuildTypeName$',
 		}
-		.PreBuildDependencies = 'Preprocessor_Run'
 	}
 
 	// Add to all targets
 	^AllTargets + 'Win32Platform_$BuildTypeName$'
 
 	// Game
+	Exec('GameCPreprocess_$BuildTypeName$')
+	{
+		.ExecExecutable = '$CompilerExe$'
+		.ExecOutput = '$GeneratedIncludePath$/Game$BuildTypeSufix$.i'
+		.ExecArguments = '$DllCompilerOptions$ /DPREPROCESSING=1 src/Game.cpp /P /Fi$GeneratedIncludePath$/Game$BuildTypeSufix$.i'
+		.ExecAlways = true
+	}
+	Exec('GamePreprocess_$BuildTypeName$')
+	{
+		.ExecExecutable = 'Preprocessor'
+		.ExecInput = '$GeneratedIncludePath$/Game$BuildTypeSufix$.i'
+		.ExecOutput = '$GeneratedIncludePath$/Game$BuildTypeSufix$.cpp'
+		.ExecArguments = '-game $GeneratedIncludePath$/Game$BuildTypeSufix$.i'
+		.ExecAlways = true
+		.PreBuildDependencies = 'GameCPreprocess_$BuildTypeName$'
+	}
+
 	ObjectList('GameSource_$BuildTypeName$')
 	{
 		.CompilerOptions = '$DllCompilerOptions$'
 		.CompilerInputFiles = {
-			'$SourcePath$/Game.cpp',
+			'$GeneratedIncludePath$/Game$BuildTypeSufix$.cpp',
 		}
 		.CompilerOutputPath = '$OutputPath$/$BuildTypeName$'
 	}
@@ -95,7 +120,6 @@ ForEach(.BuildType in .BuildTypes)
 			'GameSource_$BuildTypeName$',
 			'ImGuiSource_$BuildTypeName$',
 		}
-		.PreBuildDependencies = 'Preprocessor_Run'
 	}
 
 	// Add to all targets

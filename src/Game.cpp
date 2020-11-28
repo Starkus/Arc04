@@ -1,6 +1,6 @@
-#include <stdlib.h>
-#include <stddef.h>
-#include <memory.h>
+@Ignore #include <stdlib.h>
+@Ignore #include <stddef.h>
+@Ignore #include <memory.h>
 
 #include "General.h"
 
@@ -17,13 +17,13 @@
 //#define IMGUI_SHOW_DEMO
 
 #if USING_IMGUI
-#include <imgui/imgui.h>
+@Ignore #include <imgui/imgui.h>
 #ifdef IMGUI_SHOW_DEMO
-#include <imgui/imgui_demo.cpp> // @Todo: remove
+@Ignore #include <imgui/imgui_demo.cpp> // @Todo: remove
 #endif
 #endif
 
-#include "TypeInfo.h"
+@Ignore #include "TypeInfo.h"
 #include "RandomTable.h"
 #include "Maths.h"
 #include "MemoryAlloc.h"
@@ -31,7 +31,7 @@
 #include "Geometry.h"
 #include "Platform.h"
 #include "Resource.h"
-#include "PlatformCode.h"
+@Ignore #include "PlatformCode.h"
 #include "Containers.h"
 #include "Game.h"
 
@@ -42,7 +42,7 @@ DebugContext *g_debugContext;
 
 DECLARE_ARRAY(u32);
 
-#include "PlatformCodeLoad.cpp"
+@Ignore #include "PlatformCodeLoad.cpp"
 #include "DebugDraw.cpp"
 #include "MemoryAlloc.cpp"
 #include "Collision.cpp"
@@ -1372,4 +1372,4 @@ void CleanupGame(GameState *gameState)
 	return;
 }
 
-#include "TypeInfo.cpp"
+@Ignore #include "TypeInfo.cpp"

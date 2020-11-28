@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #include "General.h"
 
 // Windows
