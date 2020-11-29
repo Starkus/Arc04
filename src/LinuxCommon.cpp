@@ -22,7 +22,7 @@ static_assert(sizeof(LinuxFindData) <= sizeof(PlatformFindData),
 typedef int FileHandle;
 #define Sleep(...) sleep(__VA_ARGS__)
 
-PLATFORMPROC void Log(const char *format, ...)
+void Log(const char *format, ...)
 {
 	va_list args;
 	va_start(args, format);
@@ -59,7 +59,7 @@ int LinuxReadEntireFile(const char *filename, u8 **fileBuffer, u64 *fileSize, vo
 	return 0;
 }
 
-PLATFORMPROC bool PlatformReadEntireFile(const char *filename, u8 **fileBuffer, u64 *fileSize,
+bool PlatformReadEntireFile(const char *filename, u8 **fileBuffer, u64 *fileSize,
 		void *(*allocFunc)(u64))
 {
 	int error = LinuxReadEntireFile(filename, fileBuffer, fileSize, allocFunc);

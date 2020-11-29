@@ -1,22 +1,22 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <dlfcn.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
-#include <linux/limits.h>
-#include <time.h>
-#include <errno.h>
-#include <dirent.h>
+@Ignore #include <stdio.h>
+@Ignore #include <stdlib.h>
+@Ignore #include <string.h>
+@Ignore #include <dlfcn.h>
+@Ignore #include <fcntl.h>
+@Ignore #include <unistd.h>
+@Ignore #include <sys/stat.h>
+@Ignore #include <sys/mman.h>
+@Ignore #include <linux/limits.h>
+@Ignore #include <time.h>
+@Ignore #include <errno.h>
+@Ignore #include <dirent.h>
 
-#include <X11/X.h>
-#include <X11/Xlib.h>
-#include <GL/gl.h>
-#include <GL/glx.h>
-#include <GL/glu.h>
-#include <GLES3/gl32.h>
+@Ignore #include <X11/X.h>
+@Ignore #include <X11/Xlib.h>
+@Ignore #include <GL/gl.h>
+@Ignore #include <GL/glx.h>
+@Ignore #include <GL/glu.h>
+@Ignore #include <GLES3/gl32.h>
 
 #include "General.h"
 #include "Containers.h"
@@ -26,11 +26,15 @@
 #include "Geometry.h"
 #include "Resource.h"
 #include "Platform.h"
-#include "PlatformCode.h"
+@Ignore #include "PlatformCode.h"
 #include "Game.h"
 
 #include "LinuxCommon.cpp"
-#include "OpenGLRender.cpp"
+#include "RenderOpenGL.cpp"
+
+void Log(const char *format, ...) @PlatformProc;
+bool PlatformReadEntireFile(const char *filename, u8 **fileBuffer, u64 *fileSize,
+		void *(*allocFunc)(u64)) @PlatformProc;
 
 DECLARE_ARRAY(Resource);
 
@@ -67,7 +71,7 @@ Resource *CreateResource(const char *filename)
 	return resource;
 }
 
-PLATFORMPROC const Resource *LoadResource(ResourceType type, const char *filename)
+const Resource *LoadResource(ResourceType type, const char *filename) @PlatformProc
 {
 	Resource *newResource = CreateResource(filename);
 
@@ -83,7 +87,7 @@ PLATFORMPROC const Resource *LoadResource(ResourceType type, const char *filenam
 	return newResource;
 }
 
-PLATFORMPROC const Resource *GetResource(const char *filename)
+const Resource *GetResource(const char *filename) @PlatformProc
 {
 	for (u32 i = 0; i < g_resources->size; ++i)
 	{
@@ -96,7 +100,7 @@ PLATFORMPROC const Resource *GetResource(const char *filename)
 	return nullptr;
 }
 
-PLATFORMPROC void GetWindowSize(u32 *w, u32 *h)
+void GetWindowSize(u32 *w, u32 *h) @PlatformProc
 {
 	XWindowAttributes windowAttr;
 	XGetWindowAttributes(g_linuxContext->display, g_linuxContext->window, &windowAttr);
