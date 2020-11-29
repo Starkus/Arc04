@@ -437,7 +437,7 @@ inline bool TokenIsEqual(Token *a, Token *b)
 	return true;
 }
 
-void ParseFile(const char *filename, DynamicArray_Token &tokens)
+void TokenizeFile(const char *filename, DynamicArray_Token &tokens)
 {
 	auto MallocPlus1 = [](u64 size) { return malloc(size + 1); };
 	char *fileBuffer;
@@ -460,7 +460,7 @@ void ParseFile(const char *filename, DynamicArray_Token &tokens)
 	}
 }
 
-Token *ReadStruct(ParsedFile *context, Token *token, Struct *struct_);
+Token *ParseStruct(ParsedFile *context, Token *token, Struct *struct_);
 
 Token *ParseType(ParsedFile *context, Token *token, TypeInfo *typeInfo, Struct *inlineStruct)
 {
@@ -495,7 +495,7 @@ Token *ParseType(ParsedFile *context, Token *token, TypeInfo *typeInfo, Struct *
 	if (TokenIsStr(token, "struct") || TokenIsStr(token, "union"))
 	{
 		typeInfo->type = TYPE_STRUCT;
-		token = ReadStruct(context, token, inlineStruct);
+		token = ParseStruct(context, token, inlineStruct);
 
 		return token;
 	}
@@ -633,6 +633,7 @@ Token *ParseVariable(ParsedFile *context, Token *token, TypeInfo *typeInfo, Toke
 	{
 		//Log("Parsing variable: %.*s\n", token->size, token->begin);
 		*name = *token;
+
 		// @Hack: operator is the only identifier here that can contain weird symbols. Just skip
 		// until '('.
 		if (TokenIsStr(token, "operator"))
@@ -642,6 +643,7 @@ Token *ParseVariable(ParsedFile *context, Token *token, TypeInfo *typeInfo, Toke
 				++token;
 				ASSERT(token->type != TOKEN_END_OF_FILE);
 			}
+			name->size = token->begin - name->begin;
 		}
 		else
 		{
@@ -724,7 +726,6 @@ Token *ParseVariable(ParsedFile *context, Token *token, TypeInfo *typeInfo, Toke
 	if (token->type == '=')
 	{
 		++token;
-		//Log("Ignoring default value!\n");
 		int defaultValueScopeLevel = 0;
 		while (defaultValueScopeLevel ||
 				(token->type != ';' && token->type != ',' && token->type != ')' && token->type != '@'))
@@ -739,7 +740,7 @@ Token *ParseVariable(ParsedFile *context, Token *token, TypeInfo *typeInfo, Toke
 	return token;
 }
 
-Token *ReadStruct(ParsedFile *context, Token *token, Struct *struct_)
+Token *ParseStruct(ParsedFile *context, Token *token, Struct *struct_)
 {
 	*struct_ = {};
 
@@ -881,7 +882,7 @@ Token *ReadStruct(ParsedFile *context, Token *token, Struct *struct_)
 	return token;
 }
 
-Token *ReadEnum(Token *token, Enum *enum_)
+Token *ParseEnum(Token *token, Enum *enum_)
 {
 	if (token->type != '{')
 	{
@@ -937,7 +938,7 @@ Token *ReadEnum(Token *token, Enum *enum_)
 	return token;
 }
 
-ParsedFile ReadEverything(DynamicArray_Token &tokens)
+ParsedFile ParseFile(DynamicArray_Token &tokens)
 {
 	ParsedFile parsedFile = {};
 	ArrayInit_Struct(&parsedFile.structs, 8192, malloc);
@@ -985,7 +986,7 @@ ParsedFile ReadEverything(DynamicArray_Token &tokens)
 			{
 				Struct struct_ = {};
 
-				token = ReadStruct(&parsedFile, token, &struct_);
+				token = ParseStruct(&parsedFile, token, &struct_);
 
 				if (struct_.name.type == TOKEN_IDENTIFIER && struct_.name.size)
 				{
@@ -1035,7 +1036,7 @@ ParsedFile ReadEverything(DynamicArray_Token &tokens)
 					continue;
 				}
 
-				token = ReadEnum(token, &enum_);
+				token = ParseEnum(token, &enum_);
 
 				if (enum_.name.type == TOKEN_IDENTIFIER && enum_.name.size)
 				{
@@ -1143,6 +1144,7 @@ ParsedFile ReadEverything(DynamicArray_Token &tokens)
 		{
 			// @Hack: Ignoring these tags completely.
 			++token;
+			ASSERT(token->type == TOKEN_IDENTIFIER);
 			++token;
 		}
 		else
@@ -1152,29 +1154,6 @@ ParsedFile ReadEverything(DynamicArray_Token &tokens)
 	}
 	return parsedFile;
 }
-
-#if 0
-int ExtractPlatformProcedures(DynamicArray_Token &tokens, Array_Procedure &procedures)
-{
-	for (u32 tokenIdx = 0; tokenIdx < tokens.size; ++tokenIdx)
-	{
-		Token *token = &tokens[tokenIdx];
-		if (token->type == TOKEN_IDENTIFIER)
-		{
-			if (strncmp(token->begin, "PLATFORMPROC", token->size) == 0)
-			{
-				Token *curToken = &tokens[++tokenIdx];
-				Procedure newProcedure;
-				int error = ReadProcedure(curToken, &newProcedure);
-				if (error)
-					return error;
-				*ArrayAdd_Procedure(&procedures, realloc) = newProcedure;
-			}
-		}
-	}
-	return 0;
-}
-#endif
 
 u64 PrintToFile(FileHandle file, const char *format, ...)
 {
@@ -1583,9 +1562,9 @@ int main(int argc, char **argv)
 
 	DynamicArray_Token tokens;
 	DynamicArrayInit_Token(&tokens, 4096, malloc);
-	ParseFile(srcFile, tokens);
+	TokenizeFile(srcFile, tokens);
 
-	ParsedFile parsedFile = ReadEverything(tokens);
+	ParsedFile parsedFile = ParseFile(tokens);
 
 	if (isGame)
 	{
