@@ -13,7 +13,11 @@
 #endif
 
 #if !TARGET_WINDOWS
+#if PREPROCESSING
+@Ignore #include <assert.h>
+#else
 #include <assert.h>
+#endif
 #define MAX_PATH PATH_MAX
 #endif
 

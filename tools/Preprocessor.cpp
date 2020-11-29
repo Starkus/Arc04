@@ -397,7 +397,7 @@ void PrintTypeInfo(char *buffer, const TypeInfo *typeInfo)
 	}
 	if (typeInfo->type == TYPE_STRUCT)
 	{
-		sprintf(buffer, "%s%s%.*s %s\0",
+		sprintf(buffer, "%s%s%.*s %s",
 			typeInfo->isStatic ? "static " : "",
 			typeInfo->isConst ? "const " : "",
 			typeInfo->structInfo->name.size, typeInfo->structInfo->name.begin,
@@ -405,7 +405,7 @@ void PrintTypeInfo(char *buffer, const TypeInfo *typeInfo)
 	}
 	else if (typeInfo->type == TYPE_ENUM)
 	{
-		sprintf(buffer, "%s%s%.*s %s\0",
+		sprintf(buffer, "%s%s%.*s %s",
 			typeInfo->isStatic ? "static " : "",
 			typeInfo->isConst ? "const " : "",
 			typeInfo->enumInfo->name.size, typeInfo->enumInfo->name.begin,
@@ -413,7 +413,7 @@ void PrintTypeInfo(char *buffer, const TypeInfo *typeInfo)
 	}
 	else
 	{
-		sprintf(buffer, "%s%s%s %s\0",
+		sprintf(buffer, "%s%s%s %s",
 			typeInfo->isStatic ? "static " : "",
 			typeInfo->isConst ? "const " : "",
 			basicTypeStrings[typeInfo->type],
@@ -960,7 +960,8 @@ ParsedFile ParseFile(DynamicArray_Token &tokens)
 					++token;
 				}
 			}
-			else if (TokenIsStr(token, "static_assert") || TokenIsStr(token, "__declspec"))
+			else if (TokenIsStr(token, "static_assert") || TokenIsStr(token, "__declspec") ||
+					TokenIsStr(token, "__attribute__"))
 			{
 				++token;
 				ASSERT(token->type == '(');
@@ -1275,7 +1276,7 @@ void WriteStruct(FileHandle file, Struct *struct_, Struct *parentStruct, Token *
 		StructMember *member = &struct_->members[memberIdx];
 		if (member->tagCount)
 		{
-			PrintToFile(file, "const char *const %_tags_%.*s_%.*s[] { ",
+			PrintToFile(file, "const char *const _tags_%.*s_%.*s[] { ",
 					struct_->name.size, struct_->name.begin,
 					member->name.size, member->name.begin);
 			for (int tagIdx = 0; tagIdx < member->tagCount; ++tagIdx)
