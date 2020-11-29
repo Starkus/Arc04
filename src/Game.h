@@ -63,11 +63,24 @@ struct ParticleBookkeep
 	v3 velocity;
 };
 
+enum SillyEnum
+{
+	SILLY_FOO,
+	SILLY_BAR,
+	SILLY_BAZ
+};
+
+struct SillyStruct
+{
+	i32 Integer;
+	SillyEnum sillyyyy;
+};
+
 // @Speed: Separate params so we don't bring them into cache when trying to render.
 struct ParticleSystem
 {
-	EntityHandle entityHandle;
-	DeviceMesh deviceBuffer;
+	EntityHandle entityHandle @Hidden;
+	DeviceMesh deviceBuffer @Hidden;
 	f32 timer;
 	u8 atlasIdx;
 	v3 offset;
@@ -82,9 +95,10 @@ struct ParticleSystem
 	v4 initialColor = { 1, 1, 1, 1 } @Color;
 	v4 colorSpread;
 	v4 colorDelta;
-	bool alive[256]; // @Improve
-	ParticleBookkeep bookkeeps[256];
-	Particle particles[256];
+	bool alive[256] @Hidden; // @Improve
+	ParticleBookkeep bookkeeps[256] @Hidden;
+	Particle particles[256] @Hidden;
+	SillyStruct silly;
 };
 DECLARE_ARRAY(ParticleSystem);
 

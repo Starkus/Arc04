@@ -558,6 +558,16 @@ void Win32Start(HINSTANCE hInstance)
 
 		g_imguiLogBuffer = &logBuffer;
 	}
+	// Font
+	ImGuiIO& io = ImGui::GetIO();
+	io.Fonts->AddFontFromFileTTF("Merriweather-Light.ttf", 18);
+	// Style
+	ImGuiStyle *style = &ImGui::GetStyle();
+	style->FramePadding = ImVec2(4,5);
+	style->WindowRounding = 0.0f;
+	style->WindowBorderSize = 0.0f;
+	style->ScrollbarSize = 20.0f;
+	style->ScrollbarRounding = 0.0f;
 #endif
 
 	// Get paths
