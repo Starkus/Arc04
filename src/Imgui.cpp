@@ -1,5 +1,17 @@
 const char *protectedMemoryErrorStr = "Can't read memory!";
 
+bool StructMemberHasTag(const StructMember *memberInfo, const char *tag)
+{
+	for (u32 tagIdx = 0; tagIdx < memberInfo->tagCount; ++tagIdx)
+	{
+		if (strcmp(tag, memberInfo->tags[tagIdx]) == 0)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 void ImguiShowDebugWindow(GameState *gameState)
 {
 #if DEBUG_BUILD && USING_IMGUI
@@ -77,6 +89,9 @@ bool ImguiStructAsControls(void *object, const StructInfo *structInfo);
 // Returns true if value changed
 bool ImguiMemberAsControl(void *object, const StructMember *memberInfo)
 {
+	if (StructMemberHasTag(memberInfo, "Hidden"))
+		return false;
+
 	if (!PlatformCanReadMemory(object))
 	{
 		ImGui::Text(protectedMemoryErrorStr);
@@ -153,26 +168,27 @@ bool ImguiMemberAsControl(void *object, const StructMember *memberInfo)
 		return somethingChanged;
 	}
 
-	const f32 speed = 0.005f;
+	static const f32 speed = 0.005f;
+	static const u64 step = 1;
 
 	switch (memberInfo->type)
 	{
 	case TYPE_U8:
-		return ImGui::DragScalar(memberInfo->name, ImGuiDataType_U8, object, speed);
+		return ImGui::InputScalar(memberInfo->name, ImGuiDataType_U8, object, &step);
 	case TYPE_U16:
-		return ImGui::DragScalar(memberInfo->name, ImGuiDataType_U16, object, speed);
+		return ImGui::InputScalar(memberInfo->name, ImGuiDataType_U16, object, &step);
 	case TYPE_U32:
-		return ImGui::DragScalar(memberInfo->name, ImGuiDataType_U32, object, speed);
+		return ImGui::InputScalar(memberInfo->name, ImGuiDataType_U32, object, &step);
 	case TYPE_U64:
-		return ImGui::DragScalar(memberInfo->name, ImGuiDataType_U64, object, speed);
+		return ImGui::InputScalar(memberInfo->name, ImGuiDataType_U64, object, &step);
 	case TYPE_I8:
-		return ImGui::DragScalar(memberInfo->name, ImGuiDataType_S8, object, speed);
+		return ImGui::InputScalar(memberInfo->name, ImGuiDataType_S8, object, &step);
 	case TYPE_I16:
-		return ImGui::DragScalar(memberInfo->name, ImGuiDataType_S16, object, speed);
+		return ImGui::InputScalar(memberInfo->name, ImGuiDataType_S16, object, &step);
 	case TYPE_I32:
-		return ImGui::DragScalar(memberInfo->name, ImGuiDataType_S32, object, speed);
+		return ImGui::InputScalar(memberInfo->name, ImGuiDataType_S32, object, &step);
 	case TYPE_I64:
-		return ImGui::DragScalar(memberInfo->name, ImGuiDataType_S64, object, speed);
+		return ImGui::InputScalar(memberInfo->name, ImGuiDataType_S64, object, &step);
 	case TYPE_F32:
 		return ImGui::DragScalar(memberInfo->name, ImGuiDataType_Float, object, speed);
 	case TYPE_F64:
@@ -181,27 +197,61 @@ bool ImguiMemberAsControl(void *object, const StructMember *memberInfo)
 		return ImGui::Checkbox(memberInfo->name, (bool *)object);
 	case TYPE_STRUCT:
 	{
+		const StructInfo *structInfo = (StructInfo *)memberInfo->typeInfo;
 		if (memberInfo->typeInfo == &typeInfo_v3)
 		{
+			if (StructMemberHasTag(memberInfo, "Color"))
+			{
+				return ImGui::ColorEdit3(memberInfo->name, (f32 *)object);
+			}
 			return ImGui::DragFloat3(memberInfo->name, (f32 *)object, speed);
 		}
 		else if (memberInfo->typeInfo == &typeInfo_v4)
 		{
-			for (u32 tagIdx = 0; tagIdx < memberInfo->tagCount; ++tagIdx)
+			if (StructMemberHasTag(memberInfo, "Color"))
 			{
-				if (strcmp("Color", memberInfo->tags[tagIdx]) == 0)
-				{
-					return ImGui::ColorEdit4(memberInfo->name, (f32 *)object);
-				}
+				return ImGui::ColorEdit4(memberInfo->name, (f32 *)object);
 			}
 			return ImGui::DragFloat4(memberInfo->name, (f32 *)object, speed);
+		}
+		else if (strncmp("Array_", structInfo->name, 6) == 0)
+		{
+			// @Improve: maybe use tags instead of strcmp'ing the struct name.
+			if (ImGui::TreeNode(memberInfo->name))
+			{
+				void *dataPtrPtr = (u8 *)object + structInfo->members[0].offset;
+				void *dataPtr = *(void **)(dataPtrPtr);
+				void *sizePtr = (u8 *)object + structInfo->members[1].offset;
+
+				int one = 1;
+				bool somethingChanged = ImGui::InputScalar("Size", ImGuiDataType_U32, sizePtr, &one);
+
+				// Items
+				char enumeratedName[512];
+				StructMember dataType = structInfo->members[0];
+				dataType.name = enumeratedName;
+				--dataType.pointerLevels;
+
+				const u32 itemCount = *(u32 *)sizePtr;
+				for (u32 i = 0; i < itemCount; ++i)
+				{
+					sprintf(enumeratedName, "%s, %d", memberInfo->name, i);
+					void *itemOffset = ((u8 *)dataPtr) + dataType.size * i;
+					somethingChanged = ImguiMemberAsControl(itemOffset, &dataType)
+						|| somethingChanged;
+				}
+
+				ImGui::TreePop();
+				return somethingChanged;
+			}
+			return false;
 		}
 		else
 		{
 			//ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
 			if (ImGui::TreeNode(memberInfo->name))
 			{
-				bool changed = ImguiStructAsControls(object, (const StructInfo *)memberInfo->typeInfo);
+				bool changed = ImguiStructAsControls(object, structInfo);
 				ImGui::TreePop();
 				return changed;
 			}
@@ -390,6 +440,7 @@ void ImguiShowEditWindow(GameState *gameState)
 		}
 
 		const StructMember *member = &typeInfo_Collider.members[collider->type + 1];
+		ImGui::SetNextItemOpen(true, ImGuiCond_Appearing);
 		ImguiMemberAsControl(((u8 *)&selectedEntity->collider) + member->offset, member);
 	}
 

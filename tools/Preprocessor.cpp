@@ -643,7 +643,7 @@ Token *ParseVariable(ParsedFile *context, Token *token, TypeInfo *typeInfo, Toke
 				++token;
 				ASSERT(token->type != TOKEN_END_OF_FILE);
 			}
-			name->size = token->begin - name->begin;
+			name->size = (int)(token->begin - name->begin);
 		}
 		else
 		{
@@ -1348,20 +1348,29 @@ void WriteStruct(FileHandle file, Struct *struct_, Struct *parentStruct, Token *
 						struct_->name.begin, member->name.size, member->name.begin);
 			}
 
+			bool typeInfoWritten = false;
 			if (member->typeInfo.type == TYPE_STRUCT)
 			{
 				Token *nameToken = &member->typeInfo.structInfo->name;
 				if (nameToken->begin)
+				{
 					PrintToFile(file, ", &typeInfo_%.*s", nameToken->size,
 							nameToken->begin);
+					typeInfoWritten = true;
+				}
 			}
 			else if (member->typeInfo.type == TYPE_ENUM)
 			{
 				Token *nameToken = &member->typeInfo.enumInfo->name;
 				if (nameToken->begin)
+				{
 					PrintToFile(file, ", &enumInfo_%.*s", nameToken->size,
 							nameToken->begin);
+					typeInfoWritten = true;
+				}
 			}
+			if (!typeInfoWritten)
+				PrintToFile(file, ", nullptr");
 
 			if (member->tagCount)
 			{

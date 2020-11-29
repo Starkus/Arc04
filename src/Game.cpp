@@ -14,7 +14,7 @@
 #define EDITOR_PRESENT 0
 #endif
 
-//#define IMGUI_SHOW_DEMO
+#define IMGUI_SHOW_DEMO
 
 #if USING_IMGUI
 @Ignore #include <imgui/imgui.h>
