@@ -497,7 +497,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 #endif
 
 	ImguiShowDebugWindow(gameState);
-	//ImguiShowGameStateWindow(gameState);
+	ImguiShowGameStateWindow(gameState);
 	ImguiShowEditWindow(gameState);
 #endif
 

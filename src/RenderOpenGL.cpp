@@ -51,7 +51,7 @@ struct GLDeviceFrameBuffer
 static_assert(sizeof(GLDeviceFrameBuffer) <= sizeof(DeviceFrameBuffer),
 		"Size of GLDeviceFrameBuffer greater than handle");
 
-PLATFORMPROC void SetUpDevice()
+void SetUpDevice() @PlatformProc
 {
 	glEnable(GL_CULL_FACE);
 	glFrontFace(GL_CW);
@@ -59,49 +59,49 @@ PLATFORMPROC void SetUpDevice()
 	glEnable(GL_DEPTH_TEST);
 }
 
-PLATFORMPROC void EnableDepthTest()
+void EnableDepthTest() @PlatformProc
 {
 	glEnable(GL_DEPTH_TEST);
 }
 
-PLATFORMPROC void DisableDepthTest()
+void DisableDepthTest() @PlatformProc
 {
 	glDisable(GL_DEPTH_TEST);
 }
 
-PLATFORMPROC void EnableDepthWriting()
+void EnableDepthWriting() @PlatformProc
 {
 	glDepthMask(true);
 }
 
-PLATFORMPROC void DisableDepthWriting()
+void DisableDepthWriting() @PlatformProc
 {
 	glDepthMask(false);
 }
 
-PLATFORMPROC void EnableAlphaBlending()
+void EnableAlphaBlending() @PlatformProc
 {
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
-PLATFORMPROC void DisableAlphaBlending()
+void DisableAlphaBlending() @PlatformProc
 {
 	glDisable(GL_BLEND);
 }
 
-PLATFORMPROC void ClearColorBuffer(v4 clearColor)
+void ClearColorBuffer(v4 clearColor) @PlatformProc
 {
 	glClearColor(clearColor.x, clearColor.y, clearColor.z, clearColor.w);
 	glClear(GL_COLOR_BUFFER_BIT);
 }
 
-PLATFORMPROC void ClearDepthBuffer()
+void ClearDepthBuffer() @PlatformProc
 {
 	glClear(GL_DEPTH_BUFFER_BIT);
 }
 
-PLATFORMPROC DeviceUniform GetUniform(DeviceProgram program, const char *name)
+DeviceUniform GetUniform(DeviceProgram program, const char *name) @PlatformProc
 {
 	GLDeviceProgram *glProgram = (GLDeviceProgram *)&program;
 
@@ -112,69 +112,69 @@ PLATFORMPROC DeviceUniform GetUniform(DeviceProgram program, const char *name)
 	return result;
 }
 
-PLATFORMPROC void UseProgram(DeviceProgram program)
+void UseProgram(DeviceProgram program) @PlatformProc
 {
 	GLDeviceProgram *glProgram = (GLDeviceProgram *)&program;
 	glUseProgram(glProgram->program);
 }
 
-PLATFORMPROC void UniformMat4Array(DeviceUniform uniform, u32 count, const f32 *buffer)
+void UniformMat4Array(DeviceUniform uniform, u32 count, const f32 *buffer) @PlatformProc
 {
 	GLDeviceUniform *glUniform = (GLDeviceUniform *)&uniform;
 	glUniformMatrix4fv(glUniform->location, count, false, buffer);
 }
 
-PLATFORMPROC void UniformV3Array(DeviceUniform uniform, u32 count, const f32 *buffer)
+void UniformV3Array(DeviceUniform uniform, u32 count, const f32 *buffer) @PlatformProc
 {
 	GLDeviceUniform *glUniform = (GLDeviceUniform *)&uniform;
 	glUniform3fv(glUniform->location, count, buffer);
 }
 
-PLATFORMPROC void UniformV4Array(DeviceUniform uniform, u32 count, const f32 *buffer)
+void UniformV4Array(DeviceUniform uniform, u32 count, const f32 *buffer) @PlatformProc
 {
 	GLDeviceUniform *glUniform = (GLDeviceUniform *)&uniform;
 	glUniform4fv(glUniform->location, count, buffer);
 }
 
-PLATFORMPROC void UniformInt(DeviceUniform uniform, int n)
+void UniformInt(DeviceUniform uniform, int n) @PlatformProc
 {
 	GLDeviceUniform *glUniform = (GLDeviceUniform *)&uniform;
 	glUniform1i(glUniform->location, n);
 }
 
-PLATFORMPROC void UniformFloat(DeviceUniform uniform, f32 n)
+void UniformFloat(DeviceUniform uniform, f32 n) @PlatformProc
 {
 	GLDeviceUniform *glUniform = (GLDeviceUniform *)&uniform;
 	glUniform1f(glUniform->location, n);
 }
 
-PLATFORMPROC void UniformV3(DeviceUniform uniform, v3 v)
+void UniformV3(DeviceUniform uniform, v3 v) @PlatformProc
 {
 	GLDeviceUniform *glUniform = (GLDeviceUniform *)&uniform;
 	glUniform3f(glUniform->location, v.x, v.y, v.z);
 }
 
-PLATFORMPROC void UniformV4(DeviceUniform uniform, v4 v)
+void UniformV4(DeviceUniform uniform, v4 v) @PlatformProc
 {
 	GLDeviceUniform *glUniform = (GLDeviceUniform *)&uniform;
 	glUniform4f(glUniform->location, v.x, v.y, v.z, v.w);
 }
 
-PLATFORMPROC void RenderIndexedMesh(DeviceMesh mesh)
+void RenderIndexedMesh(DeviceMesh mesh) @PlatformProc
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)&mesh;
 	glBindVertexArray(glMesh->vao);
 	glDrawElements(GL_TRIANGLES, glMesh->indexCount, GL_UNSIGNED_SHORT, NULL);
 }
 
-PLATFORMPROC void RenderMesh(DeviceMesh mesh)
+void RenderMesh(DeviceMesh mesh) @PlatformProc
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)&mesh;
 	glBindVertexArray(glMesh->vao);
 	glDrawArrays(GL_TRIANGLES, 0, glMesh->vertexCount);
 }
 
-PLATFORMPROC void RenderLines(DeviceMesh mesh)
+void RenderLines(DeviceMesh mesh) @PlatformProc
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)&mesh;
 	glBindVertexArray(glMesh->vao);
@@ -292,8 +292,8 @@ int GLEnableAttribs(u32 attribs, int first = 0)
 	return attribIdx;
 }
 
-PLATFORMPROC void RenderMeshInstanced(DeviceMesh mesh, DeviceMesh positions, u32 meshAttribs,
-		u32 instAttribs)
+void RenderMeshInstanced(DeviceMesh mesh, DeviceMesh positions, u32 meshAttribs,
+		u32 instAttribs) @PlatformProc
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)&mesh;
 	GLDeviceMesh *glPositions = (GLDeviceMesh *)&positions;
@@ -317,8 +317,8 @@ PLATFORMPROC void RenderMeshInstanced(DeviceMesh mesh, DeviceMesh positions, u32
 	glDrawArraysInstanced(GL_TRIANGLES, 0, glMesh->vertexCount, glPositions->vertexCount);
 }
 
-PLATFORMPROC void RenderIndexedMeshInstanced(DeviceMesh mesh, DeviceMesh positions, u32 meshAttribs,
-		u32 instAttribs)
+void RenderIndexedMeshInstanced(DeviceMesh mesh, DeviceMesh positions, u32 meshAttribs,
+		u32 instAttribs) @PlatformProc
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)&mesh;
 	GLDeviceMesh *glPositions = (GLDeviceMesh *)&positions;
@@ -343,7 +343,7 @@ PLATFORMPROC void RenderIndexedMeshInstanced(DeviceMesh mesh, DeviceMesh positio
 	glDrawElementsInstanced(GL_TRIANGLES, glMesh->indexCount, GL_UNSIGNED_SHORT, NULL, glPositions->vertexCount);
 }
 
-PLATFORMPROC DeviceMesh CreateDeviceMesh(int attribs)
+DeviceMesh CreateDeviceMesh(int attribs) @PlatformProc
 {
 	DeviceMesh result;
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)&result;
@@ -358,14 +358,14 @@ PLATFORMPROC DeviceMesh CreateDeviceMesh(int attribs)
 	return result;
 }
 
-PLATFORMPROC void DestroyDeviceMesh(DeviceMesh mesh)
+void DestroyDeviceMesh(DeviceMesh mesh) @PlatformProc
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)&mesh;
 	glDeleteBuffers(1, glMesh->buffers);
 	glDeleteVertexArrays(1, &glMesh->vao);
 }
 
-PLATFORMPROC DeviceMesh CreateDeviceIndexedMesh(int attribs)
+DeviceMesh CreateDeviceIndexedMesh(int attribs) @PlatformProc
 {
 	DeviceMesh result;
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)&result;
@@ -381,14 +381,14 @@ PLATFORMPROC DeviceMesh CreateDeviceIndexedMesh(int attribs)
 	return result;
 }
 
-PLATFORMPROC void DestroyDeviceIndexedMesh(DeviceMesh mesh)
+void DestroyDeviceIndexedMesh(DeviceMesh mesh) @PlatformProc
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)&mesh;
 	glDeleteBuffers(2, glMesh->buffers);
 	glDeleteVertexArrays(1, &glMesh->vao);
 }
 
-PLATFORMPROC DeviceTexture CreateDeviceTexture()
+DeviceTexture CreateDeviceTexture() @PlatformProc
 {
 	DeviceTexture result;
 	GLDeviceTexture *glTexture = (GLDeviceTexture *)&result;
@@ -397,7 +397,7 @@ PLATFORMPROC DeviceTexture CreateDeviceTexture()
 	return result;
 }
 
-PLATFORMPROC void SendMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, u32 stride, bool dynamic)
+void SendMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, u32 stride, bool dynamic) @PlatformProc
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)mesh;
 
@@ -409,8 +409,8 @@ PLATFORMPROC void SendMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, 
 			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
 }
 
-PLATFORMPROC void SendIndexedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, u32 stride,
-		void *indexData, u32 indexCount, bool dynamic)
+void SendIndexedMesh(DeviceMesh *mesh, void *vertexData, u32 vertexCount, u32 stride,
+		void *indexData, u32 indexCount, bool dynamic) @PlatformProc
 {
 	GLDeviceMesh *glMesh = (GLDeviceMesh *)mesh;
 
@@ -426,8 +426,8 @@ PLATFORMPROC void SendIndexedMesh(DeviceMesh *mesh, void *vertexData, u32 vertex
 			dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
 }
 
-PLATFORMPROC void SendTexture(DeviceTexture texture, const void *imageData, u32 width, u32 height,
-		RenderImageComponents components)
+void SendTexture(DeviceTexture texture, const void *imageData, u32 width, u32 height,
+		RenderImageComponents components) @PlatformProc
 {
 	GLDeviceTexture *glTexture = (GLDeviceTexture *)&texture;
 	glBindTexture(GL_TEXTURE_2D, glTexture->texture);
@@ -462,7 +462,7 @@ PLATFORMPROC void SendTexture(DeviceTexture texture, const void *imageData, u32 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 }
 
-PLATFORMPROC void BindTexture(DeviceTexture texture, int slot)
+void BindTexture(DeviceTexture texture, int slot) @PlatformProc
 {
 	GLDeviceTexture *glTexture = (GLDeviceTexture *)&texture;
 
@@ -478,7 +478,7 @@ PLATFORMPROC void BindTexture(DeviceTexture texture, int slot)
 	glBindTexture(GL_TEXTURE_2D, glTexture->texture);
 }
 
-PLATFORMPROC DeviceShader CreateShader(ShaderType shaderType)
+DeviceShader CreateShader(ShaderType shaderType) @PlatformProc
 {
 	DeviceShader result;
 	GLDeviceShader *glShader = (GLDeviceShader *)&result;
@@ -495,7 +495,7 @@ PLATFORMPROC DeviceShader CreateShader(ShaderType shaderType)
 	return result;
 }
 
-PLATFORMPROC bool LoadShader(DeviceShader *shader, const char *shaderSource)
+bool LoadShader(DeviceShader *shader, const char *shaderSource) @PlatformProc
 {
 	GLDeviceShader *glShader = (GLDeviceShader *)shader;
 
@@ -521,14 +521,14 @@ PLATFORMPROC bool LoadShader(DeviceShader *shader, const char *shaderSource)
 	return true;
 }
 
-PLATFORMPROC void AttachShader(DeviceProgram program, DeviceShader shader)
+void AttachShader(DeviceProgram program, DeviceShader shader) @PlatformProc
 {
 	GLDeviceProgram *glProgram = (GLDeviceProgram *)&program;
 	GLDeviceShader *glShader = (GLDeviceShader *)&shader;
 	glAttachShader(glProgram->program, glShader->shader);
 }
 
-PLATFORMPROC DeviceProgram CreateDeviceProgram()
+DeviceProgram CreateDeviceProgram() @PlatformProc
 {
 	DeviceProgram result;
 	GLDeviceProgram *glProgram = (GLDeviceProgram *)&result;
@@ -543,7 +543,7 @@ PLATFORMPROC DeviceProgram CreateDeviceProgram()
 	return result;
 }
 
-PLATFORMPROC bool LinkDeviceProgram(DeviceProgram program)
+bool LinkDeviceProgram(DeviceProgram program) @PlatformProc
 {
 	GLDeviceProgram *glProgram = (GLDeviceProgram *)&program;
 
@@ -566,7 +566,7 @@ PLATFORMPROC bool LinkDeviceProgram(DeviceProgram program)
 	return true;
 }
 
-PLATFORMPROC void WipeDeviceProgram(DeviceProgram program)
+void WipeDeviceProgram(DeviceProgram program) @PlatformProc
 {
 	GLDeviceProgram *glProgram = (GLDeviceProgram *)&program;
 
@@ -581,7 +581,7 @@ PLATFORMPROC void WipeDeviceProgram(DeviceProgram program)
 	}
 }
 
-PLATFORMPROC void SetFillMode(RenderFillMode mode)
+void SetFillMode(RenderFillMode mode) @PlatformProc
 {
 	switch(mode)
 	{
@@ -597,13 +597,13 @@ PLATFORMPROC void SetFillMode(RenderFillMode mode)
 	}
 }
 
-PLATFORMPROC void SetViewport(int posX, int posY, int width, int height)
+void SetViewport(int posX, int posY, int width, int height) @PlatformProc
 {
 	glViewport(posX, posY, width, height);
 }
 
-PLATFORMPROC DeviceFrameBuffer CreateDeviceFrameBuffer(DeviceTexture colorTex,
-		DeviceTexture depthTex)
+DeviceFrameBuffer CreateDeviceFrameBuffer(DeviceTexture colorTex,
+		DeviceTexture depthTex) @PlatformProc
 {
 	DeviceFrameBuffer result;
 	GLDeviceFrameBuffer *glBuffer = (GLDeviceFrameBuffer *)&result;
@@ -629,13 +629,13 @@ PLATFORMPROC DeviceFrameBuffer CreateDeviceFrameBuffer(DeviceTexture colorTex,
 	return result;
 }
 
-PLATFORMPROC void BindFrameBuffer(DeviceFrameBuffer buffer)
+void BindFrameBuffer(DeviceFrameBuffer buffer) @PlatformProc
 {
 	GLDeviceFrameBuffer *glBuffer = (GLDeviceFrameBuffer *)&buffer;
 	glBindFramebuffer(GL_FRAMEBUFFER, glBuffer->frameBuffer);
 }
 
-PLATFORMPROC void UnbindFrameBuffer()
+void UnbindFrameBuffer() @PlatformProc
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }

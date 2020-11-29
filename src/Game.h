@@ -289,6 +289,8 @@ struct Controller
 	v2 mousePos;
 };
 
+struct PlatformCode;
+struct ImGuiContext;
 struct PlatformContext
 {
 	PlatformCode *platformCode;

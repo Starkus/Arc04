@@ -65,18 +65,24 @@ u32 g_windowWidth = 1888;
 u32 g_windowHeight = 1062;
 Win32GameCode g_gameCode;
 
+// Anotate functions here, since Win32Common is used in tools
+void Log(const char *format, ...) @PlatformProc;
+bool PlatformCanReadMemory(const void *ptr) @PlatformProc;
+bool PlatformReadEntireFile(const char *filename, u8 **fileBuffer, u64 *fileSize,
+		void *(*allocFunc)(u64)) @PlatformProc;
+
 #include "Win32Common.cpp"
 #include "RenderOpenGL.cpp"
 #include "MemoryAlloc.cpp"
 
-PLATFORMPROC void GetWindowSize(u32 *width, u32 *height)
+void GetWindowSize(u32 *width, u32 *height) @PlatformProc
 {
 	*width = g_windowWidth;
 	*height = g_windowHeight;
 }
 
 Resource *CreateResource(const char *filename);
-PLATFORMPROC const Resource *LoadResource(ResourceType type, const char *filename)
+const Resource *LoadResource(ResourceType type, const char *filename) @PlatformProc
 {
 	Resource *newResource = CreateResource(filename);
 
@@ -92,7 +98,7 @@ PLATFORMPROC const Resource *LoadResource(ResourceType type, const char *filenam
 	return newResource;
 }
 
-PLATFORMPROC const Resource *GetResource(const char *filename)
+const Resource *GetResource(const char *filename) @PlatformProc
 {
 	for (u32 i = 0; i < g_resourceBank->resources.size; ++i)
 	{
