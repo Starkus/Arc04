@@ -281,6 +281,8 @@ struct PlatformContext
 	Memory *memory;
 #if USING_IMGUI
 	ImGuiContext *imguiContext;
+#else
+	void *imguiContext;
 #endif
 };
 
