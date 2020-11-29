@@ -23,7 +23,7 @@ static_assert(sizeof(Win32SearchHandle) <= sizeof(PlatformSearchHandle),
 
 typedef HANDLE FileHandle;
 
-PLATFORMPROC void Log(const char *format, ...)
+void Log(const char *format, ...)
 {
 	char buffer[2048];
 	va_list args;
@@ -135,7 +135,7 @@ bool PlatformFileExists(const char *filename)
 	return Win32FileExists(filename);
 }
 
-PLATFORMPROC bool PlatformReadEntireFile(const char *filename, u8 **fileBuffer, u64 *fileSize,
+bool PlatformReadEntireFile(const char *filename, u8 **fileBuffer, u64 *fileSize,
 		void *(*allocFunc)(u64))
 {
 	char fullname[MAX_PATH];
@@ -235,7 +235,7 @@ bool PlatformIsDirectory(const char *filename)
 	return GetFileAttributesA(filename) & FILE_ATTRIBUTE_DIRECTORY;
 }
 
-PLATFORMPROC bool PlatformCanReadMemory(const void *ptr)
+bool PlatformCanReadMemory(const void *ptr)
 {
 	MEMORY_BASIC_INFORMATION info;
 	if (VirtualQuery(ptr, &info, sizeof(info)) == 0)

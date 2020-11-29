@@ -1,9 +1,3 @@
-#if PREPROCESSING
-@Ignore #define PLATFORMPROC
-#else
-#define PLATFORMPROC
-#endif
-
 struct PlatformFileTime
 {
 	u8 reserved[8];

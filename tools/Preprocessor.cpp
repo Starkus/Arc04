@@ -53,6 +53,7 @@ struct Tokenizer
 enum Type
 {
 	TYPE_INVALID,
+	TYPE_VOID,
 	TYPE_U8,
 	TYPE_U16,
 	TYPE_U32,
@@ -64,6 +65,8 @@ enum Type
 	TYPE_F32,
 	TYPE_F64,
 	TYPE_BOOL,
+	TYPE_CHAR,
+	TYPE_INT,
 	TYPE_STRUCT,
 	TYPE_ENUM,
 	TYPE_COUNT
@@ -72,6 +75,7 @@ enum Type
 const char *TypeStrings[] =
 {
 	"TYPE_INVALID",
+	"TYPE_VOID",
 	"TYPE_U8",
 	"TYPE_U16",
 	"TYPE_U32",
@@ -83,6 +87,8 @@ const char *TypeStrings[] =
 	"TYPE_F32",
 	"TYPE_F64",
 	"TYPE_BOOL",
+	"TYPE_CHAR",
+	"TYPE_INT",
 	"TYPE_STRUCT",
 	"TYPE_ENUM"
 };
@@ -90,6 +96,7 @@ const char *TypeStrings[] =
 const char *basicTypeStrings[] =
 {
 	"INVALID",
+	"void",
 	"u8",
 	"u16",
 	"u32",
@@ -101,25 +108,33 @@ const char *basicTypeStrings[] =
 	"f32",
 	"f64",
 	"bool",
+	"char",
+	"int",
 	"struct",
 	"enum"
 };
 
+struct Param;
+struct Struct;
+struct Enum;
 struct TypeInfo
 {
-	Token name;
+	Type type;
 	bool isConst;
 	bool isStatic;
 	bool isFunction;
+	bool isFunctionPtr;
 	int ptrLevels;
 	int count;
-	char *paramsBegin;
-	int paramsSize;
+	Param *params;
+	int paramCount;
+	Struct *structInfo;
+	Enum *enumInfo;
 };
 
 struct Param
 {
-	TypeInfo type;
+	TypeInfo typeInfo;
 	Token name;
 	bool isVarArgs;
 };
@@ -130,13 +145,14 @@ struct Procedure
 	Token name;
 	Param params[16];
 	int paramCount;
+	i32 tagCount;
+	Token tags[8];
 };
-DECLARE_DYNAMIC_ARRAY(Procedure);
+DECLARE_ARRAY(Procedure);
 
 struct StructMember
 {
 	Token name;
-	Type type;
 	TypeInfo typeInfo;
 	i32 tagCount;
 	Token tags[8];
@@ -147,8 +163,9 @@ struct Struct
 	Token name;
 	int memberCount;
 	StructMember members[64]; // @Improve: no fixed size array?
+	bool isAnonymous;
 };
-DECLARE_DYNAMIC_ARRAY(Struct);
+DECLARE_ARRAY(Struct);
 
 struct EnumValue
 {
@@ -160,7 +177,14 @@ struct Enum
 	Token name;
 	DynamicArray_EnumValue values;
 };
-DECLARE_DYNAMIC_ARRAY(Enum);
+DECLARE_ARRAY(Enum);
+
+struct ParsedFile
+{
+	Array_Struct structs;
+	Array_Enum enums;
+	Array_Procedure procedures;
+};
 
 inline bool IsAlpha(char c)
 {
@@ -312,18 +336,19 @@ Token ReadTokenAndAdvance(Tokenizer *tokenizer)
 		bool done = false;
 		if (*tokenizer->cursor == '0')
 		{
+			done = true;
 			++result.size;
 			++tokenizer->cursor;
 			ASSERT(!IsNumeric(*tokenizer->cursor));
-			if (*tokenizer->cursor != 'x' &&
-					*tokenizer->cursor != 'X' &&
-					*tokenizer->cursor != 'b' &&
-					*tokenizer->cursor != '.')
+			if (*tokenizer->cursor == 'x' ||
+					*tokenizer->cursor == 'X' ||
+					*tokenizer->cursor == 'b' ||
+					*tokenizer->cursor == '.')
 			{
-				done = true;
+				done = false;
+				++result.size;
+				++tokenizer->cursor;
 			}
-			++result.size;
-			++tokenizer->cursor;
 		}
 		if (!done)
 		{
@@ -362,18 +387,38 @@ Token ReadTokenAndAdvance(Tokenizer *tokenizer)
 	return result;
 }
 
-void PrintTypeInfo(char *buffer, const TypeInfo *type)
+void PrintTypeInfo(char *buffer, const TypeInfo *typeInfo)
 {
 	char stars[8] = {};
-	for (int i = 0; i < type->ptrLevels; ++i)
+	for (int i = 0; i < typeInfo->ptrLevels; ++i)
 	{
 		stars[i] = '*';
 		stars[i + 1] = 0;
 	}
-	sprintf(buffer, "%s%.*s %s\0",
-			type->isConst ? "const " : "",
-			type->name.size, type->name.begin,
+	if (typeInfo->type == TYPE_STRUCT)
+	{
+		sprintf(buffer, "%s%s%.*s %s\0",
+			typeInfo->isStatic ? "static " : "",
+			typeInfo->isConst ? "const " : "",
+			typeInfo->structInfo->name.size, typeInfo->structInfo->name.begin,
 			stars);
+	}
+	else if (typeInfo->type == TYPE_ENUM)
+	{
+		sprintf(buffer, "%s%s%.*s %s\0",
+			typeInfo->isStatic ? "static " : "",
+			typeInfo->isConst ? "const " : "",
+			typeInfo->enumInfo->name.size, typeInfo->enumInfo->name.begin,
+			stars);
+	}
+	else
+	{
+		sprintf(buffer, "%s%s%s %s\0",
+			typeInfo->isStatic ? "static " : "",
+			typeInfo->isConst ? "const " : "",
+			basicTypeStrings[typeInfo->type],
+			stars);
+	}
 }
 
 inline bool TokenIsStr(Token *token, const char *str)
@@ -381,6 +426,15 @@ inline bool TokenIsStr(Token *token, const char *str)
 	return token->type == TOKEN_IDENTIFIER &&
 		token->size == strlen(str) &&
 		strncmp(token->begin, str, token->size) == 0;
+}
+
+inline bool TokenIsEqual(Token *a, Token *b)
+{
+	if (a->type != b->type)
+		return false;
+	if (a->type == TOKEN_IDENTIFIER)
+		return a->size == b->size && strncmp(a->begin, b->begin, a->size) == 0;
+	return true;
 }
 
 void ParseFile(const char *filename, DynamicArray_Token &tokens)
@@ -406,91 +460,319 @@ void ParseFile(const char *filename, DynamicArray_Token &tokens)
 	}
 }
 
-Type ParseType(Token token, DynamicArray_Struct &structs, DynamicArray_Enum &enums)
+Token *ReadStruct(ParsedFile *context, Token *token, Struct *struct_);
+
+Token *ParseType(ParsedFile *context, Token *token, TypeInfo *typeInfo, Struct *inlineStruct)
 {
-	Type result = TYPE_INVALID;
+	*typeInfo = {};
+	typeInfo->type = TYPE_INVALID;
 
-	if (TokenIsStr(&token, "u8") ||
-			TokenIsStr(&token, "char"))
+	// Modifiers
+	while (true)
 	{
-		result = TYPE_U8;
-	}
-	else if (TokenIsStr(&token, "u16"))
-	{
-		result = TYPE_U16;
-	}
-	else if (TokenIsStr(&token, "u32"))
-	{
-		result = TYPE_U32;
-	}
-	else if (TokenIsStr(&token, "u64"))
-	{
-		result = TYPE_U64;
-	}
-
-	else if (TokenIsStr(&token, "i8"))
-	{
-		result = TYPE_I8;
-	}
-	else if (TokenIsStr(&token, "i16"))
-	{
-		result = TYPE_I16;
-	}
-	else if (TokenIsStr(&token, "i32"))
-	{
-		result = TYPE_I32;
-	}
-	else if (TokenIsStr(&token, "i64") ||
-			TokenIsStr(&token, "int") ||
-			TokenIsStr(&token, "long"))
-	{
-		result = TYPE_I64;
+		if (TokenIsStr(token, "static"))
+		{
+			typeInfo->isStatic = true;
+			++token;
+		}
+		else if (TokenIsStr(token, "const"))
+		{
+			typeInfo->isConst = true;
+			++token;
+		}
+		else if (TokenIsStr(token, "inline"))
+		{
+			// @Hack: implement
+			++token;
+		}
+		else
+		{
+			break;
+		}
 	}
 
-	else if (TokenIsStr(&token, "f32") ||
-			TokenIsStr(&token, "float"))
+	// Inline struct
+	if (TokenIsStr(token, "struct") || TokenIsStr(token, "union"))
 	{
-		result = TYPE_F32;
-	}
-	else if (TokenIsStr(&token, "f64") ||
-			TokenIsStr(&token, "double"))
-	{
-		result = TYPE_F64;
+		typeInfo->type = TYPE_STRUCT;
+		token = ReadStruct(context, token, inlineStruct);
+
+		return token;
 	}
 
-	else if (TokenIsStr(&token, "bool"))
+	// Basic types
+	if (TokenIsStr(token, "void"))
 	{
-		result = TYPE_BOOL;
+		typeInfo->type = TYPE_VOID;
+		++token;
+	}
+	else if (TokenIsStr(token, "u8"))
+	{
+		typeInfo->type = TYPE_U8;
+		++token;
+	}
+	else if (TokenIsStr(token, "u16"))
+	{
+		typeInfo->type = TYPE_U16;
+		++token;
+	}
+	else if (TokenIsStr(token, "u32"))
+	{
+		typeInfo->type = TYPE_U32;
+		++token;
+	}
+	else if (TokenIsStr(token, "u64"))
+	{
+		typeInfo->type = TYPE_U64;
+		++token;
+	}
+
+	else if (TokenIsStr(token, "i8"))
+	{
+		typeInfo->type = TYPE_I8;
+		++token;
+	}
+	else if (TokenIsStr(token, "i16"))
+	{
+		typeInfo->type = TYPE_I16;
+		++token;
+	}
+	else if (TokenIsStr(token, "i32"))
+	{
+		typeInfo->type = TYPE_I32;
+		++token;
+	}
+	else if (TokenIsStr(token, "i64") ||
+			TokenIsStr(token, "long"))
+	{
+		typeInfo->type = TYPE_I64;
+		++token;
+	}
+
+	else if (TokenIsStr(token, "f32") ||
+			TokenIsStr(token, "float"))
+	{
+		typeInfo->type = TYPE_F32;
+		++token;
+	}
+	else if (TokenIsStr(token, "f64") ||
+			TokenIsStr(token, "double"))
+	{
+		typeInfo->type = TYPE_F64;
+		++token;
+	}
+
+	else if (TokenIsStr(token, "bool"))
+	{
+		typeInfo->type = TYPE_BOOL;
+		++token;
+	}
+	else if (TokenIsStr(token, "char"))
+	{
+		typeInfo->type = TYPE_CHAR;
+		++token;
+	}
+	else if (TokenIsStr(token, "int"))
+	{
+		typeInfo->type = TYPE_INT;
+		++token;
 	}
 
 	else
 	{
-		for (u32 i = 0; i < structs.size; ++i)
+		for (u32 i = 0; i < context->structs.size; ++i)
 		{
-			if (structs[i].name.type == TOKEN_IDENTIFIER && // Avoid anonymous structs
-					strncmp(structs[i].name.begin, token.begin, Min(structs[i].name.size, token.size)) == 0)
+			if (context->structs[i].name.type == TOKEN_IDENTIFIER && // Avoid anonymous structs
+					TokenIsEqual(token, &context->structs[i].name))
 			{
-				result = TYPE_STRUCT;
-				return result;
+				typeInfo->type = TYPE_STRUCT;
+				typeInfo->structInfo = &context->structs[i];
+				++token;
+				break;
 			}
 		}
-		for (u32 i = 0; i < enums.size; ++i)
+		if (typeInfo->type == TYPE_INVALID)
 		{
-			if (enums[i].name.type == TOKEN_IDENTIFIER && // Avoid anonymous enums
-					strncmp(enums[i].name.begin, token.begin, Min(enums[i].name.size, token.size)) == 0)
+			for (u32 i = 0; i < context->enums.size; ++i)
 			{
-				result = TYPE_ENUM;
-				return result;
+				if (context->enums[i].name.type == TOKEN_IDENTIFIER && // Avoid anonymous enums
+						TokenIsEqual(token, &context->enums[i].name))
+				{
+					typeInfo->type = TYPE_ENUM;
+					typeInfo->enumInfo = &context->enums[i];
+					++token;
+					break;
+				}
 			}
 		}
 	}
 
-	return result;
+	return token;
 }
 
-Token *ReadStruct(Token *token, Struct *struct_, DynamicArray_Struct &structs,
-		DynamicArray_Enum &enums)
+Token *ParseVariable(ParsedFile *context, Token *token, TypeInfo *typeInfo, Token *name)
 {
+	while (token->type == '*' || token->type == '&')
+	{
+		if (token->type == '*')
+			++typeInfo->ptrLevels;
+		else
+			Log("WARNING: Ignoring reference type, not supported!\n");
+		++token;
+	}
+
+	if (token->type == '(')
+	{
+		++token;
+		ASSERT(token->type == '*');
+		++token;
+		typeInfo->isFunctionPtr = true;
+	}
+
+	if (token->type == TOKEN_IDENTIFIER)
+	{
+		//Log("Parsing variable: %.*s\n", token->size, token->begin);
+		*name = *token;
+		// @Hack: operator is the only identifier here that can contain weird symbols. Just skip
+		// until '('.
+		if (TokenIsStr(token, "operator"))
+		{
+			while (token->type != '(')
+			{
+				++token;
+				ASSERT(token->type != TOKEN_END_OF_FILE);
+			}
+		}
+		else
+		{
+			++token;
+		}
+	}
+
+	if (typeInfo->isFunctionPtr)
+	{
+		ASSERT(token->type == ')');
+		++token;
+	}
+
+	if (token->type == '(')
+	{
+		typeInfo->isFunction = true;
+		typeInfo->params = (Param *)malloc(sizeof(Param) * 16);
+
+		++token;
+		while (token->type != ')')
+		{
+			Param param = {};
+
+			if (token->type == '.')
+			{
+				for (int i = 0; i < 2; ++i)
+				{
+					++token;
+					ASSERT(token->type == '.');
+				}
+				++token;
+				param.isVarArgs = true;
+			}
+			else
+			{
+				Struct inlineStruct = {}; // @Hack: ignored!
+				token = ParseType(context, token, &param.typeInfo, &inlineStruct);
+				token = ParseVariable(context, token, &param.typeInfo, &param.name);
+			}
+
+			ASSERT(typeInfo->paramCount < 16);
+			typeInfo->params[typeInfo->paramCount++] = param;
+
+			if (token->type == ',')
+			{
+				++token;
+				continue;
+			}
+		}
+		++token;
+	}
+	else if (token->type == '[')
+	{
+		++token;
+		if (token->type != TOKEN_LITERAL_NUMBER)
+		{
+			Log("ERROR! Non-literal array sizes not supported yet!\n");
+			// @Incomplete: parse array members!
+			while (token->type != ']')
+			{
+				++token;
+			}
+		}
+		else
+		{
+			typeInfo->count = atoi(token->begin);
+			++token;
+			ASSERT(token->type == ']');
+		}
+		++token;
+	}
+
+	if (token->type == TOKEN_IDENTIFIER && TokenIsStr(token, "const"))
+	{
+		// Constant member function :)
+		++token;
+	}
+
+	// @Hack: Ignore default values
+	if (token->type == '=')
+	{
+		++token;
+		//Log("Ignoring default value!\n");
+		int defaultValueScopeLevel = 0;
+		while (defaultValueScopeLevel ||
+				(token->type != ';' && token->type != ',' && token->type != ')' && token->type != '@'))
+		{
+			if (token->type == '{')
+				++defaultValueScopeLevel;
+			else if (token->type == '}')
+				--defaultValueScopeLevel;
+			++token;
+		}
+	}
+	return token;
+}
+
+Token *ReadStruct(ParsedFile *context, Token *token, Struct *struct_)
+{
+	*struct_ = {};
+
+	ASSERT(TokenIsStr(token, "struct") || TokenIsStr(token, "union"));
+	++token;
+
+	if (token->type == TOKEN_IDENTIFIER)
+	{
+		//Log("Parsing struct: %.*s\n", token->size, token->begin);
+		struct_->name = *token;
+		++token;
+	}
+	else
+	{
+		//Log("Parsing anonymous struct\n");
+		static u64 anonstructUniqueId = 0;
+
+		char *anonymousTypeName = (char *)malloc(512);
+		sprintf(anonymousTypeName, "anonstruct_%llu", anonstructUniqueId++);
+		//Log("generated name: %s\n", anonymousTypeName);
+
+		struct_->name.begin = anonymousTypeName;
+		struct_->name.size = (int)strlen(anonymousTypeName);
+
+		struct_->isAnonymous = true;
+	}
+
+	if (token->type == ';')
+	{
+		// Just declaration
+		return token;
+	}
+
 	if (token->type != '{')
 	{
 		Log("ERROR! Reading struct, expected {\n");
@@ -498,181 +780,41 @@ Token *ReadStruct(Token *token, Struct *struct_, DynamicArray_Struct &structs,
 	}
 	++token;
 
+	// Read struct members
 	int scopeLevel = 1;
 	while (scopeLevel && token->type != TOKEN_END_OF_FILE)
 	{
 		StructMember member = {};
 
-		while (token->type == TOKEN_PREPROCESSOR_DIRECTIVE)
-			++token;
+		Struct inlineStruct = {};
+		token = ParseType(context, token, &member.typeInfo, &inlineStruct);
 
-		if (TokenIsStr(token, "static"))
+		// Give anonymous struct a name if exists
+		if (inlineStruct.memberCount)
 		{
-			member.typeInfo.isStatic = true;
-			++token;
-		}
-
-		if (TokenIsStr(token, "const"))
-		{
-			member.typeInfo.isConst = true;
-			++token;
-		}
-
-		bool anonymousType = false;
-		char *anonymousTypeName = nullptr;
-		while (TokenIsStr(token, "struct") || TokenIsStr(token, "union"))
-		{
-			++token;
-			if (token->type != '{')
+			if (token->type == TOKEN_IDENTIFIER)
 			{
-				Log("ERROR! Parsing struct, expected {\n");
-				break;
-			}
-
-			// Check if it's unnamed union/struct
-			Token *lookAheadToken = token + 1;
-			int lookAheadScopeLevel = 1;
-			while (lookAheadScopeLevel && lookAheadToken->type != TOKEN_END_OF_FILE)
-			{
-				if (lookAheadToken->type == '{')
-					++lookAheadScopeLevel;
-				else if (lookAheadToken->type == '}')
-					--lookAheadScopeLevel;
-				++lookAheadToken;
-			}
-
-			if (lookAheadToken->type != TOKEN_IDENTIFIER)
-			{
-				// Unnamed union/struct
-				// We ignore anonymous, name-less strucs/unions. They only group things together
-				// but since we don't care about the offset of things we don't care about them
-				// at all!
-				++scopeLevel;
-				++token;
+				// There are members with this struct as their type.
+				Struct *persistentStruct = (Struct *)malloc(sizeof(Struct));
+				*persistentStruct = inlineStruct;
+				member.typeInfo.structInfo = persistentStruct;
 			}
 			else
 			{
-				// Named union/struct
-				anonymousType = true;
-
-				anonymousTypeName = (char *)malloc(512);
-				sprintf(anonymousTypeName, "anonstruct_%.*s_%.*s",
-						struct_->name.size, struct_->name.begin,
-						lookAheadToken->size, lookAheadToken->begin);
-				Log("generated name: %s\n", anonymousTypeName);
-				break;
+				// 'Headless' struct/union. Just pull the members into this one.
+				for (int memIdx = 0; memIdx < inlineStruct.memberCount; ++memIdx)
+				{
+					struct_->members[struct_->memberCount++] = inlineStruct.members[memIdx];
+				}
 			}
 		}
 
-		if (anonymousType)
-		{
-			member.type = TYPE_STRUCT;
-			Token nameToken = {};
-			nameToken.type = TOKEN_IDENTIFIER;
-			nameToken.begin = anonymousTypeName;
-			nameToken.size = (int)strlen(anonymousTypeName);
-			member.typeInfo.name = nameToken;
-
-			Struct anonstruct = {};
-			anonstruct.name = nameToken;
-			token = ReadStruct(token, &anonstruct, structs, enums);
-			*DynamicArrayAdd_Struct(&structs, realloc) = anonstruct;
-		}
-		else if (token->type == TOKEN_IDENTIFIER)
-		{
-			member.type = ParseType(*token, structs, enums);
-			member.typeInfo.name = *token;
-			++token;
-		}
-
-		bool isMemberFunction = false;
 		while (1)
 		{
 			member.typeInfo.ptrLevels = 0;
 			member.tagCount = 0;
 
-			while (token->type == '*' || token->type == '&')
-			{
-				if (token->type == '*')
-					++member.typeInfo.ptrLevels;
-				else
-					Log("WARNING: Ignoring reference type, not supported!\n");
-				++token;
-			}
-
-			if (token->type == TOKEN_IDENTIFIER)
-			{
-				member.name = *token;
-				// operatorX should be the only member functions in this codebase
-				if (TokenIsStr(token, "operator"))
-				{
-					// C++ has such weird syntax
-					while (token->type != ')')
-						++token;
-				}
-				++token;
-			}
-
-			if (token->type == '[')
-			{
-				++token;
-				if (token->type != TOKEN_LITERAL_NUMBER)
-				{
-					Log("ERROR! Non-literal array sizes not supported yet!\n");
-					// @Incomplete: parse array members!
-					while (token->type != ']')
-					{
-						++token;
-					}
-				}
-				else
-				{
-					member.typeInfo.count = atoi(token->begin);
-					++token;
-					ASSERT(token->type == ']');
-				}
-				++token;
-			}
-
-			if (token->type == TOKEN_IDENTIFIER && TokenIsStr(token, "const"))
-			{
-				// Constant member function :)
-				++token;
-			}
-
-			// @Hack: Ignore default values
-			if (token->type == '=')
-			{
-				++token;
-				Log("Ignoring default value!\n");
-				int defaultValueScopeLevel = 0;
-				while (defaultValueScopeLevel ||
-						(token->type != ';' && token->type != ',' && token->type != '@'))
-				{
-					if (token->type == '{')
-						++defaultValueScopeLevel;
-					else if (token->type == '}')
-						--defaultValueScopeLevel;
-					++token;
-				}
-			}
-
-			// Ignore function body
-			else if (token->type == '{')
-			{
-				isMemberFunction = true;
-				++token;
-				Log("Function body!\n");
-				int functionBodyScopeLevel = 1;
-				while (functionBodyScopeLevel)
-				{
-					if (token->type == '{')
-						++functionBodyScopeLevel;
-					else if (token->type == '}')
-						--functionBodyScopeLevel;
-					++token;
-				}
-			}
+			token = ParseVariable(context, token, &member.typeInfo, &member.name);
 
 			// Tags
 			while (token->type == '@')
@@ -686,12 +828,27 @@ Token *ReadStruct(Token *token, Struct *struct_, DynamicArray_Struct &structs,
 
 			if (member.name.type == TOKEN_IDENTIFIER && member.name.size)
 			{
-				if (!isMemberFunction && !member.typeInfo.isStatic)
+				if (!member.typeInfo.isFunction && !member.typeInfo.isStatic)
 					struct_->members[struct_->memberCount++] = member;
 			}
 			else
 			{
 				Log("WARNING! member with empty name!\n");
+			}
+
+			// Ignore function body
+			if (token->type == '{')
+			{
+				++token;
+				int functionBodyScopeLevel = 1;
+				while (functionBodyScopeLevel)
+				{
+					if (token->type == '{')
+						++functionBodyScopeLevel;
+					else if (token->type == '}')
+						--functionBodyScopeLevel;
+					++token;
+				}
 			}
 
 			if (token->type == ',')
@@ -700,66 +857,159 @@ Token *ReadStruct(Token *token, Struct *struct_, DynamicArray_Struct &structs,
 				break;
 		}
 
-		while (token->type == TOKEN_PREPROCESSOR_DIRECTIVE)
-			++token;
-
-		if (!isMemberFunction)
+		if (token->type == ';')
 		{
-			if (token->type != ';')
-			{
-				Log("ERROR! Reading struct, expected ; got 0x%X(%c)\n", token->type, token->type);
-			}
 			++token;
+		}
+		else if (!member.typeInfo.isFunction)
+		{
+			Log("ERROR! Reading struct, expected ; got 0x%X(%c)\n", token->type, token->type);
 		}
 
 		if (token->type == '}')
 		{
 			--scopeLevel;
 			++token;
+			if (scopeLevel)
+			{
+				ASSERT(token->type == ';');
+				++token;
+			}
 		}
 	}
 	ASSERT(token->type != TOKEN_END_OF_FILE);
 	return token;
 }
 
-void ReadStructsAndEnums(DynamicArray_Token &tokens, DynamicArray_Struct &structs, DynamicArray_Enum &enums)
+Token *ReadEnum(Token *token, Enum *enum_)
 {
-	DynamicArrayInit_Struct(&structs, 256, malloc);
-	DynamicArrayInit_Enum(&enums, 256, malloc);
+	if (token->type != '{')
+	{
+		Log("ERROR! Reading enum, expected {\n");
+		return token;
+	}
+	++token;
+
+	while (token->type != TOKEN_END_OF_FILE)
+	{
+		EnumValue enumValue = {};
+
+		while (token->type == TOKEN_PREPROCESSOR_DIRECTIVE)
+			++token;
+
+		if (token->type == TOKEN_IDENTIFIER)
+		{
+			enumValue.name = *token;
+			++token;
+		}
+
+		// Ignore values, we can offload them to the compiler
+		if (token->type == '=')
+		{
+			++token;
+			while (token->type != ',' && token->type != '}')
+				++token;
+		}
+
+		//Log("%.*s.%.*s\n", enum_.name.size, enum_.name.begin, enumValue.name.size,
+				//enumValue.name.begin);
+		*DynamicArrayAdd_EnumValue(&enum_->values, realloc) = enumValue;
+
+		if (token->type == ',')
+		{
+			++token;
+			continue;
+		}
+		else if (token->type == '}')
+		{
+			++token;
+			break;
+		}
+		else
+		{
+			Log("ERROR! Reading enum, expected ,/} got %c(0x%X)\n", token->type,
+					token->type);
+			break;
+		}
+	}
+	ASSERT(token->type != TOKEN_END_OF_FILE);
+
+	return token;
+}
+
+ParsedFile ReadEverything(DynamicArray_Token &tokens)
+{
+	ParsedFile parsedFile = {};
+	ArrayInit_Struct(&parsedFile.structs, 8192, malloc);
+	ArrayInit_Enum(&parsedFile.enums, 8192, malloc);
+	ArrayInit_Procedure(&parsedFile.procedures, 8192, malloc);
 
 	for (Token *token = &tokens[0]; token->type != TOKEN_END_OF_FILE; )
 	{
 		if (token->type == TOKEN_IDENTIFIER)
 		{
-			if (TokenIsStr(token, "struct") || TokenIsStr(token, "union")) // @Improve
+			if (TokenIsStr(token, "extern"))
+			{
+				// Skip this garbage
+				++token;
+
+				// "C"
+				if (token->type == TOKEN_LITERAL_STRING)
+				{
+					++token;
+				}
+			}
+			else if (TokenIsStr(token, "static_assert") || TokenIsStr(token, "__declspec"))
+			{
+				++token;
+				ASSERT(token->type == '(');
+				++token;
+				int parenthesisLevels = 1;
+				while (parenthesisLevels)
+				{
+					if (token->type == '(')
+						++parenthesisLevels;
+					else if (token->type == ')')
+						--parenthesisLevels;
+					++token;
+				}
+			}
+			else if (TokenIsStr(token, "typedef"))
+			{
+				// Not implemented
+				while (token->type != ';')
+					++token;
+				++token;
+			}
+			else if (TokenIsStr(token, "struct") || TokenIsStr(token, "union")) // @Improve
 			{
 				Struct struct_ = {};
 
-				++token;
-				if (token->type == TOKEN_IDENTIFIER)
-				{
-					struct_.name = *token;
-					Log("Found struct of name '%.*s'\n", token->size, token->begin);
-					++token;
-				}
-				else
-				{
-					Log("Found anonymous struct\n");
-				}
-
-				if (token->type == ';')
-				{
-					// Just declaration
-					++token;
-					continue;
-				}
-
-				token = ReadStruct(token, &struct_, structs, enums);
+				token = ReadStruct(&parsedFile, token, &struct_);
 
 				if (struct_.name.type == TOKEN_IDENTIFIER && struct_.name.size)
 				{
-					*DynamicArrayAdd_Struct(&structs, realloc) = struct_;
+					// Check if struct has already been declared
+					bool found = false;
+					for (u32 structIdx = 0; structIdx < parsedFile.structs.size; ++structIdx)
+					{
+						if (TokenIsEqual(&parsedFile.structs[structIdx].name, &struct_.name))
+						{
+							if (parsedFile.structs[structIdx].memberCount != 0)
+							{
+								Log("ERROR! Struct redefinition!\n");
+								ASSERT(false);
+							}
+							parsedFile.structs[structIdx] = struct_;
+							found = true;
+						}
+					}
+					if (!found)
+						*ArrayAdd_Struct(&parsedFile.structs) = struct_;
 				}
+
+				ASSERT(token->type == ';');
+				++token;
 			}
 			else if (strncmp(token->begin, "enum", token->size) == 0)
 			{
@@ -770,12 +1020,12 @@ void ReadStructsAndEnums(DynamicArray_Token &tokens, DynamicArray_Struct &struct
 				if (token->type == TOKEN_IDENTIFIER)
 				{
 					enum_.name = *token;
-					Log("Found enum of name '%.*s'\n", token->size, token->begin);
+					//Log("Found enum of name '%.*s'\n", token->size, token->begin);
 					++token;
 				}
 				else
 				{
-					Log("Found anonymous enum\n");
+					//Log("Found anonymous enum\n");
 				}
 
 				if (token->type == ';')
@@ -785,258 +1035,126 @@ void ReadStructsAndEnums(DynamicArray_Token &tokens, DynamicArray_Struct &struct
 					continue;
 				}
 
-				if (token->type != '{')
+				token = ReadEnum(token, &enum_);
+
+				if (enum_.name.type == TOKEN_IDENTIFIER && enum_.name.size)
 				{
-					Log("ERROR! Reading enum, expected {\n");
-					return;
+					*ArrayAdd_Enum(&parsedFile.enums) = enum_;
 				}
-				++token;
+			}
+			else
+			{
+				// Read variable/procedure
 
-				while (token->type != TOKEN_END_OF_FILE)
+				Struct inlineStruct;
+				TypeInfo typeInfo;
+				token = ParseType(&parsedFile, token, &typeInfo, &inlineStruct);
+				if (typeInfo.type == TYPE_INVALID)
 				{
-					EnumValue enumValue = {};
+					Log("WARNING! Found unknown type %.*s\n", token->size, token->begin);
+					++token;
+				}
 
-					while (token->type == TOKEN_PREPROCESSOR_DIRECTIVE)
-						++token;
+				if (TokenIsStr(token, "__stdcall") || TokenIsStr(token, "WINAPI") ||
+						TokenIsStr(token, "CALLBACK"))
+				{
+					++token;
+				}
 
-					if (token->type == TOKEN_IDENTIFIER)
+				if (token->type != TOKEN_IDENTIFIER)
+				{
+					Log("ERROR! Expected identifier\n");
+				}
+
+				while (true)
+				{
+					TypeInfo varTypeInfo = typeInfo;
+					Token varName;
+					token = ParseVariable(&parsedFile, token, &varTypeInfo, &varName);
+
+					if (varTypeInfo.isFunction)
 					{
-						enumValue.name = *token;
-						++token;
-					}
+						Procedure procedure = {};
+						procedure.returnType = varTypeInfo;
+						procedure.name = varName;
+						procedure.paramCount = varTypeInfo.paramCount;
+						for (int parIdx = 0; parIdx < varTypeInfo.paramCount; ++parIdx)
+						{
+							procedure.params[parIdx] = varTypeInfo.params[parIdx];
+						}
 
-					// Ignore values, we can offload them to the compiler
-					if (token->type == '=')
-					{
-						++token;
-						while (token->type != ',' && token->type != '}')
+						// @Improve?
+						while (token->type == '@')
+						{
 							++token;
+							ASSERT(token->type == TOKEN_IDENTIFIER);
+							procedure.tags[procedure.tagCount++] = *token;
+							Log("Tag found: @%.*s\n", token->size, token->begin);
+							++token;
+						}
+
+						*ArrayAdd_Procedure(&parsedFile.procedures) = procedure;
 					}
 
-					//Log("%.*s.%.*s\n", enum_.name.size, enum_.name.begin, enumValue.name.size,
-							//enumValue.name.begin);
-					*DynamicArrayAdd_EnumValue(&enum_.values, realloc) = enumValue;
-
-					if (token->type == ',')
+					if (token->type == '{')
 					{
 						++token;
-						continue;
+						int functionBodyScopeLevel = 1;
+						while (functionBodyScopeLevel)
+						{
+							if (token->type == '{')
+								++functionBodyScopeLevel;
+							else if (token->type == '}')
+								--functionBodyScopeLevel;
+							++token;
+						}
+						break;
 					}
-					else if (token->type == '}')
+
+					if (token->type == ';')
 					{
 						++token;
 						break;
 					}
 					else
 					{
-						Log("ERROR! Reading enum, expected ,/} got %c(0x%X)\n", token->type,
-								token->type);
-						break;
+						ASSERT(token->type == ',');
+						++token;
 					}
 				}
-				ASSERT(token->type != TOKEN_END_OF_FILE);
-
-				if (enum_.name.type == TOKEN_IDENTIFIER && enum_.name.size)
+#if 0
+				else
 				{
-					*DynamicArrayAdd_Enum(&enums, realloc) = enum_;
+					// Assume expression starts with a variable or something
+					// Eat up to semicolon
+
+					//Log("Assuming not a type: %.*s\n", token->size, token->begin);
+
+					while (token->type != ';')
+					{
+						ASSERT(token->type != TOKEN_END_OF_FILE);
+						++token;
+					}
 				}
+#endif
 			}
-			else
-			{
-				++token;
-			}
+		}
+		else if (token->type == '@')
+		{
+			// @Hack: Ignoring these tags completely.
+			++token;
+			++token;
 		}
 		else
 		{
 			++token;
 		}
 	}
+	return parsedFile;
 }
 
-int ReadProcedure(Token *curToken, Procedure *newProcedure)
-{
-	*newProcedure = {};
-
-	// Modifier?
-	if (strncmp(curToken->begin, "const", curToken->size) == 0)
-	{
-		newProcedure->returnType.isConst = true;
-
-		++curToken;
-		if (curToken->type != TOKEN_IDENTIFIER)
-		{
-			Log("ERROR: Parsing platform procedure: expected parameter type! %s:%d\n",
-					curToken->file, curToken->line);
-			return 1;
-		}
-	}
-
-	if (curToken->type != TOKEN_IDENTIFIER)
-	{
-		Log("ERROR: Parsing platform procedure: expected return type! %s:%d\n",
-				curToken->file, curToken->line);
-		return 1;
-	}
-	newProcedure->returnType.name = *curToken;
-
-	// Pointer?
-	++curToken;
-	while (curToken->type == '*')
-	{
-		++newProcedure->returnType.ptrLevels;
-		++curToken;
-	}
-
-	if (curToken->type != TOKEN_IDENTIFIER)
-	{
-		Log("ERROR: Parsing platform procedure: expected procedure name! %s:%d\n",
-				curToken->file, curToken->line);
-		return 1;
-	}
-	newProcedure->name = *curToken;
-
-	++curToken;
-	if (curToken->type != '(')
-	{
-		Log("ERROR: Parsing platform procedure: expected '('! %s:%d\n",
-				curToken->file, curToken->line);
-		return 1;
-	}
-
-	// Get params
-	for (;;)
-	{
-		Param newParam = {};
-
-		++curToken;
-		if (curToken->type == ')')
-			break;
-		else if (curToken->type == ',' && newProcedure->paramCount)
-			continue;
-
-		if (curToken->type == '.')
-		{
-			for (int i = 0; i < 2; ++i)
-			{
-				++curToken;
-				if (curToken->type != '.')
-				{
-					Log("ERROR: Parsing platform procedure: syntax error! %s:%d\n",
-							curToken->file, curToken->line);
-					return 1;
-				}
-			}
-			newParam.isVarArgs = true;
-
-			ASSERT(newProcedure->paramCount < 16);
-			newProcedure->params[newProcedure->paramCount++] = newParam;
-
-			break;
-		}
-
-		if (curToken->type != TOKEN_IDENTIFIER)
-		{
-			Log("ERROR: Parsing platform procedure: expected parameter type! %s:%d\n",
-					curToken->file, curToken->line);
-			return 1;
-		}
-
-		// Modifier?
-		if (strncmp(curToken->begin, "const", curToken->size) == 0)
-		{
-			newParam.type.isConst = true;
-
-			++curToken;
-			if (curToken->type != TOKEN_IDENTIFIER)
-			{
-				Log("ERROR: Parsing platform procedure: expected parameter type! %s:%d\n",
-					curToken->file, curToken->line);
-				return 1;
-			}
-		}
-		newParam.type.name = *curToken;
-
-		// Pointer?
-		++curToken;
-		while (curToken->type == '*')
-		{
-			++newParam.type.ptrLevels;
-			++curToken;
-		}
-
-		// Parenthesis?
-		bool openedParenthesis = false;
-		if (curToken->type == '(')
-		{
-			openedParenthesis = true;
-			++curToken;
-		}
-
-		if (curToken->type == '*')
-		{
-			newParam.type.isFunction = true;
-			++curToken;
-		}
-
-		// Name
-		if (curToken->type != TOKEN_IDENTIFIER)
-		{
-			Log("ERROR: Parsing platform procedure: expected parameter name! %s:%d\n",
-					curToken->file, curToken->line);
-			return 1;
-		}
-		newParam.name = *curToken;
-
-		if (openedParenthesis)
-		{
-			++curToken;
-			ASSERT(curToken->type == ')');
-		}
-
-		if (curToken->type == ')')
-		{
-			++curToken;
-		}
-
-		// Function pointer
-		if (newParam.type.isFunction)
-		{
-			if (curToken->type != '(')
-			{
-				Log("ERROR: Parsing platform procedure: expected function pointer parameters! %s:%d\n",
-						curToken->file, curToken->line);
-			}
-			++curToken;
-
-			newParam.type.paramsBegin = curToken->begin;
-
-			while (curToken->type != ')')
-			{
-				if (curToken->type == TOKEN_IDENTIFIER)
-				{
-					newParam.type.paramsSize += curToken->size;
-				}
-				else if (curToken->type >= TOKEN_ASCII_BEGIN &&
-						curToken->type < TOKEN_ASCII_END)
-				{
-					++newParam.type.paramsSize;
-				}
-				else
-				{
-					ASSERT(false);
-				}
-				++curToken;
-			}
-		}
-
-		ASSERT(newProcedure->paramCount < 16);
-		newProcedure->params[newProcedure->paramCount++] = newParam;
-	}
-
-	return 0;
-}
-
-int ExtractPlatformProcedures(DynamicArray_Token &tokens, DynamicArray_Procedure &procedures)
+#if 0
+int ExtractPlatformProcedures(DynamicArray_Token &tokens, Array_Procedure &procedures)
 {
 	for (u32 tokenIdx = 0; tokenIdx < tokens.size; ++tokenIdx)
 	{
@@ -1050,12 +1168,13 @@ int ExtractPlatformProcedures(DynamicArray_Token &tokens, DynamicArray_Procedure
 				int error = ReadProcedure(curToken, &newProcedure);
 				if (error)
 					return error;
-				*DynamicArrayAdd_Procedure(&procedures, realloc) = newProcedure;
+				*ArrayAdd_Procedure(&procedures, realloc) = newProcedure;
 			}
 		}
 	}
 	return 0;
 }
+#endif
 
 u64 PrintToFile(FileHandle file, const char *format, ...)
 {
@@ -1084,16 +1203,23 @@ void PrintProcedureToFile(FileHandle file, Procedure *proc)
 			continue;
 		}
 
-		TypeInfo *paramType = &proc->params[paramIdx].type;
+		TypeInfo *paramType = &proc->params[paramIdx].typeInfo;
 		PrintTypeInfo(typeStr, paramType);
 
 		Token *name = &proc->params[paramIdx].name;
 
-		if (proc->params[paramIdx].type.isFunction)
+		if (proc->params[paramIdx].typeInfo.isFunction)
 		{
-			PrintToFile(file, "%s(*%.*s)(%.*s)", typeStr, name->size, name->begin,
-					paramType->paramsSize,
-					paramType->paramsBegin);
+			PrintToFile(file, "%s(*%.*s)(", typeStr, name->size, name->begin);
+			for (int i = 0; i < paramType->paramCount; ++i)
+			{
+				TypeInfo *funPtrParam = &paramType->params[i].typeInfo;
+				PrintTypeInfo(typeStr, funPtrParam);
+				PrintToFile(file, "%s", typeStr);
+				if (i != paramType->paramCount - 1)
+					PrintToFile(file, ", ", typeStr);
+			}
+			PrintToFile(file, ")");
 		}
 		else
 		{
@@ -1103,7 +1229,7 @@ void PrintProcedureToFile(FileHandle file, Procedure *proc)
 	PrintToFile(file, ");\n");
 }
 
-void WritePlatformCodeFiles(DynamicArray_Procedure &procedures)
+void WritePlatformCodeFiles(Array_Procedure &procedures)
 {
 	// HEADER
 	FileHandle file = PlatformOpenForWrite("gen/PlatformCode.h");
@@ -1162,7 +1288,128 @@ void WritePlatformCodeFiles(DynamicArray_Procedure &procedures)
 	PlatformCloseFile(file);
 }
 
-void WriteTypeInfoFiles(DynamicArray_Struct &structs, DynamicArray_Enum &enums)
+void WriteStruct(FileHandle file, Struct *struct_, Struct *parentStruct, Token *parentMemberName)
+{
+	// Tag lists
+	for (int memberIdx = 0; memberIdx < struct_->memberCount; ++memberIdx)
+	{
+		StructMember *member = &struct_->members[memberIdx];
+		if (member->tagCount)
+		{
+			PrintToFile(file, "const char *const %_tags_%.*s_%.*s[] { ",
+					struct_->name.size, struct_->name.begin,
+					member->name.size, member->name.begin);
+			for (int tagIdx = 0; tagIdx < member->tagCount; ++tagIdx)
+			{
+				PrintToFile(file, "\"%.*s\", ", member->tags[tagIdx].size,
+						member->tags[tagIdx].begin);
+			}
+			PrintToFile(file, " };\n");
+		}
+	}
+
+	// Inner structs
+	for (int memberIdx = 0; memberIdx < struct_->memberCount; ++memberIdx)
+	{
+		StructMember *member = &struct_->members[memberIdx];
+		if (member->typeInfo.type == TYPE_STRUCT)
+		{
+			Struct *innerStruct = member->typeInfo.structInfo;
+			if (innerStruct->isAnonymous)
+			{
+				// Avoid duplicates
+				bool alreadyWritten = false;
+				for (int i = 0; i < memberIdx; ++i)
+				{
+					if (struct_->members[i].typeInfo.structInfo == innerStruct)
+					{
+						alreadyWritten = true;
+						break;
+					}
+				}
+				if (!alreadyWritten)
+					WriteStruct(file, innerStruct, struct_, &member->name);
+			}
+		}
+	}
+
+	if (struct_->memberCount)
+	{
+		PrintToFile(file, "const StructMember _typeInfoMembers_%.*s[] =\n{\n", struct_->name.size,
+				struct_->name.begin);
+		for (int memberIdx = 0; memberIdx < struct_->memberCount; ++memberIdx)
+		{
+			StructMember *member = &struct_->members[memberIdx];
+			PrintToFile(file, "\t{ \"%.*s\", ", member->name.size, member->name.begin);
+			PrintToFile(file, "%s, ", TypeStrings[member->typeInfo.type]);
+			PrintToFile(file, "%d, ", member->typeInfo.ptrLevels);
+			PrintToFile(file, "%d, ", member->typeInfo.count);
+
+			// Offset of
+			if (struct_->isAnonymous)
+			{
+				PrintToFile(file, "sizeof(%.*s::%.*s.%.*s), ",
+						parentStruct->name.size, parentStruct->name.begin,
+						parentMemberName->size, parentMemberName->begin,
+						member->name.size, member->name.begin);
+
+				PrintToFile(file, "offsetof(%.*s, %.*s.%.*s) - offsetof(%.*s, %.*s)",
+						parentStruct->name.size, parentStruct->name.begin,
+						parentMemberName->size, parentMemberName->begin,
+						member->name.size, member->name.begin,
+						parentStruct->name.size, parentStruct->name.begin,
+						parentMemberName->size, parentMemberName->begin);
+			}
+			else
+			{
+				PrintToFile(file, "sizeof(%.*s::%.*s), ", struct_->name.size,
+						struct_->name.begin, member->name.size, member->name.begin);
+
+				PrintToFile(file, "offsetof(%.*s, %.*s)", struct_->name.size,
+						struct_->name.begin, member->name.size, member->name.begin);
+			}
+
+			if (member->typeInfo.type == TYPE_STRUCT)
+			{
+				Token *nameToken = &member->typeInfo.structInfo->name;
+				if (nameToken->begin)
+					PrintToFile(file, ", &typeInfo_%.*s", nameToken->size,
+							nameToken->begin);
+			}
+			else if (member->typeInfo.type == TYPE_ENUM)
+			{
+				Token *nameToken = &member->typeInfo.enumInfo->name;
+				if (nameToken->begin)
+					PrintToFile(file, ", &enumInfo_%.*s", nameToken->size,
+							nameToken->begin);
+			}
+
+			if (member->tagCount)
+			{
+				PrintToFile(file, ", %d, _tags_%.*s_%.*s", member->tagCount,
+						struct_->name.size, struct_->name.begin,
+						member->name.size, member->name.begin);
+			}
+
+			PrintToFile(file, " },\n");
+		}
+		PrintToFile(file, "};\n");
+	}
+
+	PrintToFile(file, "const StructInfo typeInfo_%.*s = { ", struct_->name.size,
+			struct_->name.begin);
+
+	PrintToFile(file, "\"%.*s\", ", struct_->name.size, struct_->name.begin);
+	PrintToFile(file, "%d, ", struct_->memberCount);
+	if (struct_->memberCount)
+		PrintToFile(file, "_typeInfoMembers_%.*s ", struct_->name.size, struct_->name.begin);
+	else
+		PrintToFile(file, "nullptr ");
+
+	PrintToFile(file, "};\n");
+}
+
+void WriteTypeInfoFiles(Array_Struct &structs, Array_Enum &enums)
 {
 	FileHandle file = PlatformOpenForWrite("gen/TypeInfo.h");
 
@@ -1258,102 +1505,7 @@ void WriteTypeInfoFiles(DynamicArray_Struct &structs, DynamicArray_Enum &enums)
 	for (u32 structIdx = 0; structIdx < structs.size; ++structIdx)
 	{
 		Struct *struct_ = &structs[structIdx];
-
-		// Tag lists
-		for (int memberIdx = 0; memberIdx < struct_->memberCount; ++memberIdx)
-		{
-			StructMember *member = &struct_->members[memberIdx];
-			if (member->tagCount)
-			{
-				PrintToFile(file, "const char *const %_tags_%.*s_%.*s[] { ",
-						struct_->name.size, struct_->name.begin,
-						member->name.size, member->name.begin);
-				for (int tagIdx = 0; tagIdx < member->tagCount; ++tagIdx)
-				{
-					PrintToFile(file, "\"%.*s\", ", member->tags[tagIdx].size,
-							member->tags[tagIdx].begin);
-				}
-				PrintToFile(file, " };\n");
-			}
-		}
-
-		PrintToFile(file, "const StructMember _typeInfoMembers_%.*s[] =\n{\n", struct_->name.size,
-				struct_->name.begin);
-		for (int memberIdx = 0; memberIdx < struct_->memberCount; ++memberIdx)
-		{
-			StructMember *member = &struct_->members[memberIdx];
-			PrintToFile(file, "\t{ \"%.*s\", ", member->name.size, member->name.begin);
-			PrintToFile(file, "%s, ", TypeStrings[member->type]);
-			PrintToFile(file, "%d, ", member->typeInfo.ptrLevels);
-			PrintToFile(file, "%d, ", member->typeInfo.count);
-
-			// Offset of
-			const char *anonstruct = "anonstruct_";
-			bool isAnonstruct = strncmp(struct_->name.begin, anonstruct, strlen(anonstruct)) == 0;
-			if (isAnonstruct)
-			{
-				// name is of the form "anonstruct_ParentStruct_Member"
-				const char *parentStruct = struct_->name.begin + strlen(anonstruct);
-
-				const char *memberName = parentStruct;
-				while (*memberName != '_')
-					++memberName;
-				++memberName;
-
-				const i64 parentStructSize = memberName - parentStruct - 1; // -1 for the _
-				const i64 memberNameSize = struct_->name.begin + struct_->name.size - memberName;
-
-				PrintToFile(file, "sizeof(%.*s::%.*s.%.*s), ",
-						parentStructSize, parentStruct,
-						memberNameSize, memberName,
-						member->name.size, member->name.begin);
-
-				PrintToFile(file, "offsetof(%.*s, %.*s.%.*s) - offsetof(%.*s, %.*s)",
-						parentStructSize, parentStruct,
-						memberNameSize, memberName,
-						member->name.size, member->name.begin,
-						parentStructSize, parentStruct,
-						memberNameSize, memberName);
-			}
-			else
-			{
-				PrintToFile(file, "sizeof(%.*s::%.*s), ", struct_->name.size,
-						struct_->name.begin, member->name.size, member->name.begin);
-
-				PrintToFile(file, "offsetof(%.*s, %.*s)", struct_->name.size,
-						struct_->name.begin, member->name.size, member->name.begin);
-			}
-
-			if (member->type == TYPE_STRUCT)
-			{
-				PrintToFile(file, ", &typeInfo_%.*s", member->typeInfo.name.size,
-						member->typeInfo.name.begin);
-			}
-			else if (member->type == TYPE_ENUM)
-			{
-				PrintToFile(file, ", &enumInfo_%.*s", member->typeInfo.name.size,
-						member->typeInfo.name.begin);
-			}
-
-			if (member->tagCount)
-			{
-				PrintToFile(file, ", %d, _tags_%.*s_%.*s", member->tagCount,
-						struct_->name.size, struct_->name.begin,
-						member->name.size, member->name.begin);
-			}
-
-			PrintToFile(file, " },\n");
-		}
-		PrintToFile(file, "};\n");
-
-		PrintToFile(file, "const StructInfo typeInfo_%.*s = { ", struct_->name.size,
-				struct_->name.begin);
-
-		PrintToFile(file, "\"%.*s\", ", struct_->name.size, struct_->name.begin);
-		PrintToFile(file, "%d, ", struct_->memberCount);
-		PrintToFile(file, "_typeInfoMembers_%.*s ", struct_->name.size, struct_->name.begin);
-
-		PrintToFile(file, "};\n");
+		WriteStruct(file, struct_, nullptr, nullptr);
 	}
 
 	PrintToFile(file, "#endif\n");
@@ -1433,25 +1585,33 @@ int main(int argc, char **argv)
 	DynamicArrayInit_Token(&tokens, 4096, malloc);
 	ParseFile(srcFile, tokens);
 
+	ParsedFile parsedFile = ReadEverything(tokens);
+
 	if (isGame)
 	{
-		DynamicArray_Struct structs;
-		DynamicArray_Enum enums;
-		ReadStructsAndEnums(tokens, structs, enums);
-
-		WriteTypeInfoFiles(structs, enums);
+		WriteTypeInfoFiles(parsedFile.structs, parsedFile.enums);
 	}
 
 	else if (isPlatform)
 	{
-		DynamicArray_Procedure procedures;
-		DynamicArrayInit_Procedure(&procedures, 64, malloc);
+		Array_Procedure platformProcedures;
+		ArrayInit_Procedure(&platformProcedures, 512, malloc);
 
-		int error = ExtractPlatformProcedures(tokens, procedures);
-		if (error)
-			return error;
+		for (u32 procIdx = 0; procIdx < parsedFile.procedures.size; ++procIdx)
+		{
+			Procedure *proc = &parsedFile.procedures[procIdx];
 
-		WritePlatformCodeFiles(procedures);
+			for (int tagIdx = 0; tagIdx < proc->tagCount; ++tagIdx)
+			{
+				if (TokenIsStr(&proc->tags[tagIdx], "PlatformProc"))
+				{
+					*ArrayAdd_Procedure(&platformProcedures) = *proc;
+					break;
+				}
+			}
+		}
+
+		WritePlatformCodeFiles(platformProcedures);
 	}
 
 	char outputFile[MAX_PATH];
