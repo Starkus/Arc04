@@ -34,10 +34,23 @@
 
 DECLARE_ARRAY(Resource);
 
-StartGame_t *StartGame;
-GameResourcePostLoad_t *GameResourcePostLoad;
-InitGameModule_t *InitGameModule;
-UpdateAndRenderGame_t *UpdateAndRenderGame;
+struct LinuxGameCode
+{
+	StartGame_t *StartGame;
+	GameResourcePostLoad_t *GameResourcePostLoad;
+	InitGameModule_t *InitGameModule;
+	UpdateAndRenderGame_t *UpdateAndRenderGame;
+};
+
+struct LinuxContext
+{
+	Display *display;
+	Window window;
+	GLXContext glContext;
+};
+
+LinuxGameCode *g_gameCode;
+LinuxContext *g_linuxContext;
 
 Memory *g_memory;
 Array_Resource *g_resources;
@@ -65,7 +78,7 @@ PLATFORMPROC const Resource *LoadResource(ResourceType type, const char *filenam
 		return nullptr;
 
 	newResource->type = type;
-	GameResourcePostLoad(newResource, fileBuffer, true);
+	g_gameCode->GameResourcePostLoad(newResource, fileBuffer, true);
 
 	return newResource;
 }
@@ -83,6 +96,14 @@ PLATFORMPROC const Resource *GetResource(const char *filename)
 	return nullptr;
 }
 
+PLATFORMPROC void GetWindowSize(u32 *w, u32 *h)
+{
+	XWindowAttributes windowAttr;
+	XGetWindowAttributes(g_linuxContext->display, g_linuxContext->window, &windowAttr);
+	*w = windowAttr.width;
+	*h = windowAttr.height;
+}
+
 #include "PlatformCode.cpp"
 
 #if DEBUG_BUILD
@@ -95,6 +116,11 @@ int main(int argc, char **argv)
 {
 	(void) argc, argv;
 
+	LinuxContext context;
+	LinuxGameCode gameCode;
+	g_linuxContext = &context;
+	g_gameCode = &gameCode;
+
 	// Load game code
 	{
 		void *gameLib = dlopen(gameLibName, RTLD_NOW);
@@ -103,28 +129,24 @@ int main(int argc, char **argv)
 			printf("Couldn't load game library! Error %s\n", dlerror());
 			return 3;
 		}
-		InitGameModule = (InitGameModule_t*)dlsym(gameLib, "InitGameModule");
-		ASSERT(InitGameModule != nullptr);
-		GameResourcePostLoad = (GameResourcePostLoad_t*)dlsym(gameLib, "GameResourcePostLoad");
-		ASSERT(GameResourcePostLoad != nullptr);
-		StartGame = (StartGame_t*)dlsym(gameLib, "StartGame");
-		ASSERT(StartGame != nullptr);
-		UpdateAndRenderGame = (UpdateAndRenderGame_t*)dlsym(gameLib, "UpdateAndRenderGame");
-		ASSERT(UpdateAndRenderGame != nullptr);
+		gameCode.InitGameModule = (InitGameModule_t*)dlsym(gameLib, "InitGameModule");
+		ASSERT(gameCode.InitGameModule != nullptr);
+		gameCode.GameResourcePostLoad = (GameResourcePostLoad_t*)dlsym(gameLib, "GameResourcePostLoad");
+		ASSERT(gameCode.GameResourcePostLoad != nullptr);
+		gameCode.StartGame = (StartGame_t*)dlsym(gameLib, "StartGame");
+		ASSERT(gameCode.StartGame != nullptr);
+		gameCode.UpdateAndRenderGame = (UpdateAndRenderGame_t*)dlsym(gameLib, "UpdateAndRenderGame");
+		ASSERT(gameCode.UpdateAndRenderGame != nullptr);
 	}
 
-	Display *display;
-	Window window;
-	GLXContext glContext;
-
-	display = XOpenDisplay(nullptr);
-	if (display == nullptr)
+	context.display = XOpenDisplay(nullptr);
+	if (context.display == nullptr)
 	{
 		printf("ERROR! Cannot connect to X server!\n");
 		return 1;
 	}
 
-	Window rootWindow = DefaultRootWindow(display);
+	Window rootWindow = DefaultRootWindow(context.display);
 
 	GLint attr[] =
 	{
@@ -133,7 +155,7 @@ int main(int argc, char **argv)
 		GLX_DOUBLEBUFFER,
 		None
 	};
-	XVisualInfo *visualInfo = glXChooseVisual(display, 0, attr);
+	XVisualInfo *visualInfo = glXChooseVisual(context.display, 0, attr);
 	if (visualInfo == nullptr)
 	{
 		printf("ERROR! No appropriate visual found!\n");
@@ -141,20 +163,20 @@ int main(int argc, char **argv)
 	}
 	printf("Visual %p selected.\n", (void *)visualInfo->visualid);
 
-	Colormap colorMap = XCreateColormap(display, rootWindow, visualInfo->visual, AllocNone);
+	Colormap colorMap = XCreateColormap(context.display, rootWindow, visualInfo->visual, AllocNone);
 	XSetWindowAttributes setWindowAttr = {};
 	setWindowAttr.colormap = colorMap;
 	setWindowAttr.event_mask = ExposureMask | KeyPressMask;
 
-	window = XCreateWindow(display, rootWindow, 0, 0, 800, 600, 0, visualInfo->depth, InputOutput,
+	context.window = XCreateWindow(context.display, rootWindow, 0, 0, 800, 600, 0, visualInfo->depth, InputOutput,
 			visualInfo->visual, CWColormap | CWEventMask, &setWindowAttr);
 
-	XMapWindow(display, window);
-	XStoreName(display, window, "3DVania");
+	XMapWindow(context.display, context.window);
+	XStoreName(context.display, context.window, "3DVania");
 
-	XSelectInput(display, window, KeyPressMask | KeyReleaseMask);
-	glContext = glXCreateContext(display, visualInfo, nullptr, GL_TRUE);
-	glXMakeCurrent(display, window, glContext);
+	XSelectInput(context.display, context.window, KeyPressMask | KeyReleaseMask);
+	context.glContext = glXCreateContext(context.display, visualInfo, nullptr, GL_TRUE);
+	glXMakeCurrent(context.display, context.window, context.glContext);
 
 	Memory memory = {};
 	g_memory = &memory;
@@ -182,8 +204,8 @@ int main(int argc, char **argv)
 	platformContext.platformCode = &platformCode;
 	platformContext.memory = &memory;
 
-	InitGameModule(platformContext);
-	StartGame();
+	gameCode.InitGameModule(platformContext);
+	gameCode.StartGame();
 
 	Controller controller = {};
 
@@ -201,18 +223,18 @@ int main(int argc, char **argv)
 		for (u32 i = 0; i < ArrayCount(controller.b); ++i)
 			controller.b[i].changed = false;
 
-		while (XPending(display))
+		while (XPending(context.display))
 		{
 			XEvent xEvent;
-			XNextEvent(display, &xEvent);
+			XNextEvent(context.display, &xEvent);
 			if (xEvent.type == KeyPress || xEvent.type == KeyRelease)
 			{
 				bool endedDown = xEvent.type == KeyPress;
 				XKeyEvent keyEvent = xEvent.xkey;
 
-				auto checkKey = [keyEvent, endedDown, display](Button &button, KeySym keySym)
+				auto checkKey = [keyEvent, endedDown](Button &button, KeySym keySym)
 				{
-					if (keyEvent.keycode == XKeysymToKeycode(display, keySym))
+					if (keyEvent.keycode == XKeysymToKeycode(g_linuxContext->display, keySym))
 					{
 						if (button.endedDown != endedDown)
 						{
@@ -224,7 +246,7 @@ int main(int argc, char **argv)
 					return false;
 				};
 
-				if (keyEvent.keycode == XKeysymToKeycode(display, XK_Q))
+				if (keyEvent.keycode == XKeysymToKeycode(context.display, XK_Q))
 				{
 					running = false;
 				}
@@ -240,21 +262,23 @@ int main(int argc, char **argv)
 			}
 		}
 
-		XWindowAttributes windowAttr;
-		XGetWindowAttributes(display, window, &windowAttr);
-		SetViewport(0, 0, windowAttr.width, windowAttr.height);
+		{
+			u32 w, h;
+			GetWindowSize(&w, &h);
+			SetViewport(0, 0, w, h);
+		}
 
-		UpdateAndRenderGame(&controller, deltaTime);
+		gameCode.UpdateAndRenderGame(&controller, deltaTime);
 
-		glXSwapBuffers(display, window);
+		glXSwapBuffers(context.display, context.window);
 
 		FrameWipe();
 	}
 
-	glXMakeCurrent(display, None, nullptr);
-	glXDestroyContext(display, glContext);
-	XDestroyWindow(display, window);
-	XCloseDisplay(display);
+	glXMakeCurrent(context.display, None, nullptr);
+	glXDestroyContext(context.display, context.glContext);
+	XDestroyWindow(context.display, context.window);
+	XCloseDisplay(context.display);
 
 	return 0;
 }
