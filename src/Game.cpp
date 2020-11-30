@@ -1505,6 +1505,41 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 			SetFillMode(RENDER_FILL);
 
+			// Gizmos were here
+		}
+#endif
+
+		UnbindFrameBuffer();
+		{
+			static u32 lastW, lastH;
+			u32 w, h;
+			GetWindowSize(&w, &h);
+			if (lastW != w || lastH != h)
+			{
+				SetViewport(0, 0, w, h);
+				lastW = w;
+				lastH = h;
+			}
+		}
+
+		DisableDepthTest();
+
+		UseProgram(gameState->frameBufferProgram);
+
+		DeviceUniform colorUniform = GetUniform(gameState->frameBufferProgram, "texColor");
+		UniformInt(colorUniform, 0);
+		DeviceUniform depthUniform = GetUniform(gameState->frameBufferProgram, "texDepth");
+		UniformInt(depthUniform, 1);
+
+		BindTexture(gameState->frameBufferColorTex, 0);
+		BindTexture(gameState->frameBufferDepthTex, 1);
+		RenderMesh(gameState->particleMesh);
+
+		EnableDepthTest();
+
+		if (g_debugContext->selectedEntityIdx != -1)
+		{
+			Entity *entity = &gameState->entities[g_debugContext->selectedEntityIdx];
 			// Gizmos
 			{
 				ClearDepthBuffer();
@@ -1544,35 +1579,6 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				RenderIndexedMesh(circleRes->mesh.deviceMesh);
 			}
 		}
-#endif
-
-		UnbindFrameBuffer();
-		{
-			static u32 lastW, lastH;
-			u32 w, h;
-			GetWindowSize(&w, &h);
-			if (lastW != w || lastH != h)
-			{
-				SetViewport(0, 0, w, h);
-				lastW = w;
-				lastH = h;
-			}
-		}
-
-		DisableDepthTest();
-
-		UseProgram(gameState->frameBufferProgram);
-
-		DeviceUniform colorUniform = GetUniform(gameState->frameBufferProgram, "texColor");
-		UniformInt(colorUniform, 0);
-		DeviceUniform depthUniform = GetUniform(gameState->frameBufferProgram, "texDepth");
-		UniformInt(depthUniform, 1);
-
-		BindTexture(gameState->frameBufferColorTex, 0);
-		BindTexture(gameState->frameBufferDepthTex, 1);
-		RenderMesh(gameState->particleMesh);
-
-		EnableDepthTest();
 	}
 }
 
