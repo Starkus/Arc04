@@ -63,19 +63,6 @@ struct ParticleBookkeep
 	v3 velocity;
 };
 
-enum SillyEnum
-{
-	SILLY_FOO,
-	SILLY_BAR,
-	SILLY_BAZ
-};
-
-struct SillyStruct
-{
-	i32 Integer;
-	SillyEnum sillyyyy;
-};
-
 // @Speed: Separate params so we don't bring them into cache when trying to render.
 struct ParticleSystem
 {
@@ -98,7 +85,6 @@ struct ParticleSystem
 	bool alive[256] @Hidden; // @Improve
 	ParticleBookkeep bookkeeps[256] @Hidden;
 	Particle particles[256] @Hidden;
-	SillyStruct silly;
 };
 DECLARE_ARRAY(ParticleSystem);
 
