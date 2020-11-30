@@ -173,8 +173,12 @@ struct DebugGeometryBuffer
 	u32 debugCubeCount;
 };
 
+// @Improve: this is garbage
 enum PickingSpecials
 {
+	PICKING_GIZMO_ROT_X = -7,
+	PICKING_GIZMO_ROT_Y = -6,
+	PICKING_GIZMO_ROT_Z = -5,
 	PICKING_GIZMO_X = -4,
 	PICKING_GIZMO_Y = -3,
 	PICKING_GIZMO_Z = -2,

@@ -981,17 +981,21 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			// @Hack: hard coded gizmo colliders!
 			if (g_debugContext->selectedEntityIdx != -1)
 			{
+				Entity *selectedEntity = &gameState->entities[g_debugContext->selectedEntityIdx];
+
 				Collider gizmo = {};
 				gizmo.type = COLLIDER_CAPSULE;
 				gizmo.capsule.radius = 0.2f;
 				gizmo.capsule.height = 1.0f;
 				gizmo.capsule.offset = { 0, 0, 0.5f };
 
+				Collider rotationGizmo = {};
+				rotationGizmo.type = COLLIDER_SPHERE;
+				rotationGizmo.sphere.radius = 0.15f;
+
 				// @Improve: maybe don't require entities in collision procedures.
-				Entity gizmoZEnt = gameState->entities[g_debugContext->selectedEntityIdx];
+				Entity gizmoZEnt = *selectedEntity;
 				gizmoZEnt.collider = gizmo;
-				v3 hit;
-				v3 hitNor;
 
 				Entity gizmoXEnt = gizmoZEnt;
 				Entity gizmoYEnt = gizmoZEnt;
@@ -999,6 +1003,21 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				gizmoXEnt.rot = QuaternionMultiply(gizmoXEnt.rot, QuaternionFromEuler({ 0, HALFPI, 0 }));
 				gizmoYEnt.rot = QuaternionMultiply(gizmoYEnt.rot, QuaternionFromEuler({ -HALFPI, 0, 0 }));
 
+				mat4 fromQuat = Mat4FromQuaternion(selectedEntity->rot);
+				v3 right = { fromQuat.m00, fromQuat.m01, fromQuat.m02 };
+				v3 fw = { fromQuat.m10, fromQuat.m11, fromQuat.m12 };
+				v3 up = { fromQuat.m20, fromQuat.m21, fromQuat.m22 };
+
+				Entity gizmoXRotEnt = *selectedEntity;
+				gizmoXRotEnt.collider = rotationGizmo;
+				Entity gizmoYRotEnt = gizmoXRotEnt;
+				Entity gizmoZRotEnt = gizmoXRotEnt;
+				gizmoXRotEnt.pos += fw + up;
+				gizmoYRotEnt.pos += up + right;
+				gizmoZRotEnt.pos += fw + right;
+
+				v3 hit;
+				v3 hitNor;
 				if (RayColliderIntersection(origin, dir, true, &gizmoXEnt, &hit, &hitNor))
 				{
 					g_debugContext->hoveredEntityIdx = PICKING_GIZMO_X;
@@ -1011,6 +1030,18 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				{
 					g_debugContext->hoveredEntityIdx = PICKING_GIZMO_Z;
 				}
+				else if (RayColliderIntersection(origin, dir, true, &gizmoXRotEnt, &hit, &hitNor))
+				{
+					g_debugContext->hoveredEntityIdx = PICKING_GIZMO_ROT_X;
+				}
+				else if (RayColliderIntersection(origin, dir, true, &gizmoYRotEnt, &hit, &hitNor))
+				{
+					g_debugContext->hoveredEntityIdx = PICKING_GIZMO_ROT_Y;
+				}
+				else if (RayColliderIntersection(origin, dir, true, &gizmoZRotEnt, &hit, &hitNor))
+				{
+					g_debugContext->hoveredEntityIdx = PICKING_GIZMO_ROT_Z;
+				}
 			}
 		}
 
@@ -1019,6 +1050,9 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			static bool grabbingX = false;
 			static bool grabbingY = false;
 			static bool grabbingZ = false;
+			static bool rotatingX = false;
+			static bool rotatingY = false;
+			static bool rotatingZ = false;
 			static v2 oldMousePos = controller->mousePos;
 
 			if (controller->mouseLeft.endedDown && controller->mouseLeft.changed)
@@ -1029,6 +1063,12 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					grabbingY = true;
 				else if (g_debugContext->hoveredEntityIdx == PICKING_GIZMO_Z)
 					grabbingZ = true;
+				else if (g_debugContext->hoveredEntityIdx == PICKING_GIZMO_ROT_X)
+					rotatingX = true;
+				else if (g_debugContext->hoveredEntityIdx == PICKING_GIZMO_ROT_Y)
+					rotatingY = true;
+				else if (g_debugContext->hoveredEntityIdx == PICKING_GIZMO_ROT_Z)
+					rotatingZ = true;
 				else if (g_debugContext->hoveredEntityIdx == PICKING_NOTHING)
 					g_debugContext->selectedEntityIdx = -1;
 				else
@@ -1039,31 +1079,52 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				grabbingX = false;
 				grabbingY = false;
 				grabbingZ = false;
+				rotatingX = false;
+				rotatingY = false;
+				rotatingZ = false;
 			}
 
-			if (grabbingX + grabbingY + grabbingZ && g_debugContext->selectedEntityIdx != -1)
+			if (g_debugContext->selectedEntityIdx != -1)
 			{
 				Entity *selectedEntity = &gameState->entities[g_debugContext->selectedEntityIdx];
-
-				v3 dir = { (f32)grabbingX, (f32)grabbingY, (f32)grabbingZ };
-				v3 worldDir = QuaternionRotateVector(selectedEntity->rot, dir);
 
 				v4 entityScreenPos = V4Point(selectedEntity->pos);
 				entityScreenPos = Mat4TransformV4(gameState->viewMatrix, entityScreenPos);
 				entityScreenPos = Mat4TransformV4(gameState->projMatrix, entityScreenPos);
 				entityScreenPos /= entityScreenPos.w;
 
-				v4 offsetScreenPos = V4Point(selectedEntity->pos + worldDir);
-				offsetScreenPos = Mat4TransformV4(gameState->viewMatrix, offsetScreenPos);
-				offsetScreenPos = Mat4TransformV4(gameState->projMatrix, offsetScreenPos);
-				offsetScreenPos /= offsetScreenPos.w;
+				if (grabbingX || grabbingY || grabbingZ)
+				{
+					v3 dir = { (f32)grabbingX, (f32)grabbingY, (f32)grabbingZ };
+					v3 worldDir = QuaternionRotateVector(selectedEntity->rot, dir);
 
-				v2 screenSpaceDragDir = offsetScreenPos.xy - entityScreenPos.xy;
+					v4 offsetScreenPos = V4Point(selectedEntity->pos + worldDir);
+					offsetScreenPos = Mat4TransformV4(gameState->viewMatrix, offsetScreenPos);
+					offsetScreenPos = Mat4TransformV4(gameState->projMatrix, offsetScreenPos);
+					offsetScreenPos /= offsetScreenPos.w;
 
-				v2 mouseDelta = controller->mousePos - oldMousePos;
-				f32 delta = V2Dot(screenSpaceDragDir, mouseDelta) / V2SqrLen(screenSpaceDragDir);
-				selectedEntity->pos += worldDir * delta;
+					v2 screenSpaceDragDir = offsetScreenPos.xy - entityScreenPos.xy;
+
+					v2 mouseDelta = controller->mousePos - oldMousePos;
+					f32 delta = V2Dot(screenSpaceDragDir, mouseDelta) / V2SqrLen(screenSpaceDragDir);
+					selectedEntity->pos += worldDir * delta;
+				}
+				else if (rotatingX || rotatingY || rotatingZ)
+				{
+					// Draw out two vectors on the screen, one from entity to the old cursor
+					// position, another from entity to new cursor position. Then calculate angle
+					// between them and rotate entity by that angle delta.
+					v2 oldDelta = oldMousePos - entityScreenPos.xy;
+					v2 newDelta = controller->mousePos - entityScreenPos.xy;
+					f32 theta = Atan2(newDelta.y, newDelta.x) - Atan2(oldDelta.y, oldDelta.x);
+
+					v3 euler = { rotatingX * theta, rotatingY * theta, rotatingZ * theta };
+
+					selectedEntity->rot = QuaternionMultiply(selectedEntity->rot,
+							QuaternionFromEuler(euler));
+				}
 			}
+
 			oldMousePos = controller->mousePos;
 		}
 #endif
@@ -1456,6 +1517,28 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				UniformMat4Array(modelUniform, 1, gizmoModel.m);
 				UniformV4(colorUniform, { 0, 1, 0, 1 });
 				RenderIndexedMesh(arrowRes->mesh.deviceMesh);
+
+				// Rotation
+				mat4 fromQuat = Mat4FromQuaternion(entity->rot);
+				v3 right = { fromQuat.m00, fromQuat.m01, fromQuat.m02 };
+				v3 fw = { fromQuat.m10, fromQuat.m11, fromQuat.m12 };
+				v3 up = { fromQuat.m20, fromQuat.m21, fromQuat.m22 };
+
+				const Resource *sphereRes = GetResource("data/sphere.b");
+				mat4 sMat = Mat4Translation(entity->pos + fw + up, 0.15f);
+				UniformV4(colorUniform, { 1, 0, 0, 1 });
+				UniformMat4Array(modelUniform, 1, sMat.m);
+				RenderIndexedMesh(sphereRes->mesh.deviceMesh);
+
+				UniformV4(colorUniform, { 0, 1, 0, 1 });
+				sMat = Mat4Translation(entity->pos + up + right, 0.15f);
+				UniformMat4Array(modelUniform, 1, sMat.m);
+				RenderIndexedMesh(sphereRes->mesh.deviceMesh);
+
+				UniformV4(colorUniform, { 0, 0, 1, 1 });
+				sMat = Mat4Translation(entity->pos + fw + right, 0.15f);
+				UniformMat4Array(modelUniform, 1, sMat.m);
+				RenderIndexedMesh(sphereRes->mesh.deviceMesh);
 
 				EnableDepthTest();
 			}

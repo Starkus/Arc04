@@ -287,14 +287,26 @@ inline mat4 operator/=(mat4 &a, f32 b)
 	return a;
 }
 
-inline mat4 Mat4Translation(v3 translation)
+inline mat4 Mat4Translation(v3 translation, f32 scale = 1.0f)
 {
 	mat4 result =
 	{
-		1.0f,	0.0f,	0.0f,	0.0f,
-		0.0f,	1.0f,	0.0f,	0.0f,
-		0.0f,	0.0f,	1.0f,	0.0f,
+		scale,	0.0f,	0.0f,	0.0f,
+		0.0f,	scale,	0.0f,	0.0f,
+		0.0f,	0.0f,	scale,	0.0f,
 		translation.x, translation.y, translation.z, 1.0f
+	};
+	return result;
+}
+
+inline mat4 Mat4Scale(f32 scale)
+{
+	mat4 result =
+	{
+		scale,	0.0f,	0.0f,	0.0f,
+		0.0f,	scale,	0.0f,	0.0f,
+		0.0f,	0.0f,	scale,	0.0f,
+		0.0f,	0.0f,	0.0f,	0.0f
 	};
 	return result;
 }
