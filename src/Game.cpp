@@ -268,6 +268,10 @@ GAMEDLL START_GAME(StartGame)
 		LoadResource(RESOURCETYPE_TEXTURE, "data/grid.b");
 		LoadResource(RESOURCETYPE_TEXTURE, "data/normal_plain.b");
 
+#if EDITOR_PRESENT
+		LoadResource(RESOURCETYPE_MESH, "data/editor_arrow.b");
+#endif
+
 #if DEBUG_BUILD
 		// Debug geometry buffer
 		{
@@ -329,9 +333,14 @@ GAMEDLL START_GAME(StartGame)
 
 		const Resource *shaderDebugCubesRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_debug_cubes.b");
 		g_debugContext->debugCubesProgram = shaderDebugCubesRes->shader.programHandle;
+#endif
 
+#if EDITOR_PRESENT
 		const Resource *shaderEditorSelectedRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_editor_selected.b");
 		g_debugContext->editorSelectedProgram = shaderEditorSelectedRes->shader.programHandle;
+
+		const Resource *shaderEditorGizmoRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_editor_gizmo.b");
+		g_debugContext->editorGizmoProgram = shaderEditorGizmoRes->shader.programHandle;
 #endif
 	}
 
@@ -636,7 +645,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					{
 						Log("WARNING! Ignoring huge depenetration vector... something went wrong!\n");
 					}
-					break;
+					//break;
 				}
 			}
 		}
@@ -941,16 +950,125 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			}
 		}
 
-#if DEBUG_BUILD
-		//Editor stuff
-		if (controller->mouseLeft.endedDown && controller->mouseLeft.changed)
+#if EDITOR_PRESENT
+		// Mouse picking
 		{
-			//if (g_debugContext->hoveredEntityIdx != -1)
+			v4 worldCursorPos = { controller->mousePos.x, controller->mousePos.y, -1, 1 };
+			mat4 invViewMatrix = Mat4Adjugate(gameState->viewMatrix);
+			mat4 invProjMatrix = Mat4Inverse(gameState->projMatrix);
+			worldCursorPos = Mat4TransformV4(invProjMatrix, worldCursorPos);
+			worldCursorPos /= worldCursorPos.w;
+			worldCursorPos = Mat4TransformV4(invViewMatrix, worldCursorPos);
+			v3 cursorXYZ = { worldCursorPos.x, worldCursorPos.y, worldCursorPos.z };
+
+			v3 camPos = {};
+			camPos = Mat4TransformPoint(invViewMatrix, camPos);
+
+			v3 origin = camPos;
+			v3 dir = cursorXYZ - origin;
+			g_debugContext->hoveredEntityIdx = -1;
+			for (u32 entityIndex = 0; entityIndex < gameState->entities.size; ++entityIndex)
 			{
-				g_debugContext->selectedEntityIdx = g_debugContext->hoveredEntityIdx;
+				Entity *entity = &gameState->entities[entityIndex];
+				v3 hit;
+				v3 hitNor;
+				if (RayColliderIntersection(origin, dir, true, entity, &hit, &hitNor))
+				{
+					g_debugContext->hoveredEntityIdx = entityIndex;
+				}
+			}
+
+			// @Hack: hard coded gizmo colliders!
+			if (g_debugContext->selectedEntityIdx != -1)
+			{
+				Collider gizmo = {};
+				gizmo.type = COLLIDER_CAPSULE;
+				gizmo.capsule.radius = 0.2f;
+				gizmo.capsule.height = 1.0f;
+				gizmo.capsule.offset = { 0, 0, 0.5f };
+
+				// @Improve: maybe don't require entities in collision procedures.
+				Entity gizmoZEnt = gameState->entities[g_debugContext->selectedEntityIdx];
+				gizmoZEnt.collider = gizmo;
+				v3 hit;
+				v3 hitNor;
+
+				Entity gizmoXEnt = gizmoZEnt;
+				Entity gizmoYEnt = gizmoZEnt;
+
+				gizmoXEnt.rot = QuaternionMultiply(gizmoXEnt.rot, QuaternionFromEuler({ 0, HALFPI, 0 }));
+				gizmoYEnt.rot = QuaternionMultiply(gizmoYEnt.rot, QuaternionFromEuler({ -HALFPI, 0, 0 }));
+
+				if (RayColliderIntersection(origin, dir, true, &gizmoXEnt, &hit, &hitNor))
+				{
+					g_debugContext->hoveredEntityIdx = PICKING_GIZMO_X;
+				}
+				else if (RayColliderIntersection(origin, dir, true, &gizmoYEnt, &hit, &hitNor))
+				{
+					g_debugContext->hoveredEntityIdx = PICKING_GIZMO_Y;
+				}
+				else if (RayColliderIntersection(origin, dir, true, &gizmoZEnt, &hit, &hitNor))
+				{
+					g_debugContext->hoveredEntityIdx = PICKING_GIZMO_Z;
+				}
 			}
 		}
 
+		//Editor stuff
+		{
+			static bool grabbingX = false;
+			static bool grabbingY = false;
+			static bool grabbingZ = false;
+			static v2 oldMousePos = controller->mousePos;
+
+			if (controller->mouseLeft.endedDown && controller->mouseLeft.changed)
+			{
+				if (g_debugContext->hoveredEntityIdx == PICKING_GIZMO_X)
+					grabbingX = true;
+				else if (g_debugContext->hoveredEntityIdx == PICKING_GIZMO_Y)
+					grabbingY = true;
+				else if (g_debugContext->hoveredEntityIdx == PICKING_GIZMO_Z)
+					grabbingZ = true;
+				else if (g_debugContext->hoveredEntityIdx == PICKING_NOTHING)
+					g_debugContext->selectedEntityIdx = -1;
+				else
+					g_debugContext->selectedEntityIdx = g_debugContext->hoveredEntityIdx;
+			}
+			else if (!controller->mouseLeft.endedDown)
+			{
+				grabbingX = false;
+				grabbingY = false;
+				grabbingZ = false;
+			}
+
+			if (grabbingX + grabbingY + grabbingZ && g_debugContext->selectedEntityIdx != -1)
+			{
+				Entity *selectedEntity = &gameState->entities[g_debugContext->selectedEntityIdx];
+
+				v3 dir = { (f32)grabbingX, (f32)grabbingY, (f32)grabbingZ };
+				v3 worldDir = QuaternionRotateVector(selectedEntity->rot, dir);
+
+				v4 entityScreenPos = V4Point(selectedEntity->pos);
+				entityScreenPos = Mat4TransformV4(gameState->viewMatrix, entityScreenPos);
+				entityScreenPos = Mat4TransformV4(gameState->projMatrix, entityScreenPos);
+				entityScreenPos /= entityScreenPos.w;
+
+				v4 offsetScreenPos = V4Point(selectedEntity->pos + worldDir);
+				offsetScreenPos = Mat4TransformV4(gameState->viewMatrix, offsetScreenPos);
+				offsetScreenPos = Mat4TransformV4(gameState->projMatrix, offsetScreenPos);
+				offsetScreenPos /= offsetScreenPos.w;
+
+				v2 screenSpaceDragDir = offsetScreenPos.xy - entityScreenPos.xy;
+
+				v2 mouseDelta = controller->mousePos - oldMousePos;
+				f32 delta = V2Dot(screenSpaceDragDir, mouseDelta) / V2SqrLen(screenSpaceDragDir);
+				selectedEntity->pos += worldDir * delta;
+			}
+			oldMousePos = controller->mousePos;
+		}
+#endif
+
+#if DEBUG_BUILD
 		if (g_debugContext->drawGJKPolytope)
 		{
 			DebugVertex *gjkVertices;
@@ -998,7 +1116,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		}
 
 		// Projection matrix
-		mat4 proj;
+		mat4 *proj = &gameState->projMatrix;
 		{
 			const f32 fov = HALFPI;
 			const f32 near = 0.01f;
@@ -1008,7 +1126,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			const f32 top = Tan(HALFPI - fov / 2.0f);
 			const f32 right = top / aspectRatio;
 
-			proj =
+			*proj =
 			{
 				right, 0.0f, 0.0f, 0.0f,
 				0.0f, top, 0.0f, 0.0f,
@@ -1018,9 +1136,9 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		}
 
 		// View matrix
-		mat4 view;
+		mat4 *view = &gameState->viewMatrix;
 		{
-			view = Mat4Translation({ 0.0f, 0.0f, -4.5f });
+			*view = Mat4Translation({ 0.0f, 0.0f, -4.5f });
 			const f32 pitch = gameState->camPitch;
 			mat4 pitchMatrix =
 			{
@@ -1029,7 +1147,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				0.0f,	-Sin(pitch),	Cos(pitch),	0.0f,
 				0.0f,	0.0f,			0.0f,		1.0f
 			};
-			view = Mat4Multiply(pitchMatrix, view);
+			*view = Mat4Multiply(pitchMatrix, *view);
 
 			const f32 yaw = gameState->camYaw;
 			mat4 yawMatrix =
@@ -1039,49 +1157,18 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				0.0f,		0.0f,		1.0f,	0.0f,
 				0.0f,		0.0f,		0.0f,	1.0f
 			};
-			view = Mat4Multiply(yawMatrix, view);
+			*view = Mat4Multiply(yawMatrix, *view);
 
 			const v3 pos = gameState->camPos;
 			mat4 camPosMatrix = Mat4Translation(-pos);
-			view = Mat4Multiply(camPosMatrix, view);
+			*view = Mat4Multiply(camPosMatrix, *view);
 		}
-
-#if DEBUG_BUILD
-		// Mouse picking
-		// @Todo: move out of rendering code
-		{
-			v4 worldCursorPos = { controller->mousePos.x, -controller->mousePos.y, -1, 1 };
-			mat4 invViewMatrix = Mat4Adjugate(view);
-			mat4 invProjMatrix = Mat4Inverse(proj);
-			worldCursorPos = Mat4TransformV4(invProjMatrix, worldCursorPos);
-			worldCursorPos /= worldCursorPos.w;
-			worldCursorPos = Mat4TransformV4(invViewMatrix, worldCursorPos);
-			v3 cursorXYZ = { worldCursorPos.x, worldCursorPos.y, worldCursorPos.z };
-
-			v3 camPos = {};
-			camPos = Mat4TransformPosition(invViewMatrix, camPos);
-
-			v3 origin = camPos;
-			v3 dir = cursorXYZ - origin;
-			g_debugContext->hoveredEntityIdx = -1;
-			for (u32 entityIndex = 0; entityIndex < gameState->entities.size; ++entityIndex)
-			{
-				Entity *entity = &gameState->entities[entityIndex];
-				v3 hit;
-				v3 hitNor;
-				if (RayColliderIntersection(origin, dir, true, entity, &hit, &hitNor))
-				{
-					g_debugContext->hoveredEntityIdx = entityIndex;
-				}
-			}
-		}
-#endif
 
 		UseProgram(gameState->program);
 		DeviceUniform viewUniform = GetUniform(gameState->program, "view");
-		UniformMat4Array(viewUniform, 1, view.m);
+		UniformMat4Array(viewUniform, 1, view->m);
 		DeviceUniform projUniform = GetUniform(gameState->program, "projection");
-		UniformMat4Array(projUniform, 1, proj.m);
+		UniformMat4Array(projUniform, 1, proj->m);
 
 		DeviceUniform albedoUniform = GetUniform(gameState->program, "texAlbedo");
 		UniformInt(albedoUniform, 0);
@@ -1125,7 +1212,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			viewUniform = GetUniform(gameState->skinnedMeshProgram, "view");
 			modelUniform = GetUniform(gameState->skinnedMeshProgram, "model");
 			projUniform = GetUniform(gameState->skinnedMeshProgram, "projection");
-			UniformMat4Array(projUniform, 1, proj.m);
+			UniformMat4Array(projUniform, 1, proj->m);
 
 			const Resource *sparkusAlb = GetResource("data/sparkus_albedo.b");
 			const Resource *sparkusNor = GetResource("data/sparkus_normal.b");
@@ -1140,7 +1227,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			DeviceUniform jointTranslationsUniform = GetUniform(gameState->skinnedMeshProgram, "jointTranslations");
 			DeviceUniform jointRotationsUniform = GetUniform(gameState->skinnedMeshProgram, "jointRotations");
 			DeviceUniform jointScalesUniform = GetUniform(gameState->skinnedMeshProgram, "jointScales");
-			UniformMat4Array(viewUniform, 1, view.m);
+			UniformMat4Array(viewUniform, 1, view->m);
 
 			for (u32 meshInstanceIdx = 0; meshInstanceIdx < gameState->skinnedMeshInstances.size;
 					++meshInstanceIdx)
@@ -1172,8 +1259,8 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			UseProgram(gameState->particleSystemProgram);
 			viewUniform = GetUniform(gameState->particleSystemProgram, "view");
 			projUniform = GetUniform(gameState->particleSystemProgram, "projection");
-			UniformMat4Array(projUniform, 1, proj.m);
-			UniformMat4Array(viewUniform, 1, view.m);
+			UniformMat4Array(projUniform, 1, proj->m);
+			UniformMat4Array(viewUniform, 1, view->m);
 
 			DeviceUniform texUniform = GetUniform(gameState->particleSystemProgram, "tex");
 			UniformInt(texUniform, 0);
@@ -1203,7 +1290,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				// Sort!
 				// @Improve: change this once we have a proper camera
 				static v3 camPos;
-				camPos = Mat4TransformPosition(Mat4Adjugate(view), v3{});
+				camPos = Mat4TransformPoint(Mat4Adjugate(*view), v3{});
 				auto compareParticles = [](const void *a, const void *b)
 				{
 					f32 aDist = V3SqrLen(((Particle *)a)->pos - camPos);
@@ -1239,8 +1326,8 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			UseProgram(g_debugContext->debugDrawProgram);
 			viewUniform = GetUniform(g_debugContext->debugDrawProgram, "view");
 			projUniform = GetUniform(g_debugContext->debugDrawProgram, "projection");
-			UniformMat4Array(projUniform, 1, proj.m);
-			UniformMat4Array(viewUniform, 1, view.m);
+			UniformMat4Array(projUniform, 1, proj->m);
+			UniformMat4Array(viewUniform, 1, view->m);
 
 			SendMesh(&dgb->deviceMesh,
 					dgb->triangleData,
@@ -1258,8 +1345,8 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				UseProgram(g_debugContext->debugCubesProgram);
 				viewUniform = GetUniform(g_debugContext->debugDrawProgram, "view");
 				projUniform = GetUniform(g_debugContext->debugDrawProgram, "projection");
-				UniformMat4Array(projUniform, 1, proj.m);
-				UniformMat4Array(viewUniform, 1, view.m);
+				UniformMat4Array(projUniform, 1, proj->m);
+				UniformMat4Array(viewUniform, 1, view->m);
 
 				SendMesh(&dgb->cubePositionsBuffer,
 						dgb->debugCubes,
@@ -1279,17 +1366,21 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			EnableDepthTest();
 			SetFillMode(RENDER_FILL);
 		}
+#endif
 
+#if EDITOR_PRESENT
 		// Selected entity
 		if (g_debugContext->selectedEntityIdx != -1)
 		{
+			Entity *entity = &gameState->entities[g_debugContext->selectedEntityIdx];
+
 			SetFillMode(RENDER_LINE);
 
 			UseProgram(g_debugContext->editorSelectedProgram);
 			viewUniform = GetUniform(g_debugContext->editorSelectedProgram, "view");
-			UniformMat4Array(viewUniform, 1, view.m);
+			UniformMat4Array(viewUniform, 1, view->m);
 			projUniform = GetUniform(g_debugContext->editorSelectedProgram, "projection");
-			UniformMat4Array(projUniform, 1, proj.m);
+			UniformMat4Array(projUniform, 1, proj->m);
 			modelUniform = GetUniform(g_debugContext->editorSelectedProgram, "model");
 
 			DeviceUniform isSkinnedUniform = GetUniform(g_debugContext->editorSelectedProgram, "skinned");
@@ -1298,8 +1389,6 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			t += deltaTime;
 			DeviceUniform timeUniform = GetUniform(g_debugContext->editorSelectedProgram, "time");
 			UniformFloat(timeUniform, t);
-
-			Entity *entity = &gameState->entities[g_debugContext->selectedEntityIdx];
 
 			const mat4 model = Mat4Compose(entity->pos, entity->rot);
 			UniformMat4Array(modelUniform, 1, model.m);
@@ -1333,6 +1422,43 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			}
 
 			SetFillMode(RENDER_FILL);
+
+			// Gizmos
+			{
+				DisableDepthTest();
+
+				UseProgram(g_debugContext->editorGizmoProgram);
+				viewUniform = GetUniform(g_debugContext->editorGizmoProgram, "view");
+				UniformMat4Array(viewUniform, 1, view->m);
+				projUniform = GetUniform(g_debugContext->editorGizmoProgram, "projection");
+				UniformMat4Array(projUniform, 1, proj->m);
+				modelUniform = GetUniform(g_debugContext->editorGizmoProgram, "model");
+				DeviceUniform colorUniform = GetUniform(g_debugContext->editorGizmoProgram, "color");
+
+				const Resource *arrowRes = GetResource("data/editor_arrow.b");
+
+				v3 pos = entity->pos;
+				v4 rot = entity->rot;
+				mat4 gizmoModel = Mat4Compose(pos, rot);
+
+				UniformMat4Array(modelUniform, 1, gizmoModel.m);
+				UniformV4(colorUniform, { 0, 0, 1, 1 });
+				RenderIndexedMesh(arrowRes->mesh.deviceMesh);
+
+				v4 xRot = QuaternionMultiply(rot, QuaternionFromEuler({ 0, HALFPI, 0 }));
+				gizmoModel = Mat4Compose(pos, xRot);
+				UniformMat4Array(modelUniform, 1, gizmoModel.m);
+				UniformV4(colorUniform, { 1, 0, 0, 1 });
+				RenderIndexedMesh(arrowRes->mesh.deviceMesh);
+
+				v4 yRot = QuaternionMultiply(rot, QuaternionFromEuler({ -HALFPI, 0, 0 }));
+				gizmoModel = Mat4Compose(pos, yRot);
+				UniformMat4Array(modelUniform, 1, gizmoModel.m);
+				UniformV4(colorUniform, { 0, 1, 0, 1 });
+				RenderIndexedMesh(arrowRes->mesh.deviceMesh);
+
+				EnableDepthTest();
+			}
 		}
 #endif
 

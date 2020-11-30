@@ -1,6 +1,7 @@
 ## TODO
 
 # Next up?
+- CHECK HANDEDNESS once and for all.
 - Implement some persistent state with save/load (option to reset easily)
 - Design how to link entities with 'components' (mesh to render, collider, etc.)
 - Materials... bind textures/programs depending on mesh.

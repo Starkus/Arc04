@@ -170,8 +170,9 @@ bool ProcessKeyboardAndMouse(Controller *c)
 	MSG message;
 	while (PeekMessageA(&message, 0, 0, 0, PM_REMOVE))
 	{
+		bool consumed = false;
 #if USING_IMGUI
-		if (!ImGui::GetIO().WantCaptureKeyboard && !ImGui::GetIO().WantCaptureMouse)
+		if (!ImGui::GetIO().WantCaptureKeyboard)
 #endif
 		switch (message.message)
 		{
@@ -179,43 +180,12 @@ bool ProcessKeyboardAndMouse(Controller *c)
 		{
 			return true;
 		} break;
-#if EDITOR_PRESENT
-		case WM_LBUTTONDOWN:
-		{
-			c->mouseLeft.changed = !c->mouseLeft.endedDown;
-			c->mouseLeft.endedDown = true;
-		} break;
-		case WM_MBUTTONDOWN:
-		{
-			c->mouseMiddle.changed = !c->mouseMiddle.endedDown;
-			c->mouseMiddle.endedDown = true;
-		} break;
-		case WM_RBUTTONDOWN:
-		{
-			c->mouseRight.changed = !c->mouseRight.endedDown;
-			c->mouseRight.endedDown = true;
-		} break;
-		case WM_LBUTTONUP:
-		{
-			c->mouseLeft.changed = c->mouseLeft.endedDown;
-			c->mouseLeft.endedDown = false;
-		} break;
-		case WM_MBUTTONUP:
-		{
-			c->mouseMiddle.changed = c->mouseMiddle.endedDown;
-			c->mouseMiddle.endedDown = false;
-		} break;
-		case WM_RBUTTONUP:
-		{
-			c->mouseRight.changed = c->mouseRight.endedDown;
-			c->mouseRight.endedDown = false;
-		} break;
-#endif
 		case WM_SYSKEYDOWN:
 		case WM_SYSKEYUP:
 		case WM_KEYDOWN:
 		case WM_KEYUP:
 		{
+			consumed = true;
 			const bool isDown = (message.lParam & (1 << 31)) == 0;
 			const bool wasDown = (message.lParam & (1 << 30)) != 0;
 
@@ -269,11 +239,55 @@ bool ProcessKeyboardAndMouse(Controller *c)
 					break;
 			}
 		} break;
-		default:
+		}
+
+#if EDITOR_PRESENT
+		if (!ImGui::GetIO().WantCaptureMouse)
+		switch (message.message)
+		{
+		case WM_LBUTTONDOWN:
+		{
+			c->mouseLeft.changed = !c->mouseLeft.endedDown;
+			c->mouseLeft.endedDown = true;
+			consumed = true;
+		} break;
+		case WM_MBUTTONDOWN:
+		{
+			c->mouseMiddle.changed = !c->mouseMiddle.endedDown;
+			c->mouseMiddle.endedDown = true;
+			consumed = true;
+		} break;
+		case WM_RBUTTONDOWN:
+		{
+			c->mouseRight.changed = !c->mouseRight.endedDown;
+			c->mouseRight.endedDown = true;
+			consumed = true;
+		} break;
+		case WM_LBUTTONUP:
+		{
+			c->mouseLeft.changed = c->mouseLeft.endedDown;
+			c->mouseLeft.endedDown = false;
+			consumed = true;
+		} break;
+		case WM_MBUTTONUP:
+		{
+			c->mouseMiddle.changed = c->mouseMiddle.endedDown;
+			c->mouseMiddle.endedDown = false;
+			consumed = true;
+		} break;
+		case WM_RBUTTONUP:
+		{
+			c->mouseRight.changed = c->mouseRight.endedDown;
+			c->mouseRight.endedDown = false;
+			consumed = true;
+		} break;
+		}
+#endif
+
+		if (!consumed)
 		{
 			TranslateMessage(&message);
 			DispatchMessage(&message);
-		} break;
 		}
 
 #ifdef USING_IMGUI
@@ -656,7 +670,7 @@ void Win32Start(HINSTANCE hInstance)
 			controller.mousePos =
 			{
 				(f32)mousePos.x * 2.0f / g_windowWidth - 1.0f,
-				(f32)mousePos.y * 2.0f / g_windowHeight - 1.0f
+				-((f32)mousePos.y * 2.0f / g_windowHeight - 1.0f)
 			};
 		}
 

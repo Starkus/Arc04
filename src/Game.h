@@ -173,6 +173,14 @@ struct DebugGeometryBuffer
 	u32 debugCubeCount;
 };
 
+enum PickingSpecials
+{
+	PICKING_GIZMO_X = -4,
+	PICKING_GIZMO_Y = -3,
+	PICKING_GIZMO_Z = -2,
+	PICKING_NOTHING = -1,
+};
+
 struct DebugContext
 {
 	DeviceProgram debugDrawProgram, debugCubesProgram;
@@ -205,6 +213,7 @@ struct DebugContext
 	i32 selectedEntityIdx = -1;
 	i32 hoveredEntityIdx;
 	DeviceProgram editorSelectedProgram;
+	DeviceProgram editorGizmoProgram;
 };
 #endif
 
@@ -227,6 +236,7 @@ struct GameState
 	Array_ParticleSystem particleSystems;
 
 	// @Cleanup: move to some Render Device Context or something?
+	mat4 viewMatrix, projMatrix;
 	DeviceProgram program, skinnedMeshProgram, particleSystemProgram;
 	DeviceMesh particleMesh;
 	// Frame buffer

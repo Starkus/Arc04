@@ -312,35 +312,27 @@ bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, bool infinite, v3 *h
 
 bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, bool infinite, const Entity *entity, v3 *hit, v3 *hitNor)
 {
-	v3 unitDir = V3Normalize(rayDir);
+	bool result = false;
 
 	const Collider *c = &entity->collider;
 	ColliderType type = c->type;
+
+		rayOrigin = rayOrigin - entity->pos;
+	if (type != COLLIDER_SPHERE)
+	{
+		// Un-rotate direction
+		v4 invQ = entity->rot;
+		invQ.w = -invQ.w;
+		rayDir = QuaternionRotateVector(invQ, rayDir);
+		rayOrigin = QuaternionRotateVector(invQ, rayOrigin);
+	}
+
+	v3 unitDir = V3Normalize(rayDir);
+
 	switch(type)
 	{
 	case COLLIDER_CONVEX_HULL:
 	{
-		const mat4 modelMatrix = Mat4Compose(entity->pos, entity->rot);
-
-		// Un-rotate direction
-		// @Speed: maybe do this with quaternions once decomposed transformations are a thing.
-		mat4 rotMatrixInv =
-		{
-			modelMatrix.m00,	modelMatrix.m10,	modelMatrix.m20,	0,
-			modelMatrix.m01,	modelMatrix.m11,	modelMatrix.m21,	0,
-			modelMatrix.m02,	modelMatrix.m12,	modelMatrix.m22,	0,
-			0,			0,		0,		1
-		};
-		v4 invQ = entity->rot;
-		invQ.w = -invQ.w;
-
-		v3 localRayDir = QuaternionRotateVector(invQ, rayDir);
-
-		v3 localRayOrigin = rayOrigin - entity->pos;
-		v4 localRayOrigin4 = Mat4TransformV4(rotMatrixInv, v4{ localRayOrigin.x, localRayOrigin.y,
-				localRayOrigin.z, 1 });
-		localRayOrigin = { localRayOrigin4.x, localRayOrigin4.y, localRayOrigin4.z };
-
 		const Resource *res = c->convexHull.meshRes;
 		if (!res)
 			return false;
@@ -349,7 +341,6 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, bool infinite, const Entit
 		const u32 triangleCount = collMeshRes->triangleCount;
 		const v3 *positions = collMeshRes->positionData;
 
-		bool result = false;
 		for (u32 triangleIdx = 0; triangleIdx < triangleCount; ++triangleIdx)
 		{
 			const IndexTriangle *indexTri = &collMeshRes->triangleData[triangleIdx];
@@ -361,30 +352,21 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, bool infinite, const Entit
 				indexTri->normal
 			};
 
-			if (V3Dot(localRayDir, tri.normal) > 0)
+			if (V3Dot(rayDir, tri.normal) > 0)
 				continue;
 
 			v3 currHit;
-			if (RayTriangleIntersection(localRayOrigin, localRayDir, infinite, &tri, &currHit))
+			if (RayTriangleIntersection(rayOrigin, rayDir, infinite, &tri, &currHit))
 			{
 				*hit = currHit;
 				*hitNor = tri.normal;
 				result = true;
 			}
 		}
-
-		if (result)
-		{
-			v4 r4 = { hit->x, hit->y, hit->z, 1 };
-			r4 = Mat4TransformV4(modelMatrix, r4);
-			*hit = v3{ r4.x, r4.y, r4.z };
-		}
-
-		return result;
 	} break;
 	case COLLIDER_SPHERE:
 	{
-		v3 center = entity->pos + c->sphere.offset;
+		v3 center = c->sphere.offset;
 
 		v3 towards = center - rayOrigin;
 		f32 dot = V3Dot(unitDir, towards);
@@ -406,14 +388,13 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, bool infinite, const Entit
 			return false;
 
 		*hitNor = (*hit - center) / c->sphere.radius;
-		return true;
+		result = true;
 	} break;
 	case COLLIDER_CYLINDER:
 	{
-		v3 center = entity->pos + c->cylinder.offset;
+		v3 center = c->cylinder.offset;
 
 		v3 towards = center - rayOrigin;
-		// @Incomplete: won't work with non axis aligned cylinders
 		towards.z = 0;
 
 		f32 dirLat = Sqrt(unitDir.x * unitDir.x + unitDir.y * unitDir.y);
@@ -440,43 +421,45 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, bool infinite, const Entit
 
 				*hit = proj;
 				*hitNor = { 0, 0, -Sign(rayDir.z) };
-				return true;
+				result = true;
 			}
 		}
 
 		// Otherwise check cylinder wall
-		f32 dot = V3Dot(dirNormXY, towards);
-		if (dot <= c->cylinder.radius)
-			return false;
+		if (!result)
+		{
+			f32 dot = V3Dot(dirNormXY, towards);
+			if (dot <= c->cylinder.radius)
+				return false;
 
-		v3 proj = rayOrigin + dirNormXY * dot;
+			v3 proj = rayOrigin + dirNormXY * dot;
 
-		v3 opposite = proj - center;
-		f32 distSqr = (opposite.x * opposite.x) + (opposite.y * opposite.y);
-		if (distSqr > radiusSqr)
-			return false;
+			v3 opposite = proj - center;
+			f32 distSqr = (opposite.x * opposite.x) + (opposite.y * opposite.y);
+			if (distSqr > radiusSqr)
+				return false;
 
-		f32 td = Sqrt(radiusSqr - distSqr);
-		proj = proj - dirNormXY * td;
+			f32 td = Sqrt(radiusSqr - distSqr);
+			proj = proj - dirNormXY * td;
 
-		// @Incomplete: won't work with non axis aligned cylinders
-		f32 distUp = Abs(proj.z - center.z);
-		if (distUp > c->cylinder.height * 0.5f)
-			return false;
+			f32 distUp = Abs(proj.z - center.z);
+			if (distUp > c->cylinder.height * 0.5f)
+				return false;
 
-		*hit = proj;
+			*hit = proj;
 
-		// Limit reach
-		if (!infinite && V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
-			return false;
+			// Limit reach
+			if (!infinite && V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
+				return false;
 
-		*hitNor = (*hit - center) / c->cylinder.radius;
-		hitNor->z = 0;
-		return true;
+			*hitNor = (*hit - center) / c->cylinder.radius;
+			hitNor->z = 0;
+			result = true;
+		}
 	} break;
 	case COLLIDER_CAPSULE:
 	{
-		v3 center = entity->pos + c->capsule.offset;
+		v3 center = c->capsule.offset;
 
 		// Lower sphere
 		v3 sphereCenter = center;
@@ -503,83 +486,98 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, bool infinite, const Entit
 						return false;
 
 					*hitNor = (*hit - sphereCenter) / c->capsule.radius;
-					return true;
+					result = true;
 				}
 			}
 		}
 
 		// Upper sphere
-		sphereCenter.z += c->capsule.height;
-		towards = sphereCenter - rayOrigin;
-		dot = V3Dot(unitDir, towards);
-		if (dot > 0)
+		if (!result)
 		{
-			v3 proj = rayOrigin + unitDir * dot;
-
-			f32 distSqr = V3SqrLen(proj - sphereCenter);
-			f32 radiusSqr = c->capsule.radius * c->capsule.radius;
-			if (distSqr <= radiusSqr)
+			sphereCenter.z += c->capsule.height;
+			towards = sphereCenter - rayOrigin;
+			dot = V3Dot(unitDir, towards);
+			if (dot > 0)
 			{
-				f32 td = Sqrt(radiusSqr - distSqr);
-				v3 sphereProj = proj - unitDir * td;
-				if (sphereProj.z >= sphereCenter.z)
+				v3 proj = rayOrigin + unitDir * dot;
+
+				f32 distSqr = V3SqrLen(proj - sphereCenter);
+				f32 radiusSqr = c->capsule.radius * c->capsule.radius;
+				if (distSqr <= radiusSqr)
 				{
-					*hit = sphereProj;
+					f32 td = Sqrt(radiusSqr - distSqr);
+					v3 sphereProj = proj - unitDir * td;
+					if (sphereProj.z >= sphereCenter.z)
+					{
+						*hit = sphereProj;
 
-					// Limit reach
-					if (!infinite && V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
-						return false;
+						// Limit reach
+						if (!infinite && V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
+							return false;
 
-					*hitNor = (*hit - sphereCenter) / c->capsule.radius;
-					return true;
+						*hitNor = (*hit - sphereCenter) / c->capsule.radius;
+						result = true;
+					}
 				}
 			}
 		}
 
 		// Side
-		towards = center - rayOrigin;
-		// @Incomplete: won't work with non axis aligned cylinders
-		towards.z = 0;
+		if (!result)
+		{
+			towards = center - rayOrigin;
+			towards.z = 0;
 
-		f32 dirLat = Sqrt(unitDir.x * unitDir.x + unitDir.y * unitDir.y);
-		v3 dirNormXY = unitDir / dirLat;
-		f32 radiusSqr = c->capsule.radius * c->capsule.radius;
+			f32 dirLat = Sqrt(unitDir.x * unitDir.x + unitDir.y * unitDir.y);
+			v3 dirNormXY = unitDir / dirLat;
+			f32 radiusSqr = c->capsule.radius * c->capsule.radius;
 
-		dot = V3Dot(dirNormXY, towards);
-		if (dot <= c->capsule.radius)
-			return false;
+			dot = V3Dot(dirNormXY, towards);
+			if (dot <= c->capsule.radius)
+				return false;
 
-		v3 proj = rayOrigin + dirNormXY * dot;
+			v3 proj = rayOrigin + dirNormXY * dot;
 
-		v3 opposite = proj - center;
-		f32 distSqr = (opposite.x * opposite.x) + (opposite.y * opposite.y);
-		if (distSqr > radiusSqr)
-			return false;
+			v3 opposite = proj - center;
+			f32 distSqr = (opposite.x * opposite.x) + (opposite.y * opposite.y);
+			if (distSqr > radiusSqr)
+				return false;
 
-		f32 td = Sqrt(radiusSqr - distSqr);
-		proj = proj - dirNormXY * td;
+			f32 td = Sqrt(radiusSqr - distSqr);
+			proj = proj - dirNormXY * td;
 
-		// @Incomplete: won't work with non axis aligned cylinders
-		f32 distUp = Abs(proj.z - center.z);
-		if (distUp > c->capsule.height * 0.5f)
-			return false;
+			f32 distUp = Abs(proj.z - center.z);
+			if (distUp > c->capsule.height * 0.5f)
+				return false;
 
-		*hit = proj;
+			*hit = proj;
 
-		// Limit reach
-		if (!infinite && V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
-			return false;
+			// Limit reach
+			if (!infinite && V3SqrLen(*hit - rayOrigin) > V3SqrLen(rayDir))
+				return false;
 
-		*hitNor = (*hit - center) / c->capsule.radius;
-		hitNor->z = 0;
-		return true;
+			*hitNor = (*hit - center) / c->capsule.radius;
+			hitNor->z = 0;
+			result = true;
+		}
 	} break;
 	default:
 	{
 		ASSERT(false);
 	}
 	}
-	return false;
+
+	if (result)
+	{
+		if (type != COLLIDER_SPHERE)
+		{
+			*hit = QuaternionRotateVector(entity->rot, *hit);
+			*hitNor = QuaternionRotateVector(entity->rot, *hitNor);
+		}
+		*hit += entity->pos;
+	}
+
+	return result;
 }
 
 void GetAABB(Entity *entity, v3 *min, v3 *max)
@@ -593,9 +591,6 @@ void GetAABB(Entity *entity, v3 *min, v3 *max)
 		*min = { INFINITY, INFINITY, INFINITY };
 		*max = { -INFINITY, -INFINITY, -INFINITY };
 
-		// @Speed: transform without converting to matrix
-		const mat4 modelMatrix = Mat4Compose(entity->pos, entity->rot);
-
 		const Resource *res = c->convexHull.meshRes;
 		if (!res)
 			return;
@@ -605,9 +600,8 @@ void GetAABB(Entity *entity, v3 *min, v3 *max)
 
 		for (u32 i = 0; i < pointCount; ++i)
 		{
-			v3 p = collMeshRes->positionData[i];
-			v4 v = { p.x, p.y, p.z, 1.0f };
-			v = Mat4TransformV4(modelMatrix, v);
+			v3 v = collMeshRes->positionData[i];
+			v = QuaternionRotateVector(entity->rot, v);
 
 			if (v.x < min->x) min->x = v.x;
 			if (v.y < min->y) min->y = v.y;
@@ -620,28 +614,56 @@ void GetAABB(Entity *entity, v3 *min, v3 *max)
 	case COLLIDER_SPHERE:
 	{
 		f32 r = c->sphere.radius;
-		*min = entity->pos + c->sphere.offset - v3{ r, r, r };
-		*max = entity->pos + c->sphere.offset + v3{ r, r, r };
+		*min = c->sphere.offset - v3{ r, r, r };
+		*max = c->sphere.offset + v3{ r, r, r };
 	} break;
 	case COLLIDER_CYLINDER:
 	{
 		f32 halfH = c->cylinder.height * 0.5f;
 		f32 r = c->cylinder.radius;
-		*min = entity->pos + c->cylinder.offset - v3{ r, r, halfH };
-		*max = entity->pos + c->cylinder.offset + v3{ r, r, halfH };
+		*min = c->cylinder.offset - v3{ r, r, halfH };
+		*max = c->cylinder.offset + v3{ r, r, halfH };
 	} break;
 	case COLLIDER_CAPSULE:
 	{
 		f32 halfH = c->cylinder.height * 0.5f;
 		f32 r = c->cylinder.radius;
-		*min = entity->pos + c->cylinder.offset - v3{ r, r, halfH + r };
-		*max = entity->pos + c->cylinder.offset + v3{ r, r, halfH + r };
+		*min = c->cylinder.offset - v3{ r, r, halfH + r };
+		*max = c->cylinder.offset + v3{ r, r, halfH + r };
 	} break;
 	default:
 	{
 		ASSERT(false);
 	}
 	}
+
+	if (type == COLLIDER_CYLINDER || type == COLLIDER_CAPSULE)
+	{
+		v3 corners[] =
+		{
+			{ min->x, min->y, min->z },
+			{ max->x, min->y, min->z },
+			{ min->x, max->y, min->z },
+			{ max->x, max->y, min->z },
+			{ min->x, min->y, max->z },
+			{ max->x, min->y, max->z },
+			{ min->x, max->y, max->z },
+			{ max->x, max->y, max->z },
+		};
+		for (int i = 0; i < 8; ++i)
+		{
+			corners[i] = QuaternionRotateVector(entity->rot, corners[i]);
+			if (corners[i].x < min->x) min->x = corners[i].x;
+			if (corners[i].y < min->y) min->y = corners[i].y;
+			if (corners[i].z < min->z) min->z = corners[i].z;
+			if (corners[i].x > max->x) max->x = corners[i].x;
+			if (corners[i].y > max->y) max->y = corners[i].y;
+			if (corners[i].z > max->z) max->z = corners[i].z;
+		}
+	}
+
+	*min += entity->pos;
+	*max += entity->pos;
 
 #if DEBUG_BUILD
 	if (g_debugContext->drawAABBs)
@@ -657,25 +679,17 @@ v3 FurthestInDirection(Entity *entity, v3 dir)
 
 	Collider *c = &entity->collider;
 	ColliderType type = c->type;
+
+	// Un-rotate direction
+	v4 invQ = entity->rot;
+	invQ.w = -invQ.w;
+	v3 locDir = QuaternionRotateVector(invQ, dir);
+
 	switch(type)
 	{
 	case COLLIDER_CONVEX_HULL:
 	{
 		f32 maxDist = -INFINITY;
-
-		const mat4 modelMatrix = Mat4Compose(entity->pos, entity->rot);
-
-		// Un-rotate direction
-		// @Speed: maybe do this with quaternions once decomposed transformations are a thing.
-		mat4 rotMatrixInv =
-		{
-			modelMatrix.m00,	modelMatrix.m10,	modelMatrix.m20,	0,
-			modelMatrix.m01,	modelMatrix.m11,	modelMatrix.m21,	0,
-			modelMatrix.m02,	modelMatrix.m12,	modelMatrix.m22,	0,
-			0,			0,		0,		1
-		};
-		v4 locDir4 = Mat4TransformV4(rotMatrixInv, v4{ dir.x, dir.y, dir.z, 0 });
-		v3 locDir = { locDir4.x, locDir4.y, locDir4.z };
 
 		const Resource *res = c->convexHull.meshRes;
 		if (!res)
@@ -696,9 +710,8 @@ v3 FurthestInDirection(Entity *entity, v3 dir)
 		}
 
 		// Transform point to world coordinates and return as result
-		v4 r4 = { result.x, result.y, result.z, 1 };
-		r4 = Mat4TransformV4(modelMatrix, r4);
-		result = v3{ r4.x, r4.y, r4.z };
+		result = QuaternionRotateVector(entity->rot, result);
+		result += entity->pos;
 	} break;
 	case COLLIDER_SPHERE:
 	{
@@ -706,44 +719,52 @@ v3 FurthestInDirection(Entity *entity, v3 dir)
 	} break;
 	case COLLIDER_CYLINDER:
 	{
-		result = entity->pos + c->cylinder.offset;
+		result = c->cylinder.offset;
 
 		f32 halfH = c->cylinder.height * 0.5f;
-		if (dir.z != 0)
+		if (locDir.z != 0)
 		{
-			result.z += Sign(dir.z) * halfH;
+			result.z += Sign(locDir.z) * halfH;
 		}
-		if (dir.x != 0 || dir.y != 0)
+		if (locDir.x != 0 || locDir.y != 0)
 		{
-			f32 lat = Sqrt(dir.x * dir.x + dir.y * dir.y);
-			result.x += dir.x / lat * c->cylinder.radius;
-			result.y += dir.y / lat * c->cylinder.radius;
+			f32 lat = Sqrt(locDir.x * locDir.x + locDir.y * locDir.y);
+			result.x += locDir.x / lat * c->cylinder.radius;
+			result.y += locDir.y / lat * c->cylinder.radius;
 		}
+
+		// Transform point to world coordinates and return as result
+		result = QuaternionRotateVector(entity->rot, result);
+		result += entity->pos;
 	} break;
 	case COLLIDER_CAPSULE:
 	{
-		result = entity->pos + c->cylinder.offset;
+		result = c->cylinder.offset;
 
 		f32 halfH = c->capsule.height * 0.5f;
-		f32 lat = Sqrt(dir.x * dir.x + dir.y * dir.y);
+		f32 lat = Sqrt(locDir.x * locDir.x + locDir.y * locDir.y);
 		if (lat == 0)
 		{
 			// If direction is parallel to cylinder the answer is trivial
-			result.z += Sign(dir.z) * (halfH + c->capsule.radius);
+			result.z += Sign(locDir.z) * (halfH + c->capsule.radius);
 		}
 		else
 		{
-			// Project dir into cylinder wall
-			v3 d = dir / lat;
+			// Project locDir into cylinder wall
+			v3 d = locDir / lat;
 			d = d * c->capsule.radius;
 
 			// If it goes out the top, return furthest point from top sphere
 			if (d.z > 0)
-				result += v3{ 0, 0, halfH } + V3Normalize(dir) * c->capsule.radius;
+				result += v3{ 0, 0, halfH } + V3Normalize(locDir) * c->capsule.radius;
 			// Analogue for bottom
 			else
-				result += v3{ 0, 0, -halfH } + V3Normalize(dir) * c->capsule.radius;
+				result += v3{ 0, 0, -halfH } + V3Normalize(locDir) * c->capsule.radius;
 		}
+
+		// Transform point to world coordinates and return as result
+		result = QuaternionRotateVector(entity->rot, result);
+		result += entity->pos;
 	} break;
 	default:
 	{

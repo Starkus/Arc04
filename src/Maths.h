@@ -200,16 +200,6 @@ union v2
 	f32 v[2];
 };
 
-inline f32 V2Dot(const v2 &a, const v2 &b)
-{
-	return a.x * b.x + a.y * b.y;
-}
-
-inline f32 V2SqrLen(const v2 &a)
-{
-	return V2Dot(a, a);
-}
-
 union v3
 {
 	struct
@@ -220,6 +210,7 @@ union v3
 	{
 		f32 r; f32 g; f32 b;
 	};
+	v2 xy;
 	f32 v[3];
 };
 
@@ -233,6 +224,8 @@ union v4
 	{
 		f32 r; f32 g; f32 b; f32 a;
 	};
+	v3 xyz;
+	v2 xy;
 	f32 v[4];
 };
 
@@ -363,6 +356,32 @@ inline v2 operator/=(v2 &a, f32 b)
 inline bool operator==(const v2 &a, const v2 &b)
 {
 	return a.x == b.x && a.y == b.y;
+}
+
+inline f32 V2Dot(const v2 &a, const v2 &b)
+{
+	return a.x * b.x + a.y * b.y;
+}
+
+inline f32 V2SqrLen(const v2 &a)
+{
+	return V2Dot(a, a);
+}
+
+inline f32 V3SqrLen(const v2 &a)
+{
+	return V2Dot(a, a);
+}
+
+inline f32 V2Length(const v2 &a)
+{
+	return Sqrt(V3SqrLen(a));
+}
+
+inline v2 V2Normalize(const v2 &a)
+{
+	v2 result = a / V2Length(a);
+	return result;
 }
 
 inline f32 V3Dot(const v3 &a, const v3 &b)
@@ -541,6 +560,16 @@ inline v4 V4Scale(const v4 &v, const v4 &scale)
 	return v4{ v.x * scale.x, v.y * scale.y, v.z * scale.z, v.w * scale.w };
 }
 
+inline v4 V4Point(const v3 &v)
+{
+	return v4{ v.x, v.y, v.z, 1.0f };
+}
+
+inline v4 V4Direction(const v3 &v)
+{
+	return v4{ v.x, v.y, v.z, 0.0f };
+}
+
 inline f32 Mat4Determinant(const mat4 &m)
 {
 	f32 result = m.m00 *
@@ -669,7 +698,7 @@ inline v4 Mat4TransformV4(const mat4 &m, const v4 &v)
 	return result;
 }
 
-inline v3 Mat4TransformPosition(const mat4 &m, const v3 &v)
+inline v3 Mat4TransformPoint(const mat4 &m, const v3 &v)
 {
 	v3 result;
 	result.x = v.x * m.m00 + v.y * m.m10 + v.z * m.m20 + m.m30;
