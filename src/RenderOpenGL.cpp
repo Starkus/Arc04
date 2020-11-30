@@ -90,10 +90,15 @@ PLATFORMPROC void DisableAlphaBlending()
 	glDisable(GL_BLEND);
 }
 
-PLATFORMPROC void ClearBuffers(v4 clearColor)
+PLATFORMPROC void ClearColorBuffer(v4 clearColor)
 {
 	glClearColor(clearColor.x, clearColor.y, clearColor.z, clearColor.w);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT);
+}
+
+PLATFORMPROC void ClearDepthBuffer()
+{
+	glClear(GL_DEPTH_BUFFER_BIT);
 }
 
 PLATFORMPROC DeviceUniform GetUniform(DeviceProgram program, const char *name)

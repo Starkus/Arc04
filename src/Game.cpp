@@ -270,6 +270,9 @@ GAMEDLL START_GAME(StartGame)
 
 #if EDITOR_PRESENT
 		LoadResource(RESOURCETYPE_MESH, "data/editor_arrow.b");
+		LoadResource(RESOURCETYPE_COLLISIONMESH, "data/editor_arrow_collision.b");
+		LoadResource(RESOURCETYPE_MESH, "data/editor_circle.b");
+		LoadResource(RESOURCETYPE_COLLISIONMESH, "data/editor_circle_collision.b");
 #endif
 
 #if DEBUG_BUILD
@@ -961,6 +964,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			worldCursorPos = Mat4TransformV4(invViewMatrix, worldCursorPos);
 			v3 cursorXYZ = { worldCursorPos.x, worldCursorPos.y, worldCursorPos.z };
 
+			// @Improve: once we have proper camera
 			v3 camPos = {};
 			camPos = Mat4TransformPoint(invViewMatrix, camPos);
 
@@ -984,14 +988,8 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				Entity *selectedEntity = &gameState->entities[g_debugContext->selectedEntityIdx];
 
 				Collider gizmo = {};
-				gizmo.type = COLLIDER_CAPSULE;
-				gizmo.capsule.radius = 0.2f;
-				gizmo.capsule.height = 1.0f;
-				gizmo.capsule.offset = { 0, 0, 0.5f };
-
-				Collider rotationGizmo = {};
-				rotationGizmo.type = COLLIDER_SPHERE;
-				rotationGizmo.sphere.radius = 0.15f;
+				gizmo.type = COLLIDER_CONVEX_HULL;
+				gizmo.convexHull.meshRes = GetResource("data/editor_arrow_collision.b");
 
 				// @Improve: maybe don't require entities in collision procedures.
 				Entity gizmoZEnt = *selectedEntity;
@@ -1003,44 +1001,66 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				gizmoXEnt.rot = QuaternionMultiply(gizmoXEnt.rot, QuaternionFromEuler({ 0, HALFPI, 0 }));
 				gizmoYEnt.rot = QuaternionMultiply(gizmoYEnt.rot, QuaternionFromEuler({ -HALFPI, 0, 0 }));
 
-				mat4 fromQuat = Mat4FromQuaternion(selectedEntity->rot);
-				v3 right = { fromQuat.m00, fromQuat.m01, fromQuat.m02 };
-				v3 fw = { fromQuat.m10, fromQuat.m11, fromQuat.m12 };
-				v3 up = { fromQuat.m20, fromQuat.m21, fromQuat.m22 };
-
-				Entity gizmoXRotEnt = *selectedEntity;
-				gizmoXRotEnt.collider = rotationGizmo;
-				Entity gizmoYRotEnt = gizmoXRotEnt;
-				Entity gizmoZRotEnt = gizmoXRotEnt;
-				gizmoXRotEnt.pos += fw + up;
-				gizmoYRotEnt.pos += up + right;
-				gizmoZRotEnt.pos += fw + right;
-
 				v3 hit;
 				v3 hitNor;
+				f32 hitSqrDistToCam = INFINITY;
 				if (RayColliderIntersection(origin, dir, true, &gizmoXEnt, &hit, &hitNor))
 				{
 					g_debugContext->hoveredEntityIdx = PICKING_GIZMO_X;
+					hitSqrDistToCam = V3SqrLen(hit - camPos);
 				}
-				else if (RayColliderIntersection(origin, dir, true, &gizmoYEnt, &hit, &hitNor))
+				if (RayColliderIntersection(origin, dir, true, &gizmoYEnt, &hit, &hitNor))
 				{
-					g_debugContext->hoveredEntityIdx = PICKING_GIZMO_Y;
+					f32 newSqrDist = V3SqrLen(hit - camPos);
+					if (newSqrDist < hitSqrDistToCam)
+					{
+						g_debugContext->hoveredEntityIdx = PICKING_GIZMO_Y;
+						hitSqrDistToCam = newSqrDist;
+					}
 				}
-				else if (RayColliderIntersection(origin, dir, true, &gizmoZEnt, &hit, &hitNor))
+				if (RayColliderIntersection(origin, dir, true, &gizmoZEnt, &hit, &hitNor))
 				{
-					g_debugContext->hoveredEntityIdx = PICKING_GIZMO_Z;
+					f32 newSqrDist = V3SqrLen(hit - camPos);
+					if (newSqrDist < hitSqrDistToCam)
+					{
+						g_debugContext->hoveredEntityIdx = PICKING_GIZMO_Z;
+						hitSqrDistToCam = newSqrDist;
+					}
 				}
-				else if (RayColliderIntersection(origin, dir, true, &gizmoXRotEnt, &hit, &hitNor))
+
+				Collider rotationGizmo = {};
+				rotationGizmo.type = COLLIDER_CONVEX_HULL;
+				rotationGizmo.convexHull.meshRes = GetResource("data/editor_circle_collision.b");
+				gizmoXEnt.collider = rotationGizmo;
+				gizmoYEnt.collider = rotationGizmo;
+				gizmoZEnt.collider = rotationGizmo;
+
+				if (RayColliderIntersection(origin, dir, true, &gizmoXEnt, &hit, &hitNor))
 				{
-					g_debugContext->hoveredEntityIdx = PICKING_GIZMO_ROT_X;
+					f32 newSqrDist = V3SqrLen(hit - camPos);
+					if (newSqrDist < hitSqrDistToCam)
+					{
+						g_debugContext->hoveredEntityIdx = PICKING_GIZMO_ROT_X;
+						hitSqrDistToCam = newSqrDist;
+					}
 				}
-				else if (RayColliderIntersection(origin, dir, true, &gizmoYRotEnt, &hit, &hitNor))
+				if (RayColliderIntersection(origin, dir, true, &gizmoYEnt, &hit, &hitNor))
 				{
-					g_debugContext->hoveredEntityIdx = PICKING_GIZMO_ROT_Y;
+					f32 newSqrDist = V3SqrLen(hit - camPos);
+					if (newSqrDist < hitSqrDistToCam)
+					{
+						g_debugContext->hoveredEntityIdx = PICKING_GIZMO_ROT_Y;
+						hitSqrDistToCam = newSqrDist;
+					}
 				}
-				else if (RayColliderIntersection(origin, dir, true, &gizmoZRotEnt, &hit, &hitNor))
+				if (RayColliderIntersection(origin, dir, true, &gizmoZEnt, &hit, &hitNor))
 				{
-					g_debugContext->hoveredEntityIdx = PICKING_GIZMO_ROT_Z;
+					f32 newSqrDist = V3SqrLen(hit - camPos);
+					if (newSqrDist < hitSqrDistToCam)
+					{
+						g_debugContext->hoveredEntityIdx = PICKING_GIZMO_ROT_Z;
+						hitSqrDistToCam = newSqrDist;
+					}
 				}
 			}
 		}
@@ -1239,7 +1259,8 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		DeviceUniform modelUniform = GetUniform(gameState->program, "model");
 
 		const v4 clearColor = { 0.95f, 0.88f, 0.05f, 1.0f };
-		ClearBuffers(clearColor);
+		ClearColorBuffer(clearColor);
+		ClearDepthBuffer();
 
 		const Resource *texAlb = GetResource("data/grid.b");
 		const Resource *texNor = GetResource("data/normal_plain.b");
@@ -1486,7 +1507,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 			// Gizmos
 			{
-				DisableDepthTest();
+				ClearDepthBuffer();
 
 				UseProgram(g_debugContext->editorGizmoProgram);
 				viewUniform = GetUniform(g_debugContext->editorGizmoProgram, "view");
@@ -1497,6 +1518,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				DeviceUniform colorUniform = GetUniform(g_debugContext->editorGizmoProgram, "color");
 
 				const Resource *arrowRes = GetResource("data/editor_arrow.b");
+				const Resource *circleRes = GetResource("data/editor_circle.b");
 
 				v3 pos = entity->pos;
 				v4 rot = entity->rot;
@@ -1505,42 +1527,21 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				UniformMat4Array(modelUniform, 1, gizmoModel.m);
 				UniformV4(colorUniform, { 0, 0, 1, 1 });
 				RenderIndexedMesh(arrowRes->mesh.deviceMesh);
+				RenderIndexedMesh(circleRes->mesh.deviceMesh);
 
 				v4 xRot = QuaternionMultiply(rot, QuaternionFromEuler({ 0, HALFPI, 0 }));
 				gizmoModel = Mat4Compose(pos, xRot);
 				UniformMat4Array(modelUniform, 1, gizmoModel.m);
 				UniformV4(colorUniform, { 1, 0, 0, 1 });
 				RenderIndexedMesh(arrowRes->mesh.deviceMesh);
+				RenderIndexedMesh(circleRes->mesh.deviceMesh);
 
 				v4 yRot = QuaternionMultiply(rot, QuaternionFromEuler({ -HALFPI, 0, 0 }));
 				gizmoModel = Mat4Compose(pos, yRot);
 				UniformMat4Array(modelUniform, 1, gizmoModel.m);
 				UniformV4(colorUniform, { 0, 1, 0, 1 });
 				RenderIndexedMesh(arrowRes->mesh.deviceMesh);
-
-				// Rotation
-				mat4 fromQuat = Mat4FromQuaternion(entity->rot);
-				v3 right = { fromQuat.m00, fromQuat.m01, fromQuat.m02 };
-				v3 fw = { fromQuat.m10, fromQuat.m11, fromQuat.m12 };
-				v3 up = { fromQuat.m20, fromQuat.m21, fromQuat.m22 };
-
-				const Resource *sphereRes = GetResource("data/sphere.b");
-				mat4 sMat = Mat4Translation(entity->pos + fw + up, 0.15f);
-				UniformV4(colorUniform, { 1, 0, 0, 1 });
-				UniformMat4Array(modelUniform, 1, sMat.m);
-				RenderIndexedMesh(sphereRes->mesh.deviceMesh);
-
-				UniformV4(colorUniform, { 0, 1, 0, 1 });
-				sMat = Mat4Translation(entity->pos + up + right, 0.15f);
-				UniformMat4Array(modelUniform, 1, sMat.m);
-				RenderIndexedMesh(sphereRes->mesh.deviceMesh);
-
-				UniformV4(colorUniform, { 0, 0, 1, 1 });
-				sMat = Mat4Translation(entity->pos + fw + right, 0.15f);
-				UniformMat4Array(modelUniform, 1, sMat.m);
-				RenderIndexedMesh(sphereRes->mesh.deviceMesh);
-
-				EnableDepthTest();
+				RenderIndexedMesh(circleRes->mesh.deviceMesh);
 			}
 		}
 #endif

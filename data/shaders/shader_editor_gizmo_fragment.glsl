@@ -6,5 +6,7 @@ uniform vec4 color;
 
 void main()
 {
-	fragColor = color;
+	vec3 lightDir = normalize(vec3(1, 0.7, 1.3));
+	float light = dot(normal, lightDir) * 0.5 + 0.5;
+	fragColor = color * light;
 }
