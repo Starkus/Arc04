@@ -291,14 +291,12 @@ bool ProcessKeyboardAndMouse(Controller *c)
 		}
 #endif
 
+		TranslateMessage(&message);
 		if (!consumed)
 		{
-			TranslateMessage(&message);
 			DispatchMessage(&message);
 		}
-
 #ifdef USING_IMGUI
-		TranslateMessage(&message);
 		ImGui_ImplWin32_WndProcHandler(0, message.message, message.wParam, message.lParam);
 #endif
 	}
