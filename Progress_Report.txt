@@ -1,6 +1,9 @@
 ## PROGRESS REPORT
 
 * Collider picking with mouse cursor
+* Gizmos!
+* Colliders work when rotated now
 * Type info structs generation (show anonymous unions/structs too)
 * Generated editor windows
+* @ tags
 * Particle systems
