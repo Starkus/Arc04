@@ -164,6 +164,8 @@ struct Struct
 	int memberCount;
 	StructMember members[64]; // @Improve: no fixed size array?
 	bool isAnonymous;
+	Token openingBrace;
+	Token closingBrace;
 };
 DECLARE_ARRAY(Struct);
 
@@ -779,6 +781,7 @@ Token *ParseStruct(ParsedFile *context, Token *token, Struct *struct_)
 		Log("ERROR! Reading struct, expected {\n");
 		return token;
 	}
+	struct_->openingBrace = *token;
 	++token;
 
 	// Read struct members
@@ -871,7 +874,11 @@ Token *ParseStruct(ParsedFile *context, Token *token, Struct *struct_)
 		{
 			--scopeLevel;
 			++token;
-			if (scopeLevel)
+			if (scopeLevel <= 0)
+			{
+				struct_->closingBrace = *token;
+			}
+			else
 			{
 				ASSERT(token->type == ';');
 				++token;
@@ -1502,7 +1509,7 @@ void WriteTypeInfoFiles(Array_Struct &structs, Array_Enum &enums)
 	PlatformCloseFile(file);
 }
 
-void RemoveTags(DynamicArray_Token &tokens, const char *outputFile)
+void PostProcessSourceFile(ParsedFile *context, DynamicArray_Token &tokens, const char *outputFile)
 {
 	FileHandle file = PlatformOpenForWrite(outputFile);
 
@@ -1512,15 +1519,99 @@ void RemoveTags(DynamicArray_Token &tokens, const char *outputFile)
 	{
 		if (token->type == '@')
 		{
-			char *end = token->begin;
-			PlatformWriteToFile(file, begin, end - begin);
-
-			++token;
-			if (token->type != TOKEN_IDENTIFIER)
+			Token *tagStr = token + 1;
+			ASSERT(tagStr->type == TOKEN_IDENTIFIER);
+			if (TokenIsStr(tagStr, "Using"))
 			{
-				Log("ERROR! No identifier token after @\n");
+				// Alright so here's the thing. We need to stick this whole struct member inside a
+				// union, and also throw the whole struct definition inside that union.
+
+				// @Improve: instead of doing this, detect usings during parsing and save enough
+				// information to replace the text at this stage.
+
+				// @Incomplete: default value? modifiers?
+				// @Incomplete: @Using tag NOT at end of statement?
+				Token *typeToken = token - 2;
+				ASSERT(typeToken->type == TOKEN_IDENTIFIER);
+				Token *nameToken = token - 1;
+				ASSERT(nameToken->type == TOKEN_IDENTIFIER);
+
+				Token *semicolonToken = token + 2;
+				// Skip other tags
+				while (semicolonToken->type == '@')
+					semicolonToken += 2;
+				ASSERT(semicolonToken->type == ';');
+
+				Struct *struct_ = nullptr;
+				for (u32 structIdx = 0; structIdx < context->structs.size; ++structIdx)
+				{
+					if (TokenIsEqual(&context->structs[structIdx].name, typeToken))
+					{
+						struct_ = &context->structs[structIdx];
+						break;
+					}
+				}
+				ASSERT(struct_);
+
+				// Write up to this statement
+				char *end = typeToken->begin;
+				PlatformWriteToFile(file, begin, end - begin);
+
+				// Preamble
+				PrintToFile(file, "union { ");
+
+				// Print original statement
+				begin = typeToken->begin;
+				end = token->begin;
+				PlatformWriteToFile(file, begin, end - begin);
+
+				PrintToFile(file, "; struct");
+
+				begin = struct_->openingBrace.begin;
+				end = struct_->closingBrace.begin + 1;
+
+				// Strip new lines
+				// @Improve: Properly keep track of line numbers so we can just add #line directives
+				u64 bufferSize = (u64)(end - begin);
+				char *buffer = (char *)malloc(bufferSize);
+				char *dst = buffer;
+				bool lastWasWhitespace = false;
+				for (char *src = begin; src < end; ++src)
+				{
+					if (IsWhitespace(*src))
+					{
+						if (!lastWasWhitespace)
+							*dst++ = ' ';
+						else
+							--bufferSize;
+						lastWasWhitespace = true;
+					}
+					else
+					{
+						*dst++ = *src;
+						lastWasWhitespace = false;
+					}
+				}
+				PlatformWriteToFile(file, buffer, bufferSize);
+
+				PrintToFile(file, " }");
+
+				++token;
+				begin = token->begin + token->size;
 			}
-			begin = token->begin + token->size;
+			else
+			{
+				//Just remove tag
+				char *end = token->begin;
+				PlatformWriteToFile(file, begin, end - begin);
+
+				++token;
+				if (token->type != TOKEN_IDENTIFIER)
+				{
+					Log("ERROR! No identifier token after @\n");
+				}
+				begin = token->begin + token->size;
+			}
 		}
 		++token;
 	}
@@ -1606,7 +1697,7 @@ int main(int argc, char **argv)
 	char outputFile[MAX_PATH];
 	strcpy(outputFile, srcFile);
 	ChangeExtension(outputFile, "cpp");
-	RemoveTags(tokens, outputFile);
+	PostProcessSourceFile(&parsedFile, tokens, outputFile);
 
 	return 0;
 }

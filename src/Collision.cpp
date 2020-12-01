@@ -310,18 +310,19 @@ bool HitTest(GameState *gameState, v3 rayOrigin, v3 rayDir, bool infinite, v3 *h
 	return false;
 }
 
-bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, bool infinite, const Entity *entity, v3 *hit, v3 *hitNor)
+// @Speed: is 'infinite' bool slow here? Branch should be predictable across many similar ray tests
+bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, bool infinite, const Transform *transform,
+		const Collider *c, v3 *hit, v3 *hitNor)
 {
 	bool result = false;
 
-	const Collider *c = &entity->collider;
 	ColliderType type = c->type;
 
-		rayOrigin = rayOrigin - entity->pos;
+		rayOrigin = rayOrigin - transform->translation;
 	if (type != COLLIDER_SPHERE)
 	{
 		// Un-rotate direction
-		v4 invQ = entity->rot;
+		v4 invQ = transform->rotation;
 		invQ.w = -invQ.w;
 		rayDir = QuaternionRotateVector(invQ, rayDir);
 		rayOrigin = QuaternionRotateVector(invQ, rayOrigin);
@@ -571,18 +572,17 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, bool infinite, const Entit
 	{
 		if (type != COLLIDER_SPHERE)
 		{
-			*hit = QuaternionRotateVector(entity->rot, *hit);
-			*hitNor = QuaternionRotateVector(entity->rot, *hitNor);
+			*hit = QuaternionRotateVector(transform->rotation, *hit);
+			*hitNor = QuaternionRotateVector(transform->rotation, *hitNor);
 		}
-		*hit += entity->pos;
+		*hit += transform->translation;
 	}
 
 	return result;
 }
 
-void GetAABB(Entity *entity, v3 *min, v3 *max)
+void GetAABB(Transform *transform, Collider *c, v3 *min, v3 *max)
 {
-	Collider *c = &entity->collider;
 	ColliderType type = c->type;
 	switch(type)
 	{
@@ -601,7 +601,7 @@ void GetAABB(Entity *entity, v3 *min, v3 *max)
 		for (u32 i = 0; i < pointCount; ++i)
 		{
 			v3 v = collMeshRes->positionData[i];
-			v = QuaternionRotateVector(entity->rot, v);
+			v = QuaternionRotateVector(transform->rotation, v);
 
 			if (v.x < min->x) min->x = v.x;
 			if (v.y < min->y) min->y = v.y;
@@ -652,7 +652,7 @@ void GetAABB(Entity *entity, v3 *min, v3 *max)
 		};
 		for (int i = 0; i < 8; ++i)
 		{
-			corners[i] = QuaternionRotateVector(entity->rot, corners[i]);
+			corners[i] = QuaternionRotateVector(transform->rotation, corners[i]);
 			if (corners[i].x < min->x) min->x = corners[i].x;
 			if (corners[i].y < min->y) min->y = corners[i].y;
 			if (corners[i].z < min->z) min->z = corners[i].z;
@@ -662,8 +662,8 @@ void GetAABB(Entity *entity, v3 *min, v3 *max)
 		}
 	}
 
-	*min += entity->pos;
-	*max += entity->pos;
+	*min += transform->translation;
+	*max += transform->translation;
 
 #if DEBUG_BUILD
 	if (g_debugContext->drawAABBs)
@@ -673,15 +673,14 @@ void GetAABB(Entity *entity, v3 *min, v3 *max)
 #endif
 }
 
-v3 FurthestInDirection(Entity *entity, v3 dir)
+v3 FurthestInDirection(Transform *transform, Collider *c, v3 dir)
 {
 	v3 result = {};
 
-	Collider *c = &entity->collider;
 	ColliderType type = c->type;
 
 	// Un-rotate direction
-	v4 invQ = entity->rot;
+	v4 invQ = transform->rotation;
 	invQ.w = -invQ.w;
 	v3 locDir = QuaternionRotateVector(invQ, dir);
 
@@ -710,12 +709,12 @@ v3 FurthestInDirection(Entity *entity, v3 dir)
 		}
 
 		// Transform point to world coordinates and return as result
-		result = QuaternionRotateVector(entity->rot, result);
-		result += entity->pos;
+		result = QuaternionRotateVector(transform->rotation, result);
+		result += transform->translation;
 	} break;
 	case COLLIDER_SPHERE:
 	{
-		result = entity->pos + c->sphere.offset + V3Normalize(dir) * c->sphere.radius;
+		result = transform->translation + c->sphere.offset + V3Normalize(dir) * c->sphere.radius;
 	} break;
 	case COLLIDER_CYLINDER:
 	{
@@ -734,8 +733,8 @@ v3 FurthestInDirection(Entity *entity, v3 dir)
 		}
 
 		// Transform point to world coordinates and return as result
-		result = QuaternionRotateVector(entity->rot, result);
-		result += entity->pos;
+		result = QuaternionRotateVector(transform->rotation, result);
+		result += transform->translation;
 	} break;
 	case COLLIDER_CAPSULE:
 	{
@@ -763,8 +762,8 @@ v3 FurthestInDirection(Entity *entity, v3 dir)
 		}
 
 		// Transform point to world coordinates and return as result
-		result = QuaternionRotateVector(entity->rot, result);
-		result += entity->pos;
+		result = QuaternionRotateVector(transform->rotation, result);
+		result += transform->translation;
 	} break;
 	default:
 	{
@@ -780,14 +779,14 @@ v3 FurthestInDirection(Entity *entity, v3 dir)
 	return result;
 }
 
-inline v3 GJKSupport(Entity *vA, Entity *vB, v3 dir)
+inline v3 GJKSupport(Transform *tA, Transform *tB, Collider *cA, Collider *cB, v3 dir)
 {
-	v3 va = FurthestInDirection(vA, dir);
-	v3 vb = FurthestInDirection(vB, -dir);
-	return va - vb;
+	v3 a = FurthestInDirection(tA, cA, dir);
+	v3 b = FurthestInDirection(tB, cB, -dir);
+	return a - b;
 }
 
-GJKResult GJKTest(Entity *vA, Entity *vB)
+GJKResult GJKTest(Transform *tA, Transform *tB, Collider *cA, Collider *cB)
 {
 #if DEBUG_BUILD
 	if (g_debugContext->GJKSteps[0] == nullptr)
@@ -801,9 +800,9 @@ GJKResult GJKTest(Entity *vA, Entity *vB)
 	result.hit = true;
 
 	v3 minA, maxA;
-	GetAABB(vA, &minA, &maxA);
+	GetAABB(tA, cA, &minA, &maxA);
 	v3 minB, maxB;
-	GetAABB(vB, &minB, &maxB);
+	GetAABB(tB, cB, &minB, &maxB);
 	if ((minA.x > maxB.x || minB.x > maxA.x) ||
 		(minA.y > maxB.y || minB.y > maxA.y) ||
 		(minA.z > maxB.z || minB.z > maxA.z))
@@ -815,7 +814,7 @@ GJKResult GJKTest(Entity *vA, Entity *vB)
 	int foundPointsCount = 1;
 	v3 testDir = { 0, 1, 0 }; // Random initial test direction
 
-	result.points[0] = GJKSupport(vB, vA, testDir);
+	result.points[0] = GJKSupport(tB, tA, cB, cA, testDir); // @Check: why are these in reverse order?
 	testDir = -result.points[0];
 
 	for (int iterations = 0; result.hit && foundPointsCount < 4; ++iterations)
@@ -840,7 +839,7 @@ GJKResult GJKTest(Entity *vA, Entity *vB)
 			break;
 		}
 
-		v3 a = GJKSupport(vB, vA, testDir);
+		v3 a = GJKSupport(tB, tA, cB, cA, testDir);
 		if (V3Dot(testDir, a) < 0)
 		{
 			result.hit = false;
@@ -1120,7 +1119,8 @@ GJKResult GJKTest(Entity *vA, Entity *vB)
 	return result;
 }
 
-v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB)
+v3 ComputeDepenetration(GJKResult gjkResult, Transform *tA, Transform *tB, Collider *cA,
+		Collider *cB)
 {
 #if DEBUG_BUILD
 	if (g_debugContext->polytopeSteps[0] == nullptr)
@@ -1221,7 +1221,7 @@ v3 ComputeDepenetration(GJKResult gjkResult, Entity *vA, Entity *vB)
 
 		// Expand polytope!
 		v3 testDir = V3Cross(closestFeature.c - closestFeature.a, closestFeature.b - closestFeature.a);
-		v3 newPoint = GJKSupport(vB, vA, testDir);
+		v3 newPoint = GJKSupport(tB, tA, cB, cA, testDir);
 		VERBOSE_LOG("Found new point { %.02f, %.02f. %.02f } while looking in direction { %.02f, %.02f. %.02f }\n",
 				newPoint.x, newPoint.y, newPoint.z, testDir.x, testDir.y, testDir.z);
 #if DEBUG_BUILD

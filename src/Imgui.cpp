@@ -379,10 +379,10 @@ void ImguiShowEditWindow(GameState *gameState)
 	ImGui::Separator();
 
 	ImGui::Text("Transform");
-	ImGui::DragFloat3("Position", selectedEntity->pos.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
-	ImGui::DragFloat4("Rotation", selectedEntity->rot.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
+	ImGui::DragFloat3("Position", selectedEntity->translation.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
+	ImGui::DragFloat4("Rotation", selectedEntity->rotation.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
 	if (ImGui::Button("Normalize rotation quaternion"))
-		selectedEntity->rot = V4Normalize(selectedEntity->rot);
+		selectedEntity->rotation = V4Normalize(selectedEntity->rotation);
 
 	ImGui::Separator();
 

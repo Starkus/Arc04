@@ -90,8 +90,7 @@ DECLARE_ARRAY(ParticleSystem);
 
 struct Entity
 {
-	v3 pos;
-	v4 rot;
+	Transform transform @Using;
 
 	// @Todo: decide how to handle optional things.
 	const Resource *mesh;
