@@ -84,10 +84,10 @@ void ImguiShowDebugWindow(GameState *gameState)
 #endif
 }
 
-bool ImguiStructAsControls(void *object, const StructInfo *structInfo);
+bool ImguiStructAsControls(GameState *gameState, void *object, const StructInfo *structInfo);
 
 // Returns true if value changed
-bool ImguiMemberAsControl(void *object, const StructMember *memberInfo)
+bool ImguiMemberAsControl(GameState *gameState, void *object, const StructMember *memberInfo)
 {
 	if (StructMemberHasTag(memberInfo, "Hidden"))
 		return false;
@@ -139,7 +139,7 @@ bool ImguiMemberAsControl(void *object, const StructMember *memberInfo)
 			--dereferencedType.pointerLevels;
 
 			void *ptr = *(void **)object;
-			somethingChanged = ImguiMemberAsControl(ptr, &dereferencedType);
+			somethingChanged = ImguiMemberAsControl(gameState, ptr, &dereferencedType);
 
 			ImGui::TreePop();
 		}
@@ -160,7 +160,7 @@ bool ImguiMemberAsControl(void *object, const StructMember *memberInfo)
 			{
 				sprintf(enumeratedName, "%s, %d", memberInfo->name, i);
 				void *itemOffset = ((u8 *)object) + memberInfo->size / memberInfo->arrayCount * i;
-				somethingChanged = ImguiMemberAsControl(itemOffset, &nonArrayType)
+				somethingChanged = ImguiMemberAsControl(gameState, itemOffset, &nonArrayType)
 					|| somethingChanged;
 			}
 			ImGui::TreePop();
@@ -214,44 +214,12 @@ bool ImguiMemberAsControl(void *object, const StructMember *memberInfo)
 			}
 			return ImGui::DragFloat4(memberInfo->name, (f32 *)object, speed);
 		}
-		else if (strncmp("Array_", structInfo->name, 6) == 0)
-		{
-			// @Improve: maybe use tags instead of strcmp'ing the struct name.
-			if (ImGui::TreeNode(memberInfo->name))
-			{
-				void *dataPtrPtr = (u8 *)object + structInfo->members[0].offset;
-				void *dataPtr = *(void **)(dataPtrPtr);
-				void *sizePtr = (u8 *)object + structInfo->members[1].offset;
-
-				int one = 1;
-				bool somethingChanged = ImGui::InputScalar("Size", ImGuiDataType_U32, sizePtr, &one);
-
-				// Items
-				char enumeratedName[512];
-				StructMember dataType = structInfo->members[0];
-				dataType.name = enumeratedName;
-				--dataType.pointerLevels;
-
-				const u32 itemCount = *(u32 *)sizePtr;
-				for (u32 i = 0; i < itemCount; ++i)
-				{
-					sprintf(enumeratedName, "%s, %d", memberInfo->name, i);
-					void *itemOffset = ((u8 *)dataPtr) + dataType.size * i;
-					somethingChanged = ImguiMemberAsControl(itemOffset, &dataType)
-						|| somethingChanged;
-				}
-
-				ImGui::TreePop();
-				return somethingChanged;
-			}
-			return false;
-		}
 		else
 		{
 			//ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
 			if (ImGui::TreeNode(memberInfo->name))
 			{
-				bool changed = ImguiStructAsControls(object, structInfo);
+				bool changed = ImguiStructAsControls(gameState, object, structInfo);
 				ImGui::TreePop();
 				return changed;
 			}
@@ -300,17 +268,68 @@ bool ImguiMemberAsControl(void *object, const StructMember *memberInfo)
 	return false;
 }
 
-bool ImguiStructAsControls(void *object, const StructInfo *structInfo)
+bool ImguiStructAsControls(GameState *gameState, void *object, const StructInfo *structInfo)
 {
-	bool somethingChanged = false;
-	u8 *const o = (u8 *)object;
-	for (u32 i = 0; i < structInfo->memberCount; ++i)
+	int step = 1;
+	if (structInfo == &typeInfo_EntityHandle)
 	{
-		const StructMember *memberInfo = &structInfo->members[i];
-		somethingChanged = ImguiMemberAsControl(o + memberInfo->offset, memberInfo) ||
-			somethingChanged;
+		EntityHandle *entityHandle = (EntityHandle *)object;
+		bool changed = ImGui::InputScalar("ID", ImGuiDataType_S32, &entityHandle->id, &step);
+		if (changed)
+		{
+			entityHandle->generation = gameState->entityGenerations[entityHandle->id];
+		}
+		return changed;
 	}
-	return somethingChanged;
+	else if (strncmp("Array_", structInfo->name, 6) == 0)
+	{
+		// @Improve: maybe use tags instead of strcmp'ing the struct name.
+		void *dataPtrPtr = (u8 *)object + structInfo->members[0].offset;
+		void *dataPtr = *(void **)(dataPtrPtr);
+		void *sizePtr = (u8 *)object + structInfo->members[1].offset;
+
+		bool somethingChanged = ImGui::InputScalar("Size", ImGuiDataType_U32, sizePtr, &step);
+
+		// Items
+		char enumeratedName[512];
+		StructMember dataType = structInfo->members[0]; // @Hardcoded
+		dataType.name = enumeratedName;
+		--dataType.pointerLevels;
+
+		const u32 itemCount = *(u32 *)sizePtr;
+
+		u64 itemSize = dataType.size;
+		if (dataType.pointerLevels > 0)
+		{
+			itemSize = sizeof(void *);
+		}
+		else if (dataType.type == TYPE_STRUCT)
+		{
+			itemSize = ((StructInfo *)dataType.typeInfo)->size;
+		}
+
+		for (u32 i = 0; i < itemCount; ++i)
+		{
+			sprintf(enumeratedName, "%s, %d", structInfo->name, i);
+			void *itemOffset = ((u8 *)dataPtr) + itemSize * i;
+			somethingChanged = ImguiMemberAsControl(gameState, itemOffset, &dataType)
+				|| somethingChanged;
+		}
+
+		return somethingChanged;
+	}
+	else
+	{
+		bool somethingChanged = false;
+		u8 *const o = (u8 *)object;
+		for (u32 i = 0; i < structInfo->memberCount; ++i)
+		{
+			const StructMember *memberInfo = &structInfo->members[i];
+			somethingChanged = ImguiMemberAsControl(gameState, o + memberInfo->offset, memberInfo) ||
+				somethingChanged;
+		}
+		return somethingChanged;
+	}
 }
 
 void ImguiShowGameStateWindow(GameState *gameState)
@@ -321,7 +340,7 @@ void ImguiShowGameStateWindow(GameState *gameState)
 		return;
 	}
 
-	ImguiStructAsControls(gameState, &typeInfo_GameState);
+	ImguiStructAsControls(gameState, gameState, &typeInfo_GameState);
 
 	ImGui::End();
 }
@@ -339,34 +358,23 @@ void ImguiShowEditWindow(GameState *gameState)
 		return;
 	}
 
-	ImGui::InputInt("Entity", &g_debugContext->selectedEntityIdx);
-	if (g_debugContext->selectedEntityIdx < -1)
-		g_debugContext->selectedEntityIdx = -1;
-	else if (g_debugContext->selectedEntityIdx >= (i32)gameState->entities.size)
-		g_debugContext->selectedEntityIdx = gameState->entities.size - 1;
+	ImguiStructAsControls(gameState, &g_debugContext->selectedEntity, &typeInfo_EntityHandle);
 
-	Entity *selectedEntity = nullptr;
-	if (g_debugContext->selectedEntityIdx != -1)
-		selectedEntity = &gameState->entities[g_debugContext->selectedEntityIdx];
+	Entity *selectedEntity = GetEntity(gameState, g_debugContext->selectedEntity);
 
 	if (ImGui::Button("Add"))
 	{
 		Entity *newEntity;
-		AddEntity(gameState, &newEntity);
-		g_debugContext->selectedEntityIdx = gameState->entities.size - 1;
+		g_debugContext->selectedEntity = AddEntity(gameState, &newEntity);
 	}
 
-	ImGui::SameLine();
-	if (ImGui::Button("Delete"))
+	if (selectedEntity)
 	{
-		for (u32 id = 0; id < 256; ++id)
+		ImGui::SameLine();
+		if (ImGui::Button("Delete"))
 		{
-			if (gameState->entityPointers[id] == selectedEntity)
-			{
-				EntityHandle handle = { id, gameState->entityGenerations[id] };
-				RemoveEntity(gameState, handle);
-				break;
-			}
+			RemoveEntity(gameState, g_debugContext->selectedEntity);
+			g_debugContext->selectedEntity = ENTITY_HANDLE_INVALID;
 		}
 	}
 
@@ -401,7 +409,7 @@ void ImguiShowEditWindow(GameState *gameState)
 	SkinnedMeshInstance *skinnedMesh = selectedEntity->skinnedMeshInstance;
 	if (skinnedMesh)
 	{
-		ImguiStructAsControls(skinnedMesh, &typeInfo_SkinnedMeshInstance);
+		ImguiStructAsControls(gameState, skinnedMesh, &typeInfo_SkinnedMeshInstance);
 		if (ImGui::Button("Remove skinned mesh"))
 		{
 			SkinnedMeshInstance *last =
@@ -428,9 +436,10 @@ void ImguiShowEditWindow(GameState *gameState)
 	ImGui::Separator();
 
 	ImGui::Text("Collider");
+	Collider *collider = selectedEntity->collider;
+	if (collider)
 	{
-		Collider *collider = &selectedEntity->collider;
-		bool changedType = ImguiMemberAsControl(&collider->type,
+		bool changedType = ImguiMemberAsControl(gameState, &collider->type,
 				&typeInfo_Collider.members[0]); // @Hardcoded
 
 		if (changedType && collider->type == COLLIDER_CONVEX_HULL)
@@ -439,9 +448,31 @@ void ImguiShowEditWindow(GameState *gameState)
 			collider->convexHull.meshRes = nullptr;
 		}
 
-		const StructMember *member = &typeInfo_Collider.members[collider->type + 1];
+		const StructMember *member = &typeInfo_Collider.members[collider->type + 1]; // @Hardcoded
 		ImGui::SetNextItemOpen(true, ImGuiCond_Appearing);
-		ImguiMemberAsControl(((u8 *)&selectedEntity->collider) + member->offset, member);
+		ImguiMemberAsControl(gameState, ((u8 *)collider) + member->offset, member);
+
+		if (ImGui::Button("Remove collider"))
+		{
+			Collider *last = &gameState->colliders[--gameState->colliders.size];
+			Entity *entityOfLast = GetEntity(gameState, last->entityHandle);
+			ASSERT(entityOfLast);
+
+			*collider = *last;
+			entityOfLast->collider = collider;
+
+			selectedEntity->collider = nullptr;
+		}
+	}
+	else
+	{
+		if (ImGui::Button("Add collider"))
+		{
+			collider = ArrayAdd_Collider(&gameState->colliders);
+			*collider = {};
+			collider->entityHandle = FindEntityHandle(gameState, selectedEntity);
+			selectedEntity->collider = collider;
+		}
 	}
 
 	ImGui::Separator();
@@ -450,7 +481,7 @@ void ImguiShowEditWindow(GameState *gameState)
 	ParticleSystem *particleSystem = selectedEntity->particleSystem;
 	if (particleSystem)
 	{
-		ImguiStructAsControls(particleSystem, &typeInfo_ParticleSystem);
+		ImguiStructAsControls(gameState, particleSystem, &typeInfo_ParticleSystem);
 		if (ImGui::Button("Remove particle system"))
 		{
 			DestroyDeviceMesh(particleSystem->deviceBuffer);

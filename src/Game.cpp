@@ -57,6 +57,9 @@ DECLARE_ARRAY(u32);
 
 Entity *GetEntity(GameState *gameState, EntityHandle handle)
 {
+	if (handle == ENTITY_HANDLE_INVALID)
+		return nullptr;
+
 	// Check handle is valid
 	if (handle.generation != gameState->entityGenerations[handle.id])
 		return nullptr;
@@ -133,6 +136,34 @@ void RemoveEntity(GameState *gameState, EntityHandle handle)
 			lastsEntity->skinnedMeshInstance = skinnedMeshInstance;
 		}
 		*skinnedMeshInstance = *last;
+	}
+
+	ParticleSystem *particleSystem = entityPtr->particleSystem;
+	if (particleSystem)
+	{
+		ParticleSystem *last =
+			&gameState->particleSystems[--gameState->particleSystems.size];
+		Entity *lastsEntity = GetEntity(gameState, last->entityHandle);
+		if (lastsEntity)
+		{
+			// Fix entity that was pointing to skinnedMeshInstance that we moved.
+			lastsEntity->particleSystem = particleSystem;
+		}
+		*particleSystem = *last;
+	}
+
+	Collider *collider = entityPtr->collider;
+	if (collider)
+	{
+		Collider *last =
+			&gameState->colliders[--gameState->colliders.size];
+		Entity *lastsEntity = GetEntity(gameState, last->entityHandle);
+		if (lastsEntity)
+		{
+			// Fix entity that was pointing to skinnedMeshInstance that we moved.
+			lastsEntity->collider = collider;
+		}
+		*collider = *last;
 	}
 
 	// Erase from entity array by swapping with last
@@ -228,6 +259,7 @@ GAMEDLL START_GAME(StartGame)
 	ArrayInit_Entity(&gameState->entities, 512, TransientAlloc);
 	ArrayInit_SkinnedMeshInstance(&gameState->skinnedMeshInstances, 64, TransientAlloc);
 	ArrayInit_ParticleSystem(&gameState->particleSystems, 256, TransientAlloc);
+	ArrayInit_Collider(&gameState->colliders, 256, TransientAlloc);
 
 	// Initialize
 	{
@@ -375,10 +407,12 @@ GAMEDLL START_GAME(StartGame)
 		playerEnt->rotation = QUATERNION_IDENTITY;
 		playerEnt->mesh = 0;
 
-		playerEnt->collider.type = COLLIDER_CAPSULE;
-		playerEnt->collider.capsule.radius = 0.5f;
-		playerEnt->collider.capsule.height = 1.0f;
-		playerEnt->collider.capsule.offset = { 0, 0, 1 };
+		playerEnt->collider = ArrayAdd_Collider(&gameState->colliders);
+		playerEnt->collider->entityHandle = playerEntityHandle;
+		playerEnt->collider->type = COLLIDER_CAPSULE;
+		playerEnt->collider->capsule.radius = 0.5f;
+		playerEnt->collider->capsule.height = 1.0f;
+		playerEnt->collider->capsule.offset = { 0, 0, 1 };
 
 		gameState->player.state = PLAYERSTATE_IDLE;
 
@@ -405,66 +439,82 @@ GAMEDLL START_GAME(StartGame)
 		const Resource *anvilRes = GetResource("data/anvil.b");
 
 		Entity *testEntity;
-		AddEntity(gameState, &testEntity);
+		EntityHandle testEntityHandle = AddEntity(gameState, &testEntity);
 		testEntity->translation = { -6.0f, 3.0f, 1.0f };
 		testEntity->rotation = QUATERNION_IDENTITY;
 		testEntity->mesh = anvilRes;
-		testEntity->collider = collider;
+		testEntity->collider = ArrayAdd_Collider(&gameState->colliders);
+		*testEntity->collider = collider;
+		testEntity->collider->entityHandle = testEntityHandle;
 
-		AddEntity(gameState, &testEntity);
+		testEntityHandle = AddEntity(gameState, &testEntity);
 		testEntity->translation = { 5.0f, 4.0f, 1.0f };
 		testEntity->rotation = QUATERNION_IDENTITY;
 		testEntity->mesh = anvilRes;
-		testEntity->collider = collider;
+		testEntity->collider = ArrayAdd_Collider(&gameState->colliders);
+		*testEntity->collider = collider;
+		testEntity->collider->entityHandle = testEntityHandle;
 
-		AddEntity(gameState, &testEntity);
+		testEntityHandle = AddEntity(gameState, &testEntity);
 		testEntity->translation = { 3.0f, -4.0f, 1.0f };
 		testEntity->rotation = QuaternionFromEuler(v3{ 0, 0, HALFPI * -0.5f });
 		testEntity->mesh = anvilRes;
-		testEntity->collider = collider;
+		testEntity->collider = ArrayAdd_Collider(&gameState->colliders);
+		*testEntity->collider = collider;
+		testEntity->collider->entityHandle = testEntityHandle;
 
-		AddEntity(gameState, &testEntity);
+		testEntityHandle = AddEntity(gameState, &testEntity);
 		testEntity->translation = { -8.0f, -4.0f, 1.0f };
 		testEntity->rotation = QuaternionFromEuler(v3{ HALFPI * 0.5f, 0, 0 });
 		testEntity->mesh = anvilRes;
-		testEntity->collider = collider;
+		testEntity->collider = ArrayAdd_Collider(&gameState->colliders);
+		*testEntity->collider = collider;
+		testEntity->collider->entityHandle = testEntityHandle;
 
 		const Resource *sphereRes = GetResource("data/sphere.b");
-		AddEntity(gameState, &testEntity);
+		testEntityHandle = AddEntity(gameState, &testEntity);
 		testEntity->translation = { -6.0f, 7.0f, 1.0f };
 		testEntity->rotation = QUATERNION_IDENTITY;
 		testEntity->mesh = sphereRes;
-		testEntity->collider.type = COLLIDER_SPHERE;
-		testEntity->collider.sphere.radius = 1;
-		testEntity->collider.sphere.offset = {};
+		testEntity->collider = ArrayAdd_Collider(&gameState->colliders);
+		testEntity->collider->entityHandle = testEntityHandle;
+		testEntity->collider->type = COLLIDER_SPHERE;
+		testEntity->collider->sphere.radius = 1;
+		testEntity->collider->sphere.offset = {};
 
 		const Resource *cylinderRes = GetResource("data/cylinder.b");
-		AddEntity(gameState, &testEntity);
+		testEntityHandle = AddEntity(gameState, &testEntity);
 		testEntity->translation = { -3.0f, 7.0f, 1.0f };
 		testEntity->rotation = QUATERNION_IDENTITY;
 		testEntity->mesh = cylinderRes;
-		testEntity->collider.type = COLLIDER_CYLINDER;
-		testEntity->collider.cylinder.radius = 1;
-		testEntity->collider.cylinder.height = 2;
-		testEntity->collider.cylinder.offset = {};
+		testEntity->collider = ArrayAdd_Collider(&gameState->colliders);
+		testEntity->collider->entityHandle = testEntityHandle;
+		testEntity->collider->type = COLLIDER_CYLINDER;
+		testEntity->collider->cylinder.radius = 1;
+		testEntity->collider->cylinder.height = 2;
+		testEntity->collider->cylinder.offset = {};
 
 		const Resource *capsuleRes = GetResource("data/capsule.b");
-		AddEntity(gameState, &testEntity);
+		testEntityHandle = AddEntity(gameState, &testEntity);
 		testEntity->translation = { 0.0f, 7.0f, 2.0f };
 		testEntity->rotation = QUATERNION_IDENTITY;
 		testEntity->mesh = capsuleRes;
-		testEntity->collider.type = COLLIDER_CAPSULE;
-		testEntity->collider.capsule.radius = 1;
-		testEntity->collider.capsule.height = 2;
-		testEntity->collider.capsule.offset = {};
+		testEntity->collider = ArrayAdd_Collider(&gameState->colliders);
+		testEntity->collider->entityHandle = testEntityHandle;
+		testEntity->collider->type = COLLIDER_CAPSULE;
+		testEntity->collider->capsule.radius = 1;
+		testEntity->collider->capsule.height = 2;
+		testEntity->collider->capsule.offset = {};
 
-		EntityHandle testEntityHandle = AddEntity(gameState, &testEntity);
+		testEntityHandle = AddEntity(gameState, &testEntity);
 		testEntity->translation = { 3.0f, 4.0f, 0.0f };
 		testEntity->rotation = QUATERNION_IDENTITY;
 		testEntity->mesh = nullptr;
-		testEntity->collider.type = COLLIDER_SPHERE;
-		testEntity->collider.sphere.radius = 0.3f;
-		testEntity->collider.sphere.offset = { 0, 0, 1 };
+		testEntity->collider = ArrayAdd_Collider(&gameState->colliders);
+		testEntity->collider->entityHandle = testEntityHandle;
+		testEntity->collider->type = COLLIDER_SPHERE;
+		testEntity->collider->sphere.radius = 0.3f;
+		testEntity->collider->sphere.offset = { 0, 0, 1 };
 		SkinnedMeshInstance *skinnedMeshInstance =
 			ArrayAdd_SkinnedMeshInstance(&gameState->skinnedMeshInstances);
 		skinnedMeshInstance->entityHandle = testEntityHandle;
@@ -616,17 +666,21 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		// Collision
 		bool touchedGround = false;
 
-		for (u32 entityIndex = 0; entityIndex < gameState->entities.size; ++entityIndex)
+		for (u32 colliderIdx = 0; colliderIdx < gameState->colliders.size; ++colliderIdx)
 		{
-			Entity *entity = &gameState->entities[entityIndex];
-			if (entity != playerEntity)
+			Collider *collider = &gameState->colliders[colliderIdx];
+			Entity *entity = GetEntity(gameState, collider->entityHandle);
+			ASSERT(entity); // There should never be an orphaned collider.
+			Transform *transform = &entity->transform;
+
+			if (collider != playerEntity->collider)
 			{
 				v3 origin = playerEntity->translation + v3{ 0, 0, 1 };
 				v3 dir = { 0, 0, -groundRayDist };
 				v3 hit;
 				v3 hitNor;
-				if (RayColliderIntersection(origin, dir, false, &entity->transform,
-							&entity->collider, &hit, &hitNor))
+				if (RayColliderIntersection(origin, dir, false, transform,
+							collider, &hit, &hitNor))
 				{
 					if (hitNor.z > 0.7f)
 					{
@@ -636,14 +690,15 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					}
 				}
 
-				GJKResult gjkResult = GJKTest(&playerEntity->transform, &entity->transform,
-						&playerEntity->collider, &entity->collider);
+				GJKResult gjkResult = GJKTest(&playerEntity->transform, transform,
+						playerEntity->collider, collider);
 				if (gjkResult.hit)
 				{
+					// @Improve: better collision against multiple colliders?
 					v3 depenetration = ComputeDepenetration(gjkResult, &playerEntity->transform,
-							&entity->transform, &playerEntity->collider, &entity->collider);
+							transform, playerEntity->collider, collider);
 					// @Hack: ignoring depenetration when it's too big
-					if (V3Length(depenetration) < 2.0f)
+					if (V3Length(depenetration) < 10.0f)
 					{
 						playerEntity->translation += depenetration;
 					}
@@ -651,7 +706,6 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					{
 						Log("WARNING! Ignoring huge depenetration vector... something went wrong!\n");
 					}
-					//break;
 				}
 			}
 		}
@@ -958,6 +1012,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 #if EDITOR_PRESENT
 		// Mouse picking
+		PickingResult pickingResult = PICKING_NOTHING;
 		{
 			v4 worldCursorPos = { controller->mousePos.x, controller->mousePos.y, -1, 1 };
 			mat4 invViewMatrix = Mat4Adjugate(gameState->viewMatrix);
@@ -973,24 +1028,25 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 			v3 origin = camPos;
 			v3 dir = cursorXYZ - origin;
-			g_debugContext->hoveredEntityIdx = -1;
-			for (u32 entityIndex = 0; entityIndex < gameState->entities.size; ++entityIndex)
+			g_debugContext->hoveredEntity = ENTITY_HANDLE_INVALID;
+			for (u32 colliderIdx = 0; colliderIdx < gameState->colliders.size; ++colliderIdx)
 			{
-				Entity *entity = &gameState->entities[entityIndex];
+				Collider *collider = &gameState->colliders[colliderIdx];
+				Entity *entity = GetEntity(gameState, collider->entityHandle);
+				ASSERT(entity);
 				v3 hit;
 				v3 hitNor;
 				if (RayColliderIntersection(origin, dir, true, &entity->transform,
-							&entity->collider, &hit, &hitNor))
+							collider, &hit, &hitNor))
 				{
-					g_debugContext->hoveredEntityIdx = entityIndex;
+					g_debugContext->hoveredEntity = collider->entityHandle;
+					pickingResult = PICKING_ENTITY;
 				}
 			}
 
 			// @Hack: hard coded gizmo colliders!
-			if (g_debugContext->selectedEntityIdx != -1)
+			if (Entity *selectedEntity = GetEntity(gameState, g_debugContext->selectedEntity))
 			{
-				Entity *selectedEntity = &gameState->entities[g_debugContext->selectedEntityIdx];
-
 				Collider gizmoCollider = {};
 				gizmoCollider.type = COLLIDER_CONVEX_HULL;
 				gizmoCollider.convexHull.meshRes = GetResource("data/editor_arrow_collision.b");
@@ -1009,7 +1065,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				f32 hitSqrDistToCam = INFINITY;
 				if (RayColliderIntersection(origin, dir, true, &gizmoXT, &gizmoCollider, &hit, &hitNor))
 				{
-					g_debugContext->hoveredEntityIdx = PICKING_GIZMO_X;
+					pickingResult = PICKING_GIZMO_X;
 					hitSqrDistToCam = V3SqrLen(hit - camPos);
 				}
 				if (RayColliderIntersection(origin, dir, true, &gizmoYT, &gizmoCollider, &hit, &hitNor))
@@ -1017,7 +1073,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					f32 newSqrDist = V3SqrLen(hit - camPos);
 					if (newSqrDist < hitSqrDistToCam)
 					{
-						g_debugContext->hoveredEntityIdx = PICKING_GIZMO_Y;
+						pickingResult = PICKING_GIZMO_Y;
 						hitSqrDistToCam = newSqrDist;
 					}
 				}
@@ -1026,7 +1082,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					f32 newSqrDist = V3SqrLen(hit - camPos);
 					if (newSqrDist < hitSqrDistToCam)
 					{
-						g_debugContext->hoveredEntityIdx = PICKING_GIZMO_Z;
+						pickingResult = PICKING_GIZMO_Z;
 						hitSqrDistToCam = newSqrDist;
 					}
 				}
@@ -1039,7 +1095,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					f32 newSqrDist = V3SqrLen(hit - camPos);
 					if (newSqrDist < hitSqrDistToCam)
 					{
-						g_debugContext->hoveredEntityIdx = PICKING_GIZMO_ROT_X;
+						pickingResult = PICKING_GIZMO_ROT_X;
 						hitSqrDistToCam = newSqrDist;
 					}
 				}
@@ -1048,7 +1104,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					f32 newSqrDist = V3SqrLen(hit - camPos);
 					if (newSqrDist < hitSqrDistToCam)
 					{
-						g_debugContext->hoveredEntityIdx = PICKING_GIZMO_ROT_Y;
+						pickingResult = PICKING_GIZMO_ROT_Y;
 						hitSqrDistToCam = newSqrDist;
 					}
 				}
@@ -1057,7 +1113,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					f32 newSqrDist = V3SqrLen(hit - camPos);
 					if (newSqrDist < hitSqrDistToCam)
 					{
-						g_debugContext->hoveredEntityIdx = PICKING_GIZMO_ROT_Z;
+						pickingResult = PICKING_GIZMO_ROT_Z;
 						hitSqrDistToCam = newSqrDist;
 					}
 				}
@@ -1076,22 +1132,22 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 			if (controller->mouseLeft.endedDown && controller->mouseLeft.changed)
 			{
-				if (g_debugContext->hoveredEntityIdx == PICKING_GIZMO_X)
+				if (pickingResult == PICKING_GIZMO_X)
 					grabbingX = true;
-				else if (g_debugContext->hoveredEntityIdx == PICKING_GIZMO_Y)
+				else if (pickingResult == PICKING_GIZMO_Y)
 					grabbingY = true;
-				else if (g_debugContext->hoveredEntityIdx == PICKING_GIZMO_Z)
+				else if (pickingResult == PICKING_GIZMO_Z)
 					grabbingZ = true;
-				else if (g_debugContext->hoveredEntityIdx == PICKING_GIZMO_ROT_X)
+				else if (pickingResult == PICKING_GIZMO_ROT_X)
 					rotatingX = true;
-				else if (g_debugContext->hoveredEntityIdx == PICKING_GIZMO_ROT_Y)
+				else if (pickingResult == PICKING_GIZMO_ROT_Y)
 					rotatingY = true;
-				else if (g_debugContext->hoveredEntityIdx == PICKING_GIZMO_ROT_Z)
+				else if (pickingResult == PICKING_GIZMO_ROT_Z)
 					rotatingZ = true;
-				else if (g_debugContext->hoveredEntityIdx == PICKING_NOTHING)
-					g_debugContext->selectedEntityIdx = -1;
+				else if (pickingResult == PICKING_NOTHING)
+					g_debugContext->selectedEntity = ENTITY_HANDLE_INVALID;
 				else
-					g_debugContext->selectedEntityIdx = g_debugContext->hoveredEntityIdx;
+					g_debugContext->selectedEntity = g_debugContext->hoveredEntity;
 			}
 			else if (!controller->mouseLeft.endedDown)
 			{
@@ -1103,10 +1159,8 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				rotatingZ = false;
 			}
 
-			if (g_debugContext->selectedEntityIdx != -1)
+			if (Entity *selectedEntity = GetEntity(gameState, g_debugContext->selectedEntity))
 			{
-				Entity *selectedEntity = &gameState->entities[g_debugContext->selectedEntityIdx];
-
 				v4 entityScreenPos = V4Point(selectedEntity->translation);
 				entityScreenPos = Mat4TransformV4(gameState->viewMatrix, entityScreenPos);
 				entityScreenPos = Mat4TransformV4(gameState->projMatrix, entityScreenPos);
@@ -1451,10 +1505,8 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 #if EDITOR_PRESENT
 		// Selected entity
-		if (g_debugContext->selectedEntityIdx != -1)
+		if (Entity *selectedEntity = GetEntity(gameState, g_debugContext->selectedEntity))
 		{
-			Entity *entity = &gameState->entities[g_debugContext->selectedEntityIdx];
-
 			SetFillMode(RENDER_LINE);
 
 			UseProgram(g_debugContext->editorSelectedProgram);
@@ -1471,16 +1523,16 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			DeviceUniform timeUniform = GetUniform(g_debugContext->editorSelectedProgram, "time");
 			UniformFloat(timeUniform, t);
 
-			const mat4 model = Mat4Compose(entity->translation, entity->rotation);
+			const mat4 model = Mat4Compose(selectedEntity->translation, selectedEntity->rotation);
 			UniformMat4Array(modelUniform, 1, model.m);
 
-			if (entity->mesh)
+			if (selectedEntity->mesh)
 			{
 				UniformInt(isSkinnedUniform, false);
-				RenderIndexedMesh(entity->mesh->mesh.deviceMesh);
+				RenderIndexedMesh(selectedEntity->mesh->mesh.deviceMesh);
 			}
 
-			SkinnedMeshInstance *skinnedMeshInstance = entity->skinnedMeshInstance;
+			SkinnedMeshInstance *skinnedMeshInstance = selectedEntity->skinnedMeshInstance;
 			if (skinnedMeshInstance)
 			{
 				UniformInt(isSkinnedUniform, true);
@@ -1536,10 +1588,9 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 		EnableDepthTest();
 
-		if (g_debugContext->selectedEntityIdx != -1)
+		// Gizmos
 		{
-			Entity *entity = &gameState->entities[g_debugContext->selectedEntityIdx];
-			// Gizmos
+			if (Entity *selectedEntity = GetEntity(gameState, g_debugContext->selectedEntity))
 			{
 				ClearDepthBuffer();
 
@@ -1554,8 +1605,8 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				const Resource *arrowRes = GetResource("data/editor_arrow.b");
 				const Resource *circleRes = GetResource("data/editor_circle.b");
 
-				v3 pos = entity->translation;
-				v4 rot = entity->rotation;
+				v3 pos = selectedEntity->translation;
+				v4 rot = selectedEntity->rotation;
 				mat4 gizmoModel = Mat4Compose(pos, rot);
 
 				UniformMat4Array(modelUniform, 1, gizmoModel.m);

@@ -1,3 +1,20 @@
+struct EntityHandle
+{
+	u32 id;
+	u8 generation;
+};
+EntityHandle ENTITY_HANDLE_INVALID = { U32_MAX, 0 };
+
+inline bool operator==(const EntityHandle &a, const EntityHandle &b)
+{
+	return a.id == b.id && a.generation == b.generation;
+}
+
+inline bool operator!=(const EntityHandle &a, const EntityHandle &b)
+{
+	return a.id != b.id && a.generation != b.generation;
+}
+
 enum ColliderType
 {
 	COLLIDER_CONVEX_HULL,
@@ -27,14 +44,9 @@ struct Collider
 			v3 offset;
 		} cylinder, capsule;
 	};
+	EntityHandle entityHandle;
 };
-
-struct EntityHandle
-{
-	u32 id;
-	u8 generation;
-};
-EntityHandle ENTITY_HANDLE_INVALID = { U32_MAX, 0 };
+DECLARE_ARRAY(Collider);
 
 struct SkinnedMeshInstance
 {
@@ -96,8 +108,7 @@ struct Entity
 	const Resource *mesh;
 	SkinnedMeshInstance *skinnedMeshInstance;
 	ParticleSystem *particleSystem;
-
-	Collider collider;
+	Collider *collider;
 };
 DECLARE_ARRAY(Entity);
 
@@ -173,15 +184,16 @@ struct DebugGeometryBuffer
 };
 
 // @Improve: this is garbage
-enum PickingSpecials
+enum PickingResult
 {
-	PICKING_GIZMO_ROT_X = -7,
-	PICKING_GIZMO_ROT_Y = -6,
-	PICKING_GIZMO_ROT_Z = -5,
-	PICKING_GIZMO_X = -4,
-	PICKING_GIZMO_Y = -3,
-	PICKING_GIZMO_Z = -2,
-	PICKING_NOTHING = -1,
+	PICKING_NOTHING = 0,
+	PICKING_ENTITY = 1,
+	PICKING_GIZMO_ROT_X = 2,
+	PICKING_GIZMO_ROT_Y = 3,
+	PICKING_GIZMO_ROT_Z = 4,
+	PICKING_GIZMO_X = 5,
+	PICKING_GIZMO_Y = 6,
+	PICKING_GIZMO_Z = 7,
 };
 
 struct DebugContext
@@ -213,8 +225,8 @@ struct DebugContext
 	v3 epaNewPoint[epaMaxSteps];
 
 	// Editor
-	i32 selectedEntityIdx = -1;
-	i32 hoveredEntityIdx;
+	EntityHandle selectedEntity = ENTITY_HANDLE_INVALID;
+	EntityHandle hoveredEntity;
 	DeviceProgram editorSelectedProgram;
 	DeviceProgram editorGizmoProgram;
 };
@@ -237,6 +249,7 @@ struct GameState
 
 	Array_SkinnedMeshInstance skinnedMeshInstances;
 	Array_ParticleSystem particleSystems;
+	Array_Collider colliders;
 
 	// @Cleanup: move to some Render Device Context or something?
 	mat4 viewMatrix, projMatrix;

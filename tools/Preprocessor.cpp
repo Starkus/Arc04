@@ -1395,8 +1395,25 @@ void WriteStruct(FileHandle file, Struct *struct_, Struct *parentStruct, Token *
 	PrintToFile(file, "const StructInfo typeInfo_%.*s = { ", struct_->name.size,
 			struct_->name.begin);
 
+	// Name
 	PrintToFile(file, "\"%.*s\", ", struct_->name.size, struct_->name.begin);
+
+	// Size
+	if (struct_->memberCount)
+	{
+		if (!struct_->isAnonymous)
+			PrintToFile(file, "sizeof(%.*s), ", struct_->name.size, struct_->name.begin);
+		else
+			PrintToFile(file, "sizeof(%.*s::%.*s), ", parentStruct->name.size,
+					parentStruct->name.begin, parentMemberName->size, parentMemberName->begin);
+	}
+	else
+		PrintToFile(file, "0, ");
+
+	// Member count
 	PrintToFile(file, "%d, ", struct_->memberCount);
+
+	// Array of members
 	if (struct_->memberCount)
 		PrintToFile(file, "_typeInfoMembers_%.*s ", struct_->name.size, struct_->name.begin);
 	else
@@ -1443,6 +1460,7 @@ void WriteTypeInfoFiles(Array_Struct &structs, Array_Enum &enums)
 
 	PrintToFile(file, "struct StructInfo\n{\n");
 	PrintToFile(file,   "\tconst char *name;\n");
+	PrintToFile(file,   "\tu64 size;\n");
 	PrintToFile(file,   "\tu32 memberCount;\n");
 	PrintToFile(file,   "\tconst StructMember *members;\n");
 	PrintToFile(file, "};\n\n");
