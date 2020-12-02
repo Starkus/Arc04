@@ -16,6 +16,8 @@ inline bool operator!=(const EntityHandle &a, const EntityHandle &b)
 	return a.id != b.id && a.generation != b.generation;
 }
 
+DECLARE_ARRAY(Transform);
+
 enum ColliderType
 {
 	COLLIDER_CONVEX_HULL,
@@ -49,10 +51,17 @@ struct Collider
 };
 DECLARE_ARRAY(Collider);
 
-struct SkinnedMeshInstance
+struct MeshInstance
 {
 	EntityHandle entityHandle;
 	const Resource *meshRes;
+};
+DECLARE_ARRAY(MeshInstance);
+
+struct SkinnedMeshInstance
+{
+	MeshInstance meshInstance @Using;
+
 	i32 animationIdx;
 	f32 animationTime;
 
@@ -101,24 +110,14 @@ struct ParticleSystem
 };
 DECLARE_ARRAY(ParticleSystem);
 
-struct Entity
-{
-	Transform transform @Using;
-
-	// @Todo: decide how to handle optional things.
-	const Resource *mesh;
-	SkinnedMeshInstance *skinnedMeshInstance;
-	ParticleSystem *particleSystem;
-	//Collider *collider;
-};
-DECLARE_ARRAY(Entity);
-
 #define MAX_ENTITIES 256
 struct EntityManager
 {
-	Array_Entity entities;
-	Entity *entityPointers[MAX_ENTITIES];
 	u8 entityGenerations[MAX_ENTITIES];
-
+	// @Compression: we can replace pointers for u32 indices into arrays, which would be smaller.
+	Transform *entityTransforms[MAX_ENTITIES];
+	MeshInstance *entityMeshes[MAX_ENTITIES];
+	SkinnedMeshInstance *entitySkinnedMeshes[MAX_ENTITIES];
+	ParticleSystem *entityParticleSystems[MAX_ENTITIES];
 	Collider *entityColliders[MAX_ENTITIES];
 };

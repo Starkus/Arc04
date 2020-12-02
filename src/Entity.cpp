@@ -1,21 +1,23 @@
-Entity *GetEntity(GameState *gameState, EntityHandle handle)
+inline bool IsEntityHandleValid(GameState *gameState, EntityHandle handle)
 {
-	if (handle == ENTITY_HANDLE_INVALID)
-		return nullptr;
-
-	// Check handle is valid
-	if (handle.generation != gameState->entityGenerations[handle.id])
-		return nullptr;
-
-	return gameState->entityPointers[handle.id];
+	return handle != ENTITY_HANDLE_INVALID &&
+		handle.generation == gameState->entityGenerations[handle.id];
 }
 
-EntityHandle FindEntityHandle(GameState *gameState, Entity *entityPtr)
+Transform *GetEntityTransform(GameState *gameState, EntityHandle handle)
 {
-	for (u32 entityId = 0; entityId < gameState->entities.size; ++entityId)
+	if (!IsEntityHandleValid(gameState, handle))
+		return nullptr;
+
+	return gameState->entityTransforms[handle.id];
+}
+
+EntityHandle FindEntityHandle(GameState *gameState, Transform *transformPtr)
+{
+	for (u32 entityId = 0; entityId < gameState->transforms.size; ++entityId) // @Check: transforms.size???
 	{
-		Entity *currentPtr = gameState->entityPointers[entityId];
-		if (currentPtr == entityPtr)
+		Transform *currentPtr = gameState->entityTransforms[entityId];
+		if (currentPtr == transformPtr)
 		{
 			return { entityId, gameState->entityGenerations[entityId] };
 		}
@@ -23,16 +25,57 @@ EntityHandle FindEntityHandle(GameState *gameState, Entity *entityPtr)
 	return ENTITY_HANDLE_INVALID;
 }
 
-Collider *GetEntityCollider(GameState *gameState, EntityHandle handle)
+MeshInstance *GetEntityMesh(GameState *gameState, EntityHandle handle)
 {
-	if (handle == ENTITY_HANDLE_INVALID)
+	if (!IsEntityHandleValid(gameState, handle))
 		return nullptr;
 
-	// Check handle is valid
-	if (handle.generation != gameState->entityGenerations[handle.id])
+	return gameState->entityMeshes[handle.id];
+}
+
+SkinnedMeshInstance *GetEntitySkinnedMesh(GameState *gameState, EntityHandle handle)
+{
+	if (!IsEntityHandleValid(gameState, handle))
+		return nullptr;
+
+	return gameState->entitySkinnedMeshes[handle.id];
+}
+
+ParticleSystem *GetEntityParticleSystem(GameState *gameState, EntityHandle handle)
+{
+	if (!IsEntityHandleValid(gameState, handle))
+		return nullptr;
+
+	return gameState->entityParticleSystems[handle.id];
+}
+
+Collider *GetEntityCollider(GameState *gameState, EntityHandle handle)
+{
+	if (!IsEntityHandleValid(gameState, handle))
 		return nullptr;
 
 	return gameState->entityColliders[handle.id];
+}
+
+void EntityAssignMesh(GameState *gameState, EntityHandle entityHandle,
+		MeshInstance *meshInstance)
+{
+	meshInstance->entityHandle = entityHandle;
+	gameState->entityMeshes[entityHandle.id] = meshInstance;
+}
+
+void EntityAssignSkinnedMesh(GameState *gameState, EntityHandle entityHandle,
+		SkinnedMeshInstance *skinnedMeshInstance)
+{
+	skinnedMeshInstance->entityHandle = entityHandle;
+	gameState->entitySkinnedMeshes[entityHandle.id] = skinnedMeshInstance;
+}
+
+void EntityAssignParticleSystem(GameState *gameState, EntityHandle entityHandle,
+		ParticleSystem *particleSystem)
+{
+	particleSystem->entityHandle = entityHandle;
+	gameState->entityParticleSystems[entityHandle.id] = particleSystem;
 }
 
 void EntityAssignCollider(GameState *gameState, EntityHandle entityHandle, Collider *collider)
@@ -41,21 +84,21 @@ void EntityAssignCollider(GameState *gameState, EntityHandle entityHandle, Colli
 	gameState->entityColliders[entityHandle.id] = collider;
 }
 
-EntityHandle AddEntity(GameState *gameState, Entity **outEntity)
+EntityHandle AddEntity(GameState *gameState, Transform **outTransform)
 {
-	Entity *newEntity = ArrayAdd_Entity(&gameState->entities);
-	*newEntity = {};
-	newEntity->rotation = QUATERNION_IDENTITY;
+	Transform *newTransform = ArrayAdd_Transform(&gameState->transforms);
+	*newTransform = {};
+	newTransform->rotation = QUATERNION_IDENTITY;
 
 	EntityHandle newHandle = ENTITY_HANDLE_INVALID;
 
 	for (int entityId = 0; entityId < 256; ++entityId)
 	{
-		Entity *ptrInIdx = gameState->entityPointers[entityId];
+		Transform *ptrInIdx = gameState->entityTransforms[entityId];
 		if (!ptrInIdx)
 		{
 			// Assing vacant ID to new entity
-			gameState->entityPointers[entityId] = newEntity;
+			gameState->entityTransforms[entityId] = newTransform;
 
 			// Fill out entity handle
 			newHandle.id = entityId;
@@ -66,9 +109,7 @@ EntityHandle AddEntity(GameState *gameState, Entity **outEntity)
 		}
 	}
 
-	Log("Added new entity at 0x%p (id %d gen %d)\n", newEntity, newHandle.id, newHandle.generation);
-
-	*outEntity = newEntity;
+	*outTransform = newTransform;
 	return newHandle;
 }
 
@@ -76,65 +117,71 @@ EntityHandle AddEntity(GameState *gameState, Entity **outEntity)
 void RemoveEntity(GameState *gameState, EntityHandle handle)
 {
 	// Check handle is valid
-	if (handle.generation != gameState->entityGenerations[handle.id])
+	if (!IsEntityHandleValid(gameState, handle))
 		return;
 
-	Entity *entityPtr = gameState->entityPointers[handle.id];
+	Transform *transformPtr = gameState->entityTransforms[handle.id];
 	// If entity is already deleted there's nothing to do
-	if (!entityPtr)
+	if (!transformPtr)
 		return;
 
 	// Remove 'components'
-	SkinnedMeshInstance *skinnedMeshInstance = entityPtr->skinnedMeshInstance;
+	{
+		Transform *last = &gameState->transforms[gameState->transforms.size - 1];
+		// Retarget moved component's entity to the new pointer.
+		EntityHandle handleOfLast = FindEntityHandle(gameState, last); // @Improve
+		gameState->entityTransforms[handleOfLast.id] = transformPtr;
+		*transformPtr = *last;
+
+		gameState->entityTransforms[handle.id] = nullptr;
+		--gameState->transforms.size;
+	}
+
+	MeshInstance *meshInstance = GetEntityMesh(gameState, handle);
+	if (meshInstance)
+	{
+		MeshInstance *last =
+			&gameState->meshInstances[--gameState->meshInstances.size];
+		// Retarget moved component's entity to the new pointer.
+		gameState->entityMeshes[last->entityHandle.id] = meshInstance;
+		*meshInstance = *last;
+
+		gameState->entityMeshes[handle.id] = nullptr;
+	}
+
+	SkinnedMeshInstance *skinnedMeshInstance = GetEntitySkinnedMesh(gameState, handle);
 	if (skinnedMeshInstance)
 	{
 		SkinnedMeshInstance *last =
 			&gameState->skinnedMeshInstances[--gameState->skinnedMeshInstances.size];
-		Entity *lastsEntity = GetEntity(gameState, last->entityHandle);
-		if (lastsEntity)
-		{
-			// Fix entity that was pointing to skinnedMeshInstance that we moved.
-			lastsEntity->skinnedMeshInstance = skinnedMeshInstance;
-		}
+		// Retarget moved component's entity to the new pointer.
+		gameState->entitySkinnedMeshes[last->entityHandle.id] = skinnedMeshInstance;
 		*skinnedMeshInstance = *last;
+
+		gameState->entitySkinnedMeshes[handle.id] = nullptr;
 	}
 
-	ParticleSystem *particleSystem = entityPtr->particleSystem;
+	ParticleSystem *particleSystem = GetEntityParticleSystem(gameState, handle);
 	if (particleSystem)
 	{
-		ParticleSystem *last =
-			&gameState->particleSystems[--gameState->particleSystems.size];
-		Entity *lastsEntity = GetEntity(gameState, last->entityHandle);
-		if (lastsEntity)
-		{
-			// Fix entity that was pointing to skinnedMeshInstance that we moved.
-			lastsEntity->particleSystem = particleSystem;
-		}
+		DestroyDeviceMesh(particleSystem->deviceBuffer);
+
+		ParticleSystem *last = &gameState->particleSystems[--gameState->particleSystems.size];
+		// Retarget moved component's entity to the new pointer.
+		gameState->entityParticleSystems[last->entityHandle.id] = particleSystem;
 		*particleSystem = *last;
+
+		gameState->entityParticleSystems[handle.id] = nullptr;
 	}
 
 	Collider *collider = GetEntityCollider(gameState, handle);
 	if (collider)
 	{
 		Collider *last = &gameState->colliders[--gameState->colliders.size];
-		// Retarget moved collider's entity to the new collider pointer.
+		// Retarget moved component's entity to the new pointer.
 		gameState->entityColliders[last->entityHandle.id] = collider;
 		*collider = *last;
 
 		gameState->entityColliders[handle.id] = nullptr;
 	}
-
-	// Erase from entity array by swapping with last
-	Entity *ptrOfLast = &gameState->entities[gameState->entities.size - 1];
-	Log("Moving entity at 0x%p to 0x%p\n", ptrOfLast, entityPtr);
-	*entityPtr = *ptrOfLast;
-
-	// Find and fix handle to entity we moved
-	EntityHandle movedEntity = FindEntityHandle(gameState, ptrOfLast);
-	gameState->entityPointers[movedEntity.id] = entityPtr;
-
-	--gameState->entities.size;
-
-	// Free pointer slot
-	gameState->entityPointers[handle.id] = nullptr;
 }

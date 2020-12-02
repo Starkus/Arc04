@@ -360,16 +360,13 @@ void ImguiShowEditWindow(GameState *gameState)
 
 	ImguiStructAsControls(gameState, &g_debugContext->selectedEntity, &typeInfo_EntityHandle);
 
-	EntityHandle selectedEntityHandle = g_debugContext->selectedEntity;
-	Entity *selectedEntity = GetEntity(gameState, g_debugContext->selectedEntity);
-
 	if (ImGui::Button("Add"))
 	{
-		Entity *newEntity;
-		g_debugContext->selectedEntity = AddEntity(gameState, &newEntity);
+		Transform *newTransform;
+		g_debugContext->selectedEntity = AddEntity(gameState, &newTransform);
 	}
 
-	if (selectedEntity)
+	if (IsEntityHandleValid(gameState, g_debugContext->selectedEntity))
 	{
 		ImGui::SameLine();
 		if (ImGui::Button("Delete"))
@@ -379,7 +376,7 @@ void ImguiShowEditWindow(GameState *gameState)
 		}
 	}
 
-	if (!selectedEntity)
+	if (!IsEntityHandleValid(gameState, g_debugContext->selectedEntity))
 	{
 		ImGui::End();
 		return;
@@ -387,27 +384,52 @@ void ImguiShowEditWindow(GameState *gameState)
 
 	ImGui::Separator();
 
+	EntityHandle selectedEntityHandle = g_debugContext->selectedEntity;
+	Transform *transform = GetEntityTransform(gameState, selectedEntityHandle);
+	if (!transform)
+	{
+		ImGui::Text("Invalid entity selected!");
+		ImGui::End();
+		return;
+	}
+
 	ImGui::Text("Transform");
-	ImGui::DragFloat3("Position", selectedEntity->translation.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
-	ImGui::DragFloat4("Rotation", selectedEntity->rotation.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
+	ImGui::DragFloat3("Position", transform->translation.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
+	ImGui::DragFloat4("Rotation", transform->rotation.v, 0.005f, -FLT_MAX, +FLT_MAX, "%.3f");
 	if (ImGui::Button("Normalize rotation quaternion"))
-		selectedEntity->rotation = V4Normalize(selectedEntity->rotation);
+		transform->rotation = V4Normalize(transform->rotation);
 
 	ImGui::Separator();
 
 	ImGui::Text("Mesh");
-	static char meshResInputName[128] = "";
-	if (ImGui::InputText("Mesh resource", meshResInputName, ArrayCount(meshResInputName), ImGuiInputTextFlags_EnterReturnsTrue) |
-		ImGui::Button("Change mesh"))
+	MeshInstance *mesh = GetEntityMesh(gameState, selectedEntityHandle);
+	if (mesh)
 	{
-		const Resource *res = GetResource(meshResInputName);
-		selectedEntity->mesh = res;
+		ImguiStructAsControls(gameState, mesh, &typeInfo_MeshInstance);
+		if (ImGui::Button("Remove mesh"))
+		{
+			MeshInstance *last =
+				&gameState->meshInstances[--gameState->meshInstances.size];
+			gameState->entityMeshes[last->entityHandle.id] = mesh;
+			*mesh = *last;
+
+			gameState->entityMeshes[selectedEntityHandle.id] = nullptr;
+		}
+	}
+	else
+	{
+		if (ImGui::Button("Add mesh"))
+		{
+			mesh = ArrayAdd_MeshInstance(&gameState->meshInstances);
+			*mesh = {};
+			EntityAssignMesh(gameState, selectedEntityHandle, mesh);
+		}
 	}
 
 	ImGui::Separator();
 
 	ImGui::Text("Skinned mesh");
-	SkinnedMeshInstance *skinnedMesh = selectedEntity->skinnedMeshInstance;
+	SkinnedMeshInstance *skinnedMesh = GetEntitySkinnedMesh(gameState, selectedEntityHandle);
 	if (skinnedMesh)
 	{
 		ImguiStructAsControls(gameState, skinnedMesh, &typeInfo_SkinnedMeshInstance);
@@ -415,12 +437,10 @@ void ImguiShowEditWindow(GameState *gameState)
 		{
 			SkinnedMeshInstance *last =
 				&gameState->skinnedMeshInstances[--gameState->skinnedMeshInstances.size];
-			Entity *entityOfLast = GetEntity(gameState, last->entityHandle);
-
+			gameState->entitySkinnedMeshes[last->entityHandle.id] = skinnedMesh;
 			*skinnedMesh = *last;
-			entityOfLast->skinnedMeshInstance = skinnedMesh;
 
-			selectedEntity->skinnedMeshInstance = nullptr;
+			gameState->entitySkinnedMeshes[selectedEntityHandle.id] = nullptr;
 		}
 	}
 	else
@@ -429,8 +449,7 @@ void ImguiShowEditWindow(GameState *gameState)
 		{
 			skinnedMesh = ArrayAdd_SkinnedMeshInstance(&gameState->skinnedMeshInstances);
 			*skinnedMesh = {};
-			skinnedMesh->entityHandle = FindEntityHandle(gameState, selectedEntity);
-			selectedEntity->skinnedMeshInstance = skinnedMesh;
+			EntityAssignSkinnedMesh(gameState, selectedEntityHandle, skinnedMesh);
 		}
 	}
 
@@ -475,7 +494,7 @@ void ImguiShowEditWindow(GameState *gameState)
 	ImGui::Separator();
 
 	ImGui::Text("Particle system");
-	ParticleSystem *particleSystem = selectedEntity->particleSystem;
+	ParticleSystem *particleSystem = GetEntityParticleSystem(gameState, selectedEntityHandle);
 	if (particleSystem)
 	{
 		ImguiStructAsControls(gameState, particleSystem, &typeInfo_ParticleSystem);
@@ -484,25 +503,21 @@ void ImguiShowEditWindow(GameState *gameState)
 			DestroyDeviceMesh(particleSystem->deviceBuffer);
 
 			ParticleSystem *last = &gameState->particleSystems[--gameState->particleSystems.size];
-			Entity *entityOfLast = GetEntity(gameState, last->entityHandle);
-			ASSERT(entityOfLast);
-
+			gameState->entityParticleSystems[last->entityHandle.id] = particleSystem;
 			*particleSystem = *last;
-			entityOfLast->particleSystem = particleSystem;
 
-			selectedEntity->particleSystem = nullptr;
+			gameState->entityParticleSystems[selectedEntityHandle.id] = nullptr;
 		}
 	}
 	else
 	{
 		if (ImGui::Button("Add particle system"))
 		{
-			ParticleSystem *newParticleSystem = ArrayAdd_ParticleSystem(&gameState->particleSystems);
-			*newParticleSystem = {};
-			newParticleSystem->entityHandle = FindEntityHandle(gameState, selectedEntity);
-			newParticleSystem->deviceBuffer = CreateDeviceMesh(0);
-			memset(newParticleSystem->alive, 0, sizeof(newParticleSystem->alive));
-			selectedEntity->particleSystem = newParticleSystem;
+			particleSystem = ArrayAdd_ParticleSystem(&gameState->particleSystems);
+			*particleSystem = {};
+			particleSystem->deviceBuffer = CreateDeviceMesh(0);
+			memset(particleSystem->alive, 0, sizeof(particleSystem->alive));
+			EntityAssignParticleSystem(gameState, selectedEntityHandle, particleSystem);
 		}
 	}
 

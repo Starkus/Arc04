@@ -131,6 +131,8 @@ struct GameState
 	LevelGeometry levelGeometry;
 	Player player;
 
+	Array_Transform transforms;
+	Array_MeshInstance meshInstances;
 	Array_SkinnedMeshInstance skinnedMeshInstances;
 	Array_ParticleSystem particleSystems;
 	Array_Collider colliders;
