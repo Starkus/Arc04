@@ -130,22 +130,6 @@ bool ImguiMemberAsControl(GameState *gameState, void *object, const StructMember
 		return false;
 	}
 
-	if (memberInfo->pointerLevels)
-	{
-		bool somethingChanged = false;
-		if (ImGui::TreeNode(memberInfo->name))
-		{
-			StructMember dereferencedType = *memberInfo;
-			--dereferencedType.pointerLevels;
-
-			void *ptr = *(void **)object;
-			somethingChanged = ImguiMemberAsControl(gameState, ptr, &dereferencedType);
-
-			ImGui::TreePop();
-		}
-		return somethingChanged;
-	}
-
 	// Arrays
 	if (memberInfo->arrayCount > 0)
 	{
@@ -163,6 +147,22 @@ bool ImguiMemberAsControl(GameState *gameState, void *object, const StructMember
 				somethingChanged = ImguiMemberAsControl(gameState, itemOffset, &nonArrayType)
 					|| somethingChanged;
 			}
+			ImGui::TreePop();
+		}
+		return somethingChanged;
+	}
+
+	if (memberInfo->pointerLevels)
+	{
+		bool somethingChanged = false;
+		if (ImGui::TreeNode(memberInfo->name))
+		{
+			StructMember dereferencedType = *memberInfo;
+			--dereferencedType.pointerLevels;
+
+			void *ptr = *(void **)object;
+			somethingChanged = ImguiMemberAsControl(gameState, ptr, &dereferencedType);
+
 			ImGui::TreePop();
 		}
 		return somethingChanged;
@@ -360,6 +360,7 @@ void ImguiShowEditWindow(GameState *gameState)
 
 	ImguiStructAsControls(gameState, &g_debugContext->selectedEntity, &typeInfo_EntityHandle);
 
+	EntityHandle selectedEntityHandle = g_debugContext->selectedEntity;
 	Entity *selectedEntity = GetEntity(gameState, g_debugContext->selectedEntity);
 
 	if (ImGui::Button("Add"))
@@ -436,7 +437,7 @@ void ImguiShowEditWindow(GameState *gameState)
 	ImGui::Separator();
 
 	ImGui::Text("Collider");
-	Collider *collider = selectedEntity->collider;
+	Collider *collider = GetEntityCollider(gameState, selectedEntityHandle);
 	if (collider)
 	{
 		bool changedType = ImguiMemberAsControl(gameState, &collider->type,
@@ -455,13 +456,10 @@ void ImguiShowEditWindow(GameState *gameState)
 		if (ImGui::Button("Remove collider"))
 		{
 			Collider *last = &gameState->colliders[--gameState->colliders.size];
-			Entity *entityOfLast = GetEntity(gameState, last->entityHandle);
-			ASSERT(entityOfLast);
-
+			gameState->entityColliders[last->entityHandle.id] = collider;
 			*collider = *last;
-			entityOfLast->collider = collider;
 
-			selectedEntity->collider = nullptr;
+			gameState->entityColliders[selectedEntityHandle.id] = nullptr;
 		}
 	}
 	else
@@ -470,8 +468,7 @@ void ImguiShowEditWindow(GameState *gameState)
 		{
 			collider = ArrayAdd_Collider(&gameState->colliders);
 			*collider = {};
-			collider->entityHandle = FindEntityHandle(gameState, selectedEntity);
-			selectedEntity->collider = collider;
+			EntityAssignCollider(gameState, selectedEntityHandle, collider);
 		}
 	}
 

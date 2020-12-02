@@ -826,7 +826,7 @@ Token *ParseStruct(ParsedFile *context, Token *token, Struct *struct_)
 				++token;
 				ASSERT(token->type == TOKEN_IDENTIFIER);
 				member.tags[member.tagCount++] = *token;
-				Log("Tag found: @%.*s\n", token->size, token->begin);
+				//Log("Tag found: @%.*s\n", token->size, token->begin);
 				++token;
 			}
 
@@ -1098,7 +1098,7 @@ ParsedFile ParseFile(DynamicArray_Token &tokens)
 							++token;
 							ASSERT(token->type == TOKEN_IDENTIFIER);
 							procedure.tags[procedure.tagCount++] = *token;
-							Log("Tag found: @%.*s\n", token->size, token->begin);
+							//Log("Tag found: @%.*s\n", token->size, token->begin);
 							++token;
 						}
 

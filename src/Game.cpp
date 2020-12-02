@@ -33,6 +33,8 @@
 #include "Resource.h"
 @Ignore #include "PlatformCode.h"
 #include "Containers.h"
+#include "Entity.h"
+#include "GameInterface.h"
 #include "Game.h"
 
 Memory *g_memory;
@@ -48,143 +50,13 @@ DECLARE_ARRAY(u32);
 #include "Collision.cpp"
 #include "BakeryInterop.cpp"
 #include "Resource.cpp"
+#include "Entity.cpp"
 
 #if TARGET_WINDOWS
 #define GAMEDLL NOMANGLE __declspec(dllexport)
 #else
 #define GAMEDLL NOMANGLE __attribute__((visibility("default")))
 #endif
-
-Entity *GetEntity(GameState *gameState, EntityHandle handle)
-{
-	if (handle == ENTITY_HANDLE_INVALID)
-		return nullptr;
-
-	// Check handle is valid
-	if (handle.generation != gameState->entityGenerations[handle.id])
-		return nullptr;
-
-	return gameState->entityPointers[handle.id];
-}
-
-EntityHandle FindEntityHandle(GameState *gameState, Entity *entityPtr)
-{
-	for (u32 entityId = 0; entityId < gameState->entities.size; ++entityId)
-	{
-		Entity *currentPtr = gameState->entityPointers[entityId];
-		if (currentPtr == entityPtr)
-		{
-			return { entityId, gameState->entityGenerations[entityId] };
-		}
-	}
-	return ENTITY_HANDLE_INVALID;
-}
-
-EntityHandle AddEntity(GameState *gameState, Entity **outEntity)
-{
-	Entity *newEntity = ArrayAdd_Entity(&gameState->entities);
-	*newEntity = {};
-	newEntity->rotation = QUATERNION_IDENTITY;
-
-	EntityHandle newHandle = ENTITY_HANDLE_INVALID;
-
-	for (int entityId = 0; entityId < 256; ++entityId)
-	{
-		Entity *ptrInIdx = gameState->entityPointers[entityId];
-		if (!ptrInIdx)
-		{
-			// Assing vacant ID to new entity
-			gameState->entityPointers[entityId] = newEntity;
-
-			// Fill out entity handle
-			newHandle.id = entityId;
-			// Advance generation by one
-			newHandle.generation = ++gameState->entityGenerations[entityId];
-
-			break;
-		}
-	}
-
-	Log("Added new entity at 0x%p (id %d gen %d)\n", newEntity, newHandle.id, newHandle.generation);
-
-	*outEntity = newEntity;
-	return newHandle;
-}
-
-// @Improve: delay actual deletion of entities til end of frame?
-void RemoveEntity(GameState *gameState, EntityHandle handle)
-{
-	// Check handle is valid
-	if (handle.generation != gameState->entityGenerations[handle.id])
-		return;
-
-	Entity *entityPtr = gameState->entityPointers[handle.id];
-	// If entity is already deleted there's nothing to do
-	if (!entityPtr)
-		return;
-
-	// Remove 'components'
-	SkinnedMeshInstance *skinnedMeshInstance = entityPtr->skinnedMeshInstance;
-	if (skinnedMeshInstance)
-	{
-		SkinnedMeshInstance *last =
-			&gameState->skinnedMeshInstances[--gameState->skinnedMeshInstances.size];
-		Entity *lastsEntity = GetEntity(gameState, last->entityHandle);
-		if (lastsEntity)
-		{
-			// Fix entity that was pointing to skinnedMeshInstance that we moved.
-			lastsEntity->skinnedMeshInstance = skinnedMeshInstance;
-		}
-		*skinnedMeshInstance = *last;
-	}
-
-	ParticleSystem *particleSystem = entityPtr->particleSystem;
-	if (particleSystem)
-	{
-		ParticleSystem *last =
-			&gameState->particleSystems[--gameState->particleSystems.size];
-		Entity *lastsEntity = GetEntity(gameState, last->entityHandle);
-		if (lastsEntity)
-		{
-			// Fix entity that was pointing to skinnedMeshInstance that we moved.
-			lastsEntity->particleSystem = particleSystem;
-		}
-		*particleSystem = *last;
-	}
-
-	Collider *collider = entityPtr->collider;
-	if (collider)
-	{
-		Collider *last =
-			&gameState->colliders[--gameState->colliders.size];
-		Entity *lastsEntity = GetEntity(gameState, last->entityHandle);
-		if (lastsEntity)
-		{
-			// Fix entity that was pointing to skinnedMeshInstance that we moved.
-			lastsEntity->collider = collider;
-		}
-		*collider = *last;
-	}
-
-	// Erase from entity array by swapping with last
-	Entity *ptrOfLast = &gameState->entities[--gameState->entities.size];
-	Log("Moving entity at 0x%p to 0x%p\n", ptrOfLast, entityPtr);
-	*entityPtr = *ptrOfLast;
-
-	// Find and fix handle to entity we moved
-	for (int entityId = 0; entityId < 256; ++entityId)
-	{
-		Entity *currentPtr = gameState->entityPointers[entityId];
-		if (currentPtr == ptrOfLast)
-		{
-			gameState->entityPointers[entityId] = entityPtr;
-			break;
-		}
-	}
-
-	gameState->entityPointers[handle.id] = nullptr;
-	//gameState->entityGenerations[handle.id] = 0;
-}
 
 #ifdef USING_IMGUI
 #include "Imgui.cpp"
@@ -407,12 +279,12 @@ GAMEDLL START_GAME(StartGame)
 		playerEnt->rotation = QUATERNION_IDENTITY;
 		playerEnt->mesh = 0;
 
-		playerEnt->collider = ArrayAdd_Collider(&gameState->colliders);
-		playerEnt->collider->entityHandle = playerEntityHandle;
-		playerEnt->collider->type = COLLIDER_CAPSULE;
-		playerEnt->collider->capsule.radius = 0.5f;
-		playerEnt->collider->capsule.height = 1.0f;
-		playerEnt->collider->capsule.offset = { 0, 0, 1 };
+		Collider *collider = ArrayAdd_Collider(&gameState->colliders);
+		collider->type = COLLIDER_CAPSULE;
+		collider->capsule.radius = 0.5f;
+		collider->capsule.height = 1.0f;
+		collider->capsule.offset = { 0, 0, 1 };
+		EntityAssignCollider(gameState, playerEntityHandle, collider);
 
 		gameState->player.state = PLAYERSTATE_IDLE;
 
@@ -430,11 +302,11 @@ GAMEDLL START_GAME(StartGame)
 
 	// Test entities
 	{
-		Collider collider;
-		collider.type = COLLIDER_CONVEX_HULL;
+		Collider anvilCollider;
+		anvilCollider.type = COLLIDER_CONVEX_HULL;
 
 		const Resource *collMeshRes = GetResource("data/anvil_collision.b");
-		collider.convexHull.meshRes = collMeshRes;
+		anvilCollider.convexHull.meshRes = collMeshRes;
 
 		const Resource *anvilRes = GetResource("data/anvil.b");
 
@@ -443,78 +315,78 @@ GAMEDLL START_GAME(StartGame)
 		testEntity->translation = { -6.0f, 3.0f, 1.0f };
 		testEntity->rotation = QUATERNION_IDENTITY;
 		testEntity->mesh = anvilRes;
-		testEntity->collider = ArrayAdd_Collider(&gameState->colliders);
-		*testEntity->collider = collider;
-		testEntity->collider->entityHandle = testEntityHandle;
+		Collider *collider = ArrayAdd_Collider(&gameState->colliders);
+		*collider = anvilCollider;
+		EntityAssignCollider(gameState, testEntityHandle, collider);
 
 		testEntityHandle = AddEntity(gameState, &testEntity);
 		testEntity->translation = { 5.0f, 4.0f, 1.0f };
 		testEntity->rotation = QUATERNION_IDENTITY;
 		testEntity->mesh = anvilRes;
-		testEntity->collider = ArrayAdd_Collider(&gameState->colliders);
-		*testEntity->collider = collider;
-		testEntity->collider->entityHandle = testEntityHandle;
+		collider = ArrayAdd_Collider(&gameState->colliders);
+		*collider = anvilCollider;
+		EntityAssignCollider(gameState, testEntityHandle, collider);
 
 		testEntityHandle = AddEntity(gameState, &testEntity);
 		testEntity->translation = { 3.0f, -4.0f, 1.0f };
 		testEntity->rotation = QuaternionFromEuler(v3{ 0, 0, HALFPI * -0.5f });
 		testEntity->mesh = anvilRes;
-		testEntity->collider = ArrayAdd_Collider(&gameState->colliders);
-		*testEntity->collider = collider;
-		testEntity->collider->entityHandle = testEntityHandle;
+		collider = ArrayAdd_Collider(&gameState->colliders);
+		*collider = anvilCollider;
+		EntityAssignCollider(gameState, testEntityHandle, collider);
 
 		testEntityHandle = AddEntity(gameState, &testEntity);
 		testEntity->translation = { -8.0f, -4.0f, 1.0f };
 		testEntity->rotation = QuaternionFromEuler(v3{ HALFPI * 0.5f, 0, 0 });
 		testEntity->mesh = anvilRes;
-		testEntity->collider = ArrayAdd_Collider(&gameState->colliders);
-		*testEntity->collider = collider;
-		testEntity->collider->entityHandle = testEntityHandle;
+		collider = ArrayAdd_Collider(&gameState->colliders);
+		*collider = anvilCollider;
+		EntityAssignCollider(gameState, testEntityHandle, collider);
 
 		const Resource *sphereRes = GetResource("data/sphere.b");
 		testEntityHandle = AddEntity(gameState, &testEntity);
 		testEntity->translation = { -6.0f, 7.0f, 1.0f };
 		testEntity->rotation = QUATERNION_IDENTITY;
 		testEntity->mesh = sphereRes;
-		testEntity->collider = ArrayAdd_Collider(&gameState->colliders);
-		testEntity->collider->entityHandle = testEntityHandle;
-		testEntity->collider->type = COLLIDER_SPHERE;
-		testEntity->collider->sphere.radius = 1;
-		testEntity->collider->sphere.offset = {};
+		collider = ArrayAdd_Collider(&gameState->colliders);
+		collider->type = COLLIDER_SPHERE;
+		collider->sphere.radius = 1;
+		collider->sphere.offset = {};
+		EntityAssignCollider(gameState, testEntityHandle, collider);
 
 		const Resource *cylinderRes = GetResource("data/cylinder.b");
 		testEntityHandle = AddEntity(gameState, &testEntity);
 		testEntity->translation = { -3.0f, 7.0f, 1.0f };
 		testEntity->rotation = QUATERNION_IDENTITY;
 		testEntity->mesh = cylinderRes;
-		testEntity->collider = ArrayAdd_Collider(&gameState->colliders);
-		testEntity->collider->entityHandle = testEntityHandle;
-		testEntity->collider->type = COLLIDER_CYLINDER;
-		testEntity->collider->cylinder.radius = 1;
-		testEntity->collider->cylinder.height = 2;
-		testEntity->collider->cylinder.offset = {};
+		collider = ArrayAdd_Collider(&gameState->colliders);
+		collider->type = COLLIDER_CYLINDER;
+		collider->cylinder.radius = 1;
+		collider->cylinder.height = 2;
+		collider->cylinder.offset = {};
+		EntityAssignCollider(gameState, testEntityHandle, collider);
 
 		const Resource *capsuleRes = GetResource("data/capsule.b");
 		testEntityHandle = AddEntity(gameState, &testEntity);
 		testEntity->translation = { 0.0f, 7.0f, 2.0f };
 		testEntity->rotation = QUATERNION_IDENTITY;
 		testEntity->mesh = capsuleRes;
-		testEntity->collider = ArrayAdd_Collider(&gameState->colliders);
-		testEntity->collider->entityHandle = testEntityHandle;
-		testEntity->collider->type = COLLIDER_CAPSULE;
-		testEntity->collider->capsule.radius = 1;
-		testEntity->collider->capsule.height = 2;
-		testEntity->collider->capsule.offset = {};
+		collider = ArrayAdd_Collider(&gameState->colliders);
+		collider->type = COLLIDER_CAPSULE;
+		collider->capsule.radius = 1;
+		collider->capsule.height = 2;
+		collider->capsule.offset = {};
+		EntityAssignCollider(gameState, testEntityHandle, collider);
 
 		testEntityHandle = AddEntity(gameState, &testEntity);
 		testEntity->translation = { 3.0f, 4.0f, 0.0f };
 		testEntity->rotation = QUATERNION_IDENTITY;
 		testEntity->mesh = nullptr;
-		testEntity->collider = ArrayAdd_Collider(&gameState->colliders);
-		testEntity->collider->entityHandle = testEntityHandle;
-		testEntity->collider->type = COLLIDER_SPHERE;
-		testEntity->collider->sphere.radius = 0.3f;
-		testEntity->collider->sphere.offset = { 0, 0, 1 };
+		collider = ArrayAdd_Collider(&gameState->colliders);
+		collider->type = COLLIDER_SPHERE;
+		collider->sphere.radius = 0.3f;
+		collider->sphere.offset = { 0, 0, 1 };
+		EntityAssignCollider(gameState, testEntityHandle, collider);
 		SkinnedMeshInstance *skinnedMeshInstance =
 			ArrayAdd_SkinnedMeshInstance(&gameState->skinnedMeshInstances);
 		skinnedMeshInstance->entityHandle = testEntityHandle;
@@ -666,6 +538,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		// Collision
 		bool touchedGround = false;
 
+		Collider *playerCollider = GetEntityCollider(gameState, player->entityHandle);
 		for (u32 colliderIdx = 0; colliderIdx < gameState->colliders.size; ++colliderIdx)
 		{
 			Collider *collider = &gameState->colliders[colliderIdx];
@@ -673,7 +546,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			ASSERT(entity); // There should never be an orphaned collider.
 			Transform *transform = &entity->transform;
 
-			if (collider != playerEntity->collider)
+			if (collider != playerCollider)
 			{
 				v3 origin = playerEntity->translation + v3{ 0, 0, 1 };
 				v3 dir = { 0, 0, -groundRayDist };
@@ -691,12 +564,12 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				}
 
 				GJKResult gjkResult = GJKTest(&playerEntity->transform, transform,
-						playerEntity->collider, collider);
+						playerCollider, collider);
 				if (gjkResult.hit)
 				{
 					// @Improve: better collision against multiple colliders?
 					v3 depenetration = ComputeDepenetration(gjkResult, &playerEntity->transform,
-							transform, playerEntity->collider, collider);
+							transform, playerCollider, collider);
 					// @Hack: ignoring depenetration when it's too big
 					if (V3Length(depenetration) < 10.0f)
 					{

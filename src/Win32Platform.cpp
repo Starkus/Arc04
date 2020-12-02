@@ -32,7 +32,7 @@
 #include "Resource.h"
 @Ignore #include "PlatformCode.h"
 #include "Platform.h"
-#include "Game.h"
+#include "GameInterface.h"
 
 DECLARE_ARRAY(Resource);
 DECLARE_ARRAY(FILETIME);
