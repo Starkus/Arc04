@@ -297,7 +297,7 @@ GAMEDLL START_GAME(StartGame)
 	}
 
 	// Init camera
-	gameState->camPitch = -PI * 0.35f;
+	gameState->camera.rotation = QuaternionFromEuler({ PI * 0.35f, 0, 0 });
 
 	// Test entities
 	{
@@ -448,21 +448,38 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		{
 			const f32 camRotSpeed = 2.0f;
 
+			f32 pitchDelta = 0;
+			f32 yawDelta = 0;
+
 			if (controller->camUp.endedDown)
-				gameState->camPitch += camRotSpeed * deltaTime;
+				pitchDelta += camRotSpeed * deltaTime;
 			else if (controller->camDown.endedDown)
-				gameState->camPitch -= camRotSpeed * deltaTime;
+				pitchDelta -= camRotSpeed * deltaTime;
 
 			if (controller->camLeft.endedDown)
-				gameState->camYaw += camRotSpeed * deltaTime;
+				yawDelta += camRotSpeed * deltaTime;
 			else if (controller->camRight.endedDown)
-				gameState->camYaw -= camRotSpeed * deltaTime;
+				yawDelta -= camRotSpeed * deltaTime;
 
 			const f32 deadzone = 0.2f;
 			if (Abs(controller->rightStick.x) > deadzone)
-				gameState->camYaw -= controller->rightStick.x * camRotSpeed * deltaTime;
+				yawDelta += controller->rightStick.x * camRotSpeed * deltaTime;
 			if (Abs(controller->rightStick.y) > deadzone)
-				gameState->camPitch += controller->rightStick.y * camRotSpeed * deltaTime;
+				pitchDelta += controller->rightStick.y * camRotSpeed * deltaTime;
+
+			if (yawDelta)
+			{
+				v4 q = { 0, 0, yawDelta * 0.5f, 1 };
+				q = V4Normalize(q);
+				gameState->camera.rotation = QuaternionMultiply(q, gameState->camera.rotation);
+			}
+			if (pitchDelta)
+			{
+				v3 right = QuaternionRotateVector(gameState->camera.rotation, v3{pitchDelta * -0.5f, 0, 0});
+				v4 q = { right.x, right.y, right.z, 1 };
+				q = V4Normalize(q);
+				gameState->camera.rotation = QuaternionMultiply(q, gameState->camera.rotation);
+			}
 		}
 
 		// Move player
@@ -495,10 +512,12 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				inputDir /= Sqrt(inputSqrLen);
 			}
 
+			v3 camFw = QuaternionRotateVector(gameState->camera.rotation, v3{0,1,0});
+			f32 camYaw = Atan2(camFw.x, camFw.y);
 			v3 worldInputDir =
 			{
-				inputDir.x * Cos(gameState->camYaw) + inputDir.y * Sin(gameState->camYaw),
-				-inputDir.x * Sin(gameState->camYaw) + inputDir.y * Cos(gameState->camYaw),
+				inputDir.x * Cos(camYaw) + inputDir.y * Sin(camYaw),
+				-inputDir.x * Sin(camYaw) + inputDir.y * Cos(camYaw),
 				0
 			};
 
@@ -658,7 +677,9 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			player->vel = {};
 		}
 
-		gameState->camPos = playerTransform->translation;
+		gameState->camera.translation = playerTransform->translation;
+		gameState->camera.translation += QuaternionRotateVector(gameState->camera.rotation, v3{ 0, 0, 5 });
+		gameState->camera.scale = { 1, 1, 1 };
 
 		// Update skinned meshes
 		for (u32 meshInstanceIdx = 0; meshInstanceIdx < gameState->skinnedMeshInstances.size;
@@ -907,9 +928,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			worldCursorPos = Mat4TransformV4(invViewMatrix, worldCursorPos);
 			v3 cursorXYZ = { worldCursorPos.x, worldCursorPos.y, worldCursorPos.z };
 
-			// @Improve: once we have proper camera
-			v3 camPos = {};
-			camPos = Mat4TransformPoint(invViewMatrix, camPos);
+			v3 camPos = gameState->camera.translation;
 
 			v3 origin = camPos;
 			v3 dir = cursorXYZ - origin;
@@ -1156,32 +1175,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 		// View matrix
 		mat4 *view = &gameState->viewMatrix;
-		{
-			*view = Mat4Translation({ 0.0f, 0.0f, -4.5f });
-			const f32 pitch = gameState->camPitch;
-			mat4 pitchMatrix =
-			{
-				1.0f,	0.0f,			0.0f,		0.0f,
-				0.0f,	Cos(pitch),		Sin(pitch),	0.0f,
-				0.0f,	-Sin(pitch),	Cos(pitch),	0.0f,
-				0.0f,	0.0f,			0.0f,		1.0f
-			};
-			*view = Mat4Multiply(pitchMatrix, *view);
-
-			const f32 yaw = gameState->camYaw;
-			mat4 yawMatrix =
-			{
-				Cos(yaw),	Sin(yaw),	0.0f,	0.0f,
-				-Sin(yaw),	Cos(yaw),	0.0f,	0.0f,
-				0.0f,		0.0f,		1.0f,	0.0f,
-				0.0f,		0.0f,		0.0f,	1.0f
-			};
-			*view = Mat4Multiply(yawMatrix, *view);
-
-			const v3 pos = gameState->camPos;
-			mat4 camPosMatrix = Mat4Translation(-pos);
-			*view = Mat4Multiply(camPosMatrix, *view);
-		}
+		*view = Mat4Inverse(Mat4Compose(gameState->camera));
 
 		UseProgram(gameState->program);
 		DeviceUniform viewUniform = GetUniform(gameState->program, "view");
@@ -1316,9 +1310,8 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				const int maxCount = ArrayCount(particleSystem->particles);
 
 				// Sort!
-				// @Improve: change this once we have a proper camera
 				static v3 camPos;
-				camPos = Mat4TransformPoint(Mat4Adjugate(*view), v3{});
+				camPos = gameState->camera.translation;
 				auto compareParticles = [](const void *a, const void *b)
 				{
 					f32 aDist = V3SqrLen(((Particle *)a)->pos - camPos);

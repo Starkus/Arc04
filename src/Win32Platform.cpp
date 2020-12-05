@@ -179,7 +179,7 @@ bool ProcessKeyboardAndMouse(Controller *c)
 	{
 		bool consumed = false;
 #if USING_IMGUI
-		if (!ImGui::GetIO().WantCaptureKeyboard && !ImGui::GetIO().WantCaptureMouse)
+		if (!ImGui::GetIO().WantCaptureKeyboard)
 #endif
 		switch (message.message)
 		{

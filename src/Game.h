@@ -122,9 +122,7 @@ struct GameState
 {
 	f32 timeMultiplier;
 
-	v3 camPos;
-	f32 camYaw;
-	f32 camPitch;
+	Transform camera;
 
 	EntityManager entityManager @Using;
 
