@@ -515,13 +515,13 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			if (inputSqrLen)
 			{
 				const f32 maxRotPerSecond = PI * 6.0f;
-				const f32 maxRot = maxRotPerSecond * deltaTime;
+				const f32 maxRot = player->speed < 0.5f ? PI2 : maxRotPerSecond * deltaTime;
 				v3 playerFw = QuaternionRotateVector(playerTransform->rotation, v3{0,1,0});
 				f32 playerRelativeInputY = V2Dot(worldInputDir.xy, playerFw.xy);
 				f32 playerRelativeInputX = V2Dot(worldInputDir.xy, v2{ playerFw.y, -playerFw.x });
 
 				f32 deltaYaw = Atan2(-playerRelativeInputX, playerRelativeInputY);
-				deltaYaw = Max(-maxRot, Min(maxRot, deltaYaw)); // @Fix: not framerate independant.
+				deltaYaw = Max(-maxRot, Min(maxRot, deltaYaw));
 
 				v4 rot = QuaternionFromEulerZYX(v3{ 0, 0, deltaYaw });
 				playerTransform->rotation = QuaternionMultiply(playerTransform->rotation, rot);
@@ -535,8 +535,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				player->vel.xy += worldInputDir.xy * 20.0f * deltaTime;
 
 				// Drag
-				// @Improve: not framerate independant
-				player->vel.xy *= 0.98f;
+				player->vel.xy *= Pow(0.1f, deltaTime);
 			}
 			else
 			{
@@ -560,13 +559,17 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 						player->speed += deltaTime * 35.0f * inputLen;
 
 						// Drag
-						// @Improve: non frame independant!
-						player->speed -= deltaTime * 10.0f * (1.0f - inputLen) + player->speed * 0.04f;
+						player->speed *= Pow(0.018f, deltaTime);
+						player->speed -= deltaTime * 10.0f * (1.0f - inputLen);
 					}
 				}
 			}
 
-			if (!(player->state & PLAYERSTATEFLAG_AIRBORNE))
+			if (player->state & PLAYERSTATEFLAG_AIRBORNE)
+			{
+				player->speed = V2Length(player->vel.xy);
+			}
+			else
 			{
 				v3 playerFw = QuaternionRotateVector(playerTransform->rotation, v3{0,1,0});
 				player->vel.xy = playerFw.xy * player->speed;
@@ -993,8 +996,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			worldCursorPos = Mat4TransformV4(invViewMatrix, worldCursorPos);
 			v3 cursorXYZ = { worldCursorPos.x, worldCursorPos.y, worldCursorPos.z };
 
-			v3 camPos = gameState->camera.translation;
-
+			v3 camPos = gameState->camPos;
 			v3 origin = camPos;
 			v3 dir = cursorXYZ - origin;
 			g_debugContext->hoveredEntity = ENTITY_HANDLE_INVALID;

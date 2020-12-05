@@ -113,6 +113,11 @@ inline bool EqualWithEpsilon(f32 a, f32 b, f32 epsilon)
 	return a > b - epsilon && a < b + epsilon;
 }
 
+inline f32 Pow(f32 n, f32 e)
+{
+	return powf(n, e);
+}
+
 inline f32 Abs(f32 n)
 {
 	return fabsf(n);
