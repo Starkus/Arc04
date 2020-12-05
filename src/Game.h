@@ -23,6 +23,7 @@ enum PlayerState
 enum PlayerAnim
 {
 	// Note! this has to match the order of the animations in the meta
+	PLAYERANIM_INVALID = -1,
 	PLAYERANIM_IDLE,
 	PLAYERANIM_RUN,
 	PLAYERANIM_JUMP,
@@ -36,6 +37,7 @@ struct Player
 	EntityHandle entityHandle;
 	v3 vel;
 	PlayerState state;
+	f32 speed;
 };
 
 #if DEBUG_BUILD
@@ -122,7 +124,9 @@ struct GameState
 {
 	f32 timeMultiplier;
 
-	Transform camera;
+	v3 camPos;
+	f32 camYaw;
+	f32 camPitch;
 
 	EntityManager entityManager @Using;
 
@@ -136,7 +140,7 @@ struct GameState
 	Array_Collider colliders;
 
 	// @Cleanup: move to some Render Device Context or something?
-	mat4 viewMatrix, projMatrix;
+	mat4 invViewMatrix, viewMatrix, projMatrix;
 	DeviceProgram program, skinnedMeshProgram, particleSystemProgram;
 	DeviceMesh particleMesh;
 	// Frame buffer

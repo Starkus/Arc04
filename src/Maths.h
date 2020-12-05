@@ -174,6 +174,9 @@ inline f32 Acos(f32 n)
 
 inline f32 Atan2(f32 a, f32 b)
 {
+	// Note to myself because I keep forgetting:
+	// If called with x, y this will tell you the signed angle difference with +Y.
+	// You can swap around/negate the components to get an angle with respect to a different axis.
 	return atan2f(a, b);
 }
 
@@ -391,14 +394,9 @@ inline f32 V2SqrLen(const v2 &a)
 	return V2Dot(a, a);
 }
 
-inline f32 V3SqrLen(const v2 &a)
-{
-	return V2Dot(a, a);
-}
-
 inline f32 V2Length(const v2 &a)
 {
-	return Sqrt(V3SqrLen(a));
+	return Sqrt(V2SqrLen(a));
 }
 
 inline v2 V2Normalize(const v2 &a)
@@ -798,6 +796,14 @@ inline v4 QuaternionFromRotationMatrix(const mat4 &m)
 	return result;
 }
 
+inline v4 QuaternionFromAxisAngle(const v3 &axis, f32 angle)
+{
+	const f32 halfAngle = angle * 0.5f;
+	const f32 s = Sin(halfAngle);
+	const f32 c = Cos(halfAngle);
+	return v4{ axis.x * s, axis.y * s, axis.z * s, c };
+}
+
 inline v3 QuaternionRotateVector(const v4 &q, const v3 &v)
 {
 	const v3 vectorPart = { q.x, q.y, q.z };
@@ -822,7 +828,7 @@ inline v4 QuaternionMultiply(const v4 &a, const v4 &b)
 	return result;
 }
 
-inline v4 QuaternionFromEuler(const v3 &euler)
+inline v4 QuaternionFromEulerXYZ(const v3 &euler)
 {
 	const f32 halfYaw = euler.z * 0.5f;
 	const f32 halfPitch = euler.y * 0.5f;
@@ -840,6 +846,28 @@ inline v4 QuaternionFromEuler(const v3 &euler)
 	result.y = cosRoll * sinPitch * cosYaw + sinRoll * cosPitch * sinYaw;
 	result.z = cosRoll * cosPitch * sinYaw - sinRoll * sinPitch * cosYaw;
 	result.w = cosRoll * cosPitch * cosYaw + sinRoll * sinPitch * sinYaw;
+
+	return result;
+}
+
+inline v4 QuaternionFromEulerZYX(const v3 &euler)
+{
+	const f32 halfYaw = euler.z * 0.5f;
+	const f32 halfPitch = euler.y * 0.5f;
+	const f32 halfRoll = euler.x * 0.5f;
+
+	const f32 cosYaw = Cos(halfYaw);
+	const f32 sinYaw = Sin(halfYaw);
+	const f32 cosPitch = Cos(halfPitch);
+	const f32 sinPitch = Sin(halfPitch);
+	const f32 cosRoll = Cos(halfRoll);
+	const f32 sinRoll = Sin(halfRoll);
+
+	v4 result;
+	result.x = sinRoll * cosPitch * cosYaw + cosRoll * sinPitch * sinYaw;
+	result.y = cosRoll * sinPitch * cosYaw - sinRoll * cosPitch * sinYaw;
+	result.z = cosRoll * cosPitch * sinYaw + sinRoll * sinPitch * cosYaw;
+	result.w = cosRoll * cosPitch * cosYaw - sinRoll * sinPitch * sinYaw;
 
 	return result;
 }

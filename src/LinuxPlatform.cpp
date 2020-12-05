@@ -27,7 +27,7 @@
 #include "Resource.h"
 #include "Platform.h"
 @Ignore #include "PlatformCode.h"
-#include "Game.h"
+#include "GameInterface.h"
 
 #include "LinuxCommon.cpp"
 #include "RenderOpenGL.cpp"

@@ -1569,7 +1569,11 @@ void PostProcessSourceFile(ParsedFile *context, DynamicArray_Token &tokens, cons
 						break;
 					}
 				}
-				ASSERT(struct_);
+				if (!struct_)
+				{
+					Log("ERROR! Struct not found: %.*s\n", typeToken->size, typeToken->begin);
+					ASSERT(false);
+				}
 
 				// Write up to this statement
 				char *end = typeToken->begin;

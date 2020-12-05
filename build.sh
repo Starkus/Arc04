@@ -35,4 +35,4 @@ else
 	clang -o bin/Bakery_debug tools/Bakery.cpp $common_compiler $debug_options $common_linker -Isrc -ldl -lstdc++
 fi
 
-ctags -R .
+ctags -R ./src ./tools ./external

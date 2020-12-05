@@ -297,7 +297,12 @@ GAMEDLL START_GAME(StartGame)
 	}
 
 	// Init camera
-	gameState->camera.rotation = QuaternionFromEuler({ PI * 0.35f, 0, 0 });
+	{
+		Transform *playerTransform = GetEntityTransform(gameState,
+				gameState->player.entityHandle);
+		gameState->camPos = playerTransform->translation + v3{ 0, -3, 3};
+		gameState->camPitch = PI * 0.35f;
+	}
 
 	// Test entities
 	{
@@ -334,7 +339,7 @@ GAMEDLL START_GAME(StartGame)
 
 		testEntityHandle = AddEntity(gameState, &transform);
 		transform->translation = { 3.0f, -4.0f, 1.0f };
-		transform->rotation = QuaternionFromEuler(v3{ 0, 0, HALFPI * -0.5f });
+		transform->rotation = QuaternionFromEulerZYX(v3{ 0, 0, HALFPI * -0.5f });
 		meshInstance = ArrayAdd_MeshInstance(&gameState->meshInstances);
 		*meshInstance = anvilMesh;
 		EntityAssignMesh(gameState, testEntityHandle, meshInstance);
@@ -344,7 +349,7 @@ GAMEDLL START_GAME(StartGame)
 
 		testEntityHandle = AddEntity(gameState, &transform);
 		transform->translation = { -8.0f, -4.0f, 1.0f };
-		transform->rotation = QuaternionFromEuler(v3{ HALFPI * 0.5f, 0, 0 });
+		transform->rotation = QuaternionFromEulerZYX(v3{ HALFPI * 0.5f, 0, 0 });
 		meshInstance = ArrayAdd_MeshInstance(&gameState->meshInstances);
 		*meshInstance = anvilMesh;
 		EntityAssignMesh(gameState, testEntityHandle, meshInstance);
@@ -414,8 +419,31 @@ void ChangeState(GameState *gameState, PlayerState newState, PlayerAnim newAnim)
 {
 	//Log("Changed state: 0x%X -> 0x%X\n", gameState->player.state, newState);
 	SkinnedMeshInstance *playerMesh = GetEntitySkinnedMesh(gameState, gameState->player.entityHandle);
-	playerMesh->animationIdx = newAnim;
-	playerMesh->animationTime = 0;
+	if (newAnim != PLAYERANIM_INVALID)
+	{
+		playerMesh->animationIdx = newAnim;
+		playerMesh->animationTime = 0;
+	}
+
+	if (gameState->player.state & PLAYERSTATEFLAG_AIRBORNE &&
+			!(newState & PLAYERSTATEFLAG_AIRBORNE))
+	{
+		// Landing
+		Transform *transform = GetEntityTransform(gameState, gameState->player.entityHandle);
+		const v2 vel = gameState->player.vel.xy;
+		const v3 playerFw = QuaternionRotateVector(transform->rotation, v3{0,1,0});
+		gameState->player.speed = (V2Dot(vel, playerFw.xy));
+	}
+	else if (!(gameState->player.state & PLAYERSTATEFLAG_AIRBORNE) &&
+			newState & PLAYERSTATEFLAG_AIRBORNE)
+	{
+		// Going airborne
+		Transform *transform = GetEntityTransform(gameState, gameState->player.entityHandle);
+		const f32 speed = gameState->player.speed;
+		const v3 playerFw = QuaternionRotateVector(transform->rotation, v3{0,1,0});
+		gameState->player.vel.xy = playerFw.xy * speed;
+	}
+
 	gameState->player.state = newState;
 }
 
@@ -444,44 +472,6 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 	// Update
 	{
-		// Move camera
-		{
-			const f32 camRotSpeed = 2.0f;
-
-			f32 pitchDelta = 0;
-			f32 yawDelta = 0;
-
-			if (controller->camUp.endedDown)
-				pitchDelta += camRotSpeed * deltaTime;
-			else if (controller->camDown.endedDown)
-				pitchDelta -= camRotSpeed * deltaTime;
-
-			if (controller->camLeft.endedDown)
-				yawDelta += camRotSpeed * deltaTime;
-			else if (controller->camRight.endedDown)
-				yawDelta -= camRotSpeed * deltaTime;
-
-			const f32 deadzone = 0.2f;
-			if (Abs(controller->rightStick.x) > deadzone)
-				yawDelta += controller->rightStick.x * camRotSpeed * deltaTime;
-			if (Abs(controller->rightStick.y) > deadzone)
-				pitchDelta += controller->rightStick.y * camRotSpeed * deltaTime;
-
-			if (yawDelta)
-			{
-				v4 q = { 0, 0, yawDelta * 0.5f, 1 };
-				q = V4Normalize(q);
-				gameState->camera.rotation = QuaternionMultiply(q, gameState->camera.rotation);
-			}
-			if (pitchDelta)
-			{
-				v3 right = QuaternionRotateVector(gameState->camera.rotation, v3{pitchDelta * -0.5f, 0, 0});
-				v4 q = { right.x, right.y, right.z, 1 };
-				q = V4Normalize(q);
-				gameState->camera.rotation = QuaternionMultiply(q, gameState->camera.rotation);
-			}
-		}
-
 		// Move player
 		Player *player = &gameState->player;
 		Transform *playerTransform = GetEntityTransform(gameState, player->entityHandle);
@@ -512,48 +502,96 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				inputDir /= Sqrt(inputSqrLen);
 			}
 
-			v3 camFw = QuaternionRotateVector(gameState->camera.rotation, v3{0,1,0});
-			f32 camYaw = Atan2(camFw.x, camFw.y);
+			const f32 camYawSin = Sin(gameState->camYaw);
+			const f32 camYawCos = Cos(gameState->camYaw);
 			v3 worldInputDir =
 			{
-				inputDir.x * Cos(camYaw) + inputDir.y * Sin(camYaw),
-				-inputDir.x * Sin(camYaw) + inputDir.y * Cos(camYaw),
+				 inputDir.x * camYawCos + inputDir.y * camYawSin,
+				-inputDir.x * camYawSin + inputDir.y * camYawCos,
 				0
 			};
 
+			// Turn
 			if (inputSqrLen)
 			{
-				f32 targetYaw = Atan2(-worldInputDir.x, worldInputDir.y);
-				playerTransform->rotation = QuaternionFromEuler(v3{ 0, 0, targetYaw });
+				const f32 maxRotPerSecond = PI * 6.0f;
+				const f32 maxRot = maxRotPerSecond * deltaTime;
+				v3 playerFw = QuaternionRotateVector(playerTransform->rotation, v3{0,1,0});
+				f32 playerRelativeInputY = V2Dot(worldInputDir.xy, playerFw.xy);
+				f32 playerRelativeInputX = V2Dot(worldInputDir.xy, v2{ playerFw.y, -playerFw.x });
+
+				f32 deltaYaw = Atan2(-playerRelativeInputX, playerRelativeInputY);
+				deltaYaw = Max(-maxRot, Min(maxRot, deltaYaw)); // @Fix: not framerate independant.
+
+				v4 rot = QuaternionFromEulerZYX(v3{ 0, 0, deltaYaw });
+				playerTransform->rotation = QuaternionMultiply(playerTransform->rotation, rot);
 			}
 
-			const f32 playerSpeed = 5.0f;
-			playerTransform->translation += worldInputDir * playerSpeed * deltaTime;
+			// Move
+			bool moveInputNeutral = inputDir.x == 0 && inputDir.y == 0;
+			if (player->state & PLAYERSTATEFLAG_AIRBORNE)
+			{
+				// Acceleration
+				player->vel.xy += worldInputDir.xy * 20.0f * deltaTime;
+
+				// Drag
+				// @Improve: not framerate independant
+				player->vel.xy *= 0.98f;
+			}
+			else
+			{
+				// On the ground
+				if (player->state != PLAYERSTATE_RUNNING && !moveInputNeutral)
+				{
+					ChangeState(gameState, PLAYERSTATE_RUNNING, PLAYERANIM_RUN);
+					player->speed = Max(player->speed, 1.0f);
+				}
+				else
+				{
+					if (player->speed <= 0)
+					{
+						ChangeState(gameState, PLAYERSTATE_IDLE, PLAYERANIM_IDLE);
+						player->speed = 0;
+					}
+					else
+					{
+						const f32 inputLen = V2Length(inputDir);
+						// Acceleration
+						player->speed += deltaTime * 35.0f * inputLen;
+
+						// Drag
+						// @Improve: non frame independant!
+						player->speed -= deltaTime * 10.0f * (1.0f - inputLen) + player->speed * 0.04f;
+					}
+				}
+			}
 
 			if (!(player->state & PLAYERSTATEFLAG_AIRBORNE))
 			{
-				if (player->state != PLAYERSTATE_RUNNING && V3SqrLen(worldInputDir))
-				{
-					ChangeState(gameState, PLAYERSTATE_RUNNING, PLAYERANIM_RUN);
-				}
-				else if (player->state == PLAYERSTATE_RUNNING && !V3SqrLen(worldInputDir))
-				{
-					ChangeState(gameState, PLAYERSTATE_IDLE, PLAYERANIM_IDLE);
-				}
+				v3 playerFw = QuaternionRotateVector(playerTransform->rotation, v3{0,1,0});
+				player->vel.xy = playerFw.xy * player->speed;
 			}
 
 			// Jump
 			if (!(player->state & PLAYERSTATEFLAG_AIRBORNE) && controller->jump.endedDown &&
 					controller->jump.changed)
 			{
-				player->vel.z = 15.0f;
+				player->vel.z = 18.0f;
 				ChangeState(gameState, PLAYERSTATE_JUMP, PLAYERANIM_JUMP);
+			}
+			else if (player->state == PLAYERSTATE_JUMP)
+			{
+				if (!controller->jump.endedDown && player->vel.z > 0)
+				{
+					player->vel.z *= 0.5f;
+					ChangeState(gameState, PLAYERSTATE_FALL, PLAYERANIM_INVALID);
+				}
 			}
 
 			// Gravity
 			if (player->state & PLAYERSTATEFLAG_AIRBORNE)
 			{
-				player->vel.z -= 30.0f * deltaTime;
+				player->vel.z -= 40.0f * deltaTime;
 				if (player->vel.z < -75.0f)
 					player->vel.z = -75.0f;
 			}
@@ -601,15 +639,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					// @Improve: better collision against multiple colliders?
 					v3 depenetration = ComputeDepenetration(gjkResult, playerTransform,
 							transform, playerCollider, collider);
-					// @Hack: ignoring depenetration when it's too big
-					if (V3Length(depenetration) < 10.0f)
-					{
-						playerTransform->translation += depenetration;
-					}
-					else
-					{
-						Log("WARNING! Ignoring huge depenetration vector... something went wrong!\n");
-					}
+					playerTransform->translation += depenetration;
 				}
 			}
 		}
@@ -677,9 +707,44 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			player->vel = {};
 		}
 
-		gameState->camera.translation = playerTransform->translation;
-		gameState->camera.translation += QuaternionRotateVector(gameState->camera.rotation, v3{ 0, 0, 5 });
-		gameState->camera.scale = { 1, 1, 1 };
+		// Move camera
+		{
+			const f32 camRotSpeed = 4.0f;
+
+			f32 pitchDelta = 0;
+			f32 yawDelta = 0;
+
+			if (controller->camUp.endedDown)
+				pitchDelta =  camRotSpeed * deltaTime;
+			else if (controller->camDown.endedDown)
+				pitchDelta = -camRotSpeed * deltaTime;
+
+			if (controller->camLeft.endedDown)
+				yawDelta = -camRotSpeed * deltaTime;
+			else if (controller->camRight.endedDown)
+				yawDelta =  camRotSpeed * deltaTime;
+
+			const f32 deadzone = 0.2f;
+			if (Abs(controller->rightStick.x) > deadzone)
+				yawDelta =   controller->rightStick.x * camRotSpeed * deltaTime;
+			if (Abs(controller->rightStick.y) > deadzone)
+				pitchDelta = controller->rightStick.y * camRotSpeed * deltaTime;
+
+			gameState->camPos.z = playerTransform->translation.z + 3;
+			v3 local = gameState->camPos - playerTransform->translation;
+			local = QuaternionRotateVector(QuaternionFromEulerZYX(v3{0,0,yawDelta}), local);
+			gameState->camPos = local + playerTransform->translation;
+
+			// Look at
+			v3 dir = playerTransform->translation - gameState->camPos;
+			f32 targetYaw = Atan2(dir.x, dir.y);
+			gameState->camYaw = targetYaw;
+
+			// Follow
+			f32 dist = V2Length(dir.xy);
+			const f32 followMult = 3.0f;
+			gameState->camPos += v3{ dir.x, dir.y, 0 } * followMult * (dist - 3) * deltaTime;
+		}
 
 		// Update skinned meshes
 		for (u32 meshInstanceIdx = 0; meshInstanceIdx < gameState->skinnedMeshInstances.size;
@@ -921,7 +986,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		PickingResult pickingResult = PICKING_NOTHING;
 		{
 			v4 worldCursorPos = { controller->mousePos.x, controller->mousePos.y, -1, 1 };
-			mat4 invViewMatrix = Mat4Adjugate(gameState->viewMatrix);
+			mat4 invViewMatrix = gameState->invViewMatrix;
 			mat4 invProjMatrix = Mat4Inverse(gameState->projMatrix);
 			worldCursorPos = Mat4TransformV4(invProjMatrix, worldCursorPos);
 			worldCursorPos /= worldCursorPos.w;
@@ -960,9 +1025,9 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				Transform gizmoYT = gizmoZT;
 
 				gizmoXT.rotation = QuaternionMultiply(gizmoXT.rotation,
-						QuaternionFromEuler({ 0, HALFPI, 0 }));
+						QuaternionFromEulerZYX({ 0, HALFPI, 0 }));
 				gizmoYT.rotation = QuaternionMultiply(gizmoYT.rotation,
-						QuaternionFromEuler({ -HALFPI, 0, 0 }));
+						QuaternionFromEulerZYX({ -HALFPI, 0, 0 }));
 
 				v3 hit;
 				v3 hitNor;
@@ -1098,7 +1163,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					v3 euler = { rotatingX * theta, rotatingY * theta, rotatingZ * theta };
 
 					selectedEntity->rotation = QuaternionMultiply(selectedEntity->rotation,
-							QuaternionFromEuler(euler));
+							QuaternionFromEulerZYX(euler));
 				}
 			}
 
@@ -1175,7 +1240,16 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 		// View matrix
 		mat4 *view = &gameState->viewMatrix;
-		*view = Mat4Inverse(Mat4Compose(gameState->camera));
+		{
+			f32 yawSin = Sin(gameState->camYaw);
+			f32 yawCos = Cos(gameState->camYaw);
+			f32 pitchSin = Sin(gameState->camPitch);
+			f32 pitchCos = Cos(gameState->camPitch);
+			// NOTE: 0 yaw means looking towards +Y!
+			v3 camFw = { yawSin * pitchCos, yawCos * pitchCos, pitchSin };
+			gameState->invViewMatrix = Mat4ChangeOfBases(camFw, v3{0,0,1}, gameState->camPos);
+			*view = Mat4Inverse(gameState->invViewMatrix);
+		}
 
 		UseProgram(gameState->program);
 		DeviceUniform viewUniform = GetUniform(gameState->program, "view");
@@ -1311,7 +1385,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 				// Sort!
 				static v3 camPos;
-				camPos = gameState->camera.translation;
+				camPos = gameState->camPos;
 				auto compareParticles = [](const void *a, const void *b)
 				{
 					f32 aDist = V3SqrLen(((Particle *)a)->pos - camPos);
@@ -1505,14 +1579,14 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				RenderIndexedMesh(arrowRes->mesh.deviceMesh);
 				RenderIndexedMesh(circleRes->mesh.deviceMesh);
 
-				v4 xRot = QuaternionMultiply(rot, QuaternionFromEuler({ 0, HALFPI, 0 }));
+				v4 xRot = QuaternionMultiply(rot, QuaternionFromEulerZYX({ 0, HALFPI, 0 }));
 				gizmoModel = Mat4Compose(pos, xRot);
 				UniformMat4Array(modelUniform, 1, gizmoModel.m);
 				UniformV4(colorUniform, { 1, 0, 0, 1 });
 				RenderIndexedMesh(arrowRes->mesh.deviceMesh);
 				RenderIndexedMesh(circleRes->mesh.deviceMesh);
 
-				v4 yRot = QuaternionMultiply(rot, QuaternionFromEuler({ -HALFPI, 0, 0 }));
+				v4 yRot = QuaternionMultiply(rot, QuaternionFromEulerZYX({ -HALFPI, 0, 0 }));
 				gizmoModel = Mat4Compose(pos, yRot);
 				UniformMat4Array(modelUniform, 1, gizmoModel.m);
 				UniformV4(colorUniform, { 0, 1, 0, 1 });
