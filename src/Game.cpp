@@ -170,14 +170,6 @@ GAMEDLL START_GAME(StartGame)
 		LoadResource(RESOURCETYPE_COLLISIONMESH, "anvil_collision.b");
 		LoadResource(RESOURCETYPE_TEXTURE, "particle_atlas.b");
 
-		const Resource *texAlb = LoadResource(RESOURCETYPE_TEXTURE, "sparkus_albedo.b");
-		const Resource *texNor = LoadResource(RESOURCETYPE_TEXTURE, "sparkus_normal.b");
-		BindTexture(texAlb->texture.deviceTexture, 0);
-		BindTexture(texNor->texture.deviceTexture, 1);
-
-		LoadResource(RESOURCETYPE_TEXTURE, "grid.b");
-		LoadResource(RESOURCETYPE_TEXTURE, "normal_plain.b");
-
 		LoadResource(RESOURCETYPE_MATERIAL, "material_default.b");
 		LoadResource(RESOURCETYPE_MATERIAL, "material_default_skinned.b");
 
@@ -421,6 +413,9 @@ GAMEDLL START_GAME(StartGame)
 		skinnedMeshInstance->animationIdx = 0;
 		skinnedMeshInstance->animationTime = 0;
 		EntityAssignSkinnedMesh(gameState, testEntityHandle, skinnedMeshInstance);
+
+		gameState->jumper = {};
+		gameState->jumper.entityHandle = testEntityHandle;
 	}
 }
 
@@ -783,6 +778,44 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			f32 dist = V2Length(dir.xy);
 			const f32 followMult = 3.0f;
 			gameState->camPos += v3{ dir.x, dir.y, 0 } * followMult * (dist - 3) * deltaTime;
+		}
+
+		// Update enemies
+		{
+			Transform *jumper = GetEntityTransform(gameState, gameState->jumper.entityHandle);
+			if (gameState->jumper.state == JUMPERSTATE_IDLE)
+			{
+				f32 dist = V3Length(playerTransform->translation - jumper->translation);
+				if (dist < 5.0f)
+				{
+					gameState->jumper.target = gameState->player.entityHandle;
+					gameState->jumper.state = JUMPERSTATE_CHASING;
+				}
+			}
+			else if (gameState->jumper.state == JUMPERSTATE_CHASING)
+			{
+				f32 dist = INFINITY;
+				v3 dir;
+
+				Transform *target = GetEntityTransform(gameState, gameState->jumper.target);
+				if (target)
+				{
+					dir = target->translation - jumper->translation;
+					dist = V3Length(dir);
+				}
+
+				if (dist > 7.0f)
+				{
+					gameState->jumper.target = ENTITY_HANDLE_INVALID;
+					gameState->jumper.state = JUMPERSTATE_IDLE;
+				}
+				else
+				{
+					dir /= dist;
+					jumper->translation += dir * 3.0f * deltaTime;
+					jumper->rotation = QuaternionFromAxisAngle(v3{0,0,1}, -Atan2(dir.x, dir.y));
+				}
+			}
 		}
 
 		// Update skinned meshes

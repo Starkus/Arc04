@@ -73,17 +73,23 @@ Resource *CreateResource(const char *filename)
 
 const Resource *LoadResource(ResourceType type, const char *filename) @PlatformProc
 {
+	void *oldStackPtr = g_memory->stackPtr;
+
 	Resource *newResource = CreateResource(filename);
+
+	char fullname[PATH_MAX];
+	sprintf(fullname, "data/%s", filename);
 
 	u8 *fileBuffer;
 	u64 fileSize;
-	int error = LinuxReadEntireFile(filename, &fileBuffer, &fileSize, FrameAlloc);
-	if (error != 0)
-		return nullptr;
+	int error = LinuxReadEntireFile(fullname, &fileBuffer, &fileSize, StackAlloc);
+	if (error == 0)
+	{
+		newResource->type = type;
+		g_gameCode->GameResourcePostLoad(newResource, fileBuffer, true);
+	}
 
-	newResource->type = type;
-	g_gameCode->GameResourcePostLoad(newResource, fileBuffer, true);
-
+	StackFree(oldStackPtr);
 	return newResource;
 }
 

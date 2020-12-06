@@ -40,6 +40,19 @@ struct Player
 	f32 speed;
 };
 
+enum JumperState
+{
+	JUMPERSTATE_IDLE,
+	JUMPERSTATE_CHASING
+};
+
+struct Jumper
+{
+	EntityHandle entityHandle;
+	JumperState state;
+	EntityHandle target = ENTITY_HANDLE_INVALID;
+};
+
 #if DEBUG_BUILD
 struct DebugCube
 {
@@ -132,6 +145,8 @@ struct GameState
 
 	LevelGeometry levelGeometry;
 	Player player;
+
+	Jumper jumper;
 
 	Array_Transform transforms;
 	Array_MeshInstance meshInstances;
