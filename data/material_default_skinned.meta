@@ -1,0 +1,5 @@
+<meta type="MATERIAL">
+  <shader>shaders/shader_skinned.b</shader>
+  <texture>grid.b</texture>
+  <texture>normal_plain.b</texture>
+</meta>

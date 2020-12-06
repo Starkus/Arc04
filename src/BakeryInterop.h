@@ -4,6 +4,7 @@ struct BakeryMeshHeader
 	u32 indexCount;
 	u64 vertexBlobOffset;
 	u64 indexBlobOffset;
+	u64 materialNameOffset;
 };
 
 struct BakerySkinnedMeshHeader
@@ -20,6 +21,8 @@ struct BakerySkinnedMeshHeader
 
 	u32 animationCount;
 	u64 animationBlobOffset;
+
+	u64 materialNameOffset;
 };
 
 struct BakerySkinnedMeshAnimationHeader
@@ -70,4 +73,18 @@ struct BakeryImageHeader
 	u32 height;
 	u32 components;
 	u64 dataBlobOffset;
+};
+
+struct BakeryMaterialHeader
+{
+	u32 textureCount;
+	u64 shaderNameOffset;
+	u64 textureNamesOffset;
+};
+
+struct RawBakeryMaterial
+{
+	const char *shaderFilename;
+	u8 textureCount;
+	const char *textureFilenames[8];
 };

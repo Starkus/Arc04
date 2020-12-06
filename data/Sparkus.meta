@@ -7,4 +7,5 @@
   <animation>SparkusLand.dae</animation>
   <animation>SparkusFall.dae</animation>
   <animation>SparkusPulseattack.dae</animation>
+  <material>material_sparkus.b</material>
 </meta>

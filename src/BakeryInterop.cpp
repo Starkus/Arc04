@@ -1,6 +1,7 @@
 #include "BakeryInterop.h"
 
-void ReadMesh(const u8 *fileBuffer, Vertex **vertexData, u16 **indexData, u32 *vertexCount, u32 *indexCount)
+void ReadMesh(const u8 *fileBuffer, Vertex **vertexData, u16 **indexData, u32 *vertexCount,
+		u32 *indexCount, const char **materialFilename)
 {
 	BakeryMeshHeader *header = (BakeryMeshHeader *)fileBuffer;
 
@@ -9,6 +10,8 @@ void ReadMesh(const u8 *fileBuffer, Vertex **vertexData, u16 **indexData, u32 *v
 
 	*vertexData = (Vertex *)(fileBuffer + header->vertexBlobOffset);
 	*indexData = (u16 *)(fileBuffer + header->indexBlobOffset);
+
+	*materialFilename = (const char *)(fileBuffer + header->materialNameOffset);
 }
 
 void ReadBakeryShader(const u8 *fileBuffer, const char **vertexShader, const char **fragmentShader)
@@ -19,7 +22,7 @@ void ReadBakeryShader(const u8 *fileBuffer, const char **vertexShader, const cha
 }
 
 void ReadSkinnedMesh(const u8 *fileBuffer, ResourceSkinnedMesh *skinnedMesh, SkinnedVertex **vertexData,
-		u16 **indexData, u32 *vertexCount, u32 *indexCount)
+		u16 **indexData, u32 *vertexCount, u32 *indexCount, const char **materialFilename)
 {
 	BakerySkinnedMeshHeader *header = (BakerySkinnedMeshHeader *)fileBuffer;
 
@@ -96,6 +99,8 @@ void ReadSkinnedMesh(const u8 *fileBuffer, ResourceSkinnedMesh *skinnedMesh, Ski
 			channel->transforms = transforms;
 		}
 	}
+
+	*materialFilename = (const char *)(fileBuffer + header->materialNameOffset);
 }
 
 void ReadTriangleGeometry(const u8 *fileBuffer, ResourceGeometryGrid *geometryGrid)
@@ -137,7 +142,7 @@ void ReadCollisionMesh(const u8 *fileBuffer, ResourceCollisionMesh *collisionMes
 	memcpy(collisionMesh->triangleData, fileBuffer + header->trianglesBlobOffset, trianglesBlobSize);
 }
 
-void ReadImage(const u8* fileBuffer, const u8 **imageData, u32 *width, u32 *height, u32 *components)
+void ReadImage(const u8 *fileBuffer, const u8 **imageData, u32 *width, u32 *height, u32 *components)
 {
 	BakeryImageHeader *header = (BakeryImageHeader *)fileBuffer;
 
@@ -145,4 +150,18 @@ void ReadImage(const u8* fileBuffer, const u8 **imageData, u32 *width, u32 *heig
 	*height = header->height;
 	*components = header->components;
 	*imageData = fileBuffer + header->dataBlobOffset;
+}
+
+void ReadMaterial(const u8 *fileBuffer, RawBakeryMaterial *rawMaterial)
+{
+	BakeryMaterialHeader *header = (BakeryMaterialHeader *)fileBuffer;
+	rawMaterial->shaderFilename = (const char *)fileBuffer + header->shaderNameOffset;
+	rawMaterial->textureCount = (u8)header->textureCount;
+
+	const char *currentTexName = (const char *)fileBuffer + header->textureNamesOffset;
+	for (u8 texIdx = 0; texIdx < header->textureCount; ++texIdx)
+	{
+		rawMaterial->textureFilenames[texIdx] = currentTexName;
+		currentTexName += strlen(currentTexName) + 1;
+	}
 }

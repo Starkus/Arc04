@@ -338,6 +338,47 @@ ErrorCode ProcessMetaFile(const char *filename, const char *fullDataDir)
 		PlatformCloseFile(file);
 		stbi_image_free(imageData);
 	} break;
+	case METATYPE_MATERIAL:
+	{
+		char outputName[MAX_PATH];
+		GetOutputFilename(filename, outputName);
+
+		RawBakeryMaterial rawMaterial = {};
+
+		XMLElement *shaderEl = rootEl->FirstChildElement("shader");
+		rawMaterial.shaderFilename = shaderEl->FirstChild()->ToText()->Value();
+		Log("Shader: %s\n", rawMaterial.shaderFilename);
+
+		XMLElement *textureEl = rootEl->FirstChildElement("texture");
+		while (textureEl)
+		{
+			const char *textureFilename = textureEl->FirstChild()->ToText()->Value();
+			rawMaterial.textureFilenames[rawMaterial.textureCount++] = textureFilename;
+			textureEl = textureEl->NextSiblingElement("texture");
+			Log("Texture: %s\n", textureFilename);
+		}
+
+		FileHandle file = PlatformOpenForWrite(outputName);
+
+		BakeryMaterialHeader header;
+		header.textureCount = rawMaterial.textureCount;
+		PlatformFileSeek(file, sizeof(header), SEEK_SET);
+
+		header.shaderNameOffset = FilePosition(file);
+		PlatformWriteToFile(file, rawMaterial.shaderFilename, strlen(rawMaterial.shaderFilename) + 1);
+
+		header.textureNamesOffset = FilePosition(file);
+		for (u32 texIdx = 0; texIdx < rawMaterial.textureCount; ++texIdx)
+		{
+			PlatformWriteToFile(file, rawMaterial.textureFilenames[texIdx],
+					strlen(rawMaterial.textureFilenames[texIdx]) + 1);
+		}
+
+		PlatformFileSeek(file, 0, SEEK_SET);
+		PlatformWriteToFile(file, &header, sizeof(header));
+
+		PlatformCloseFile(file);
+	} break;
 	default:
 	{
 		return ERROR_META_WRONG_TYPE;

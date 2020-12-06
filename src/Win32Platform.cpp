@@ -84,16 +84,22 @@ void GetWindowSize(u32 *width, u32 *height) @PlatformProc
 Resource *CreateResource(const char *filename);
 const Resource *LoadResource(ResourceType type, const char *filename) @PlatformProc
 {
+	void *oldStackPtr = g_memory->stackPtr;
+
+	char fullname[MAX_PATH];
+	sprintf(fullname, "data/%s", filename);
 	Resource *newResource = CreateResource(filename);
 
 	u8 *fileBuffer;
 	DWORD fileSize;
-	DWORD error = Win32ReadEntireFile(filename, &fileBuffer, &fileSize, FrameAlloc);
-	if (error != ERROR_SUCCESS)
-		return nullptr;
+	DWORD error = Win32ReadEntireFile(fullname, &fileBuffer, &fileSize, StackAlloc);
+	if (error == ERROR_SUCCESS)
+	{
+		newResource->type = type;
+		g_gameCode.GameResourcePostLoad(newResource, fileBuffer, true);
+	}
 
-	newResource->type = type;
-	g_gameCode.GameResourcePostLoad(newResource, fileBuffer, true);
+	StackFree(oldStackPtr);
 
 	return newResource;
 }

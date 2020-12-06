@@ -850,6 +850,11 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 		DynamicArray_RawVertex finalVertices = {};
 		DynamicArray_u16 finalIndices = {};
 
+		const char *materialFile = nullptr;
+		XMLElement *materialEl = rootEl->FirstChildElement("material");
+		if (materialEl)
+			materialFile = materialEl->FirstChild()->ToText()->Value();
+
 		XMLElement *sceneEl = rootEl->FirstChildElement("scene");
 		if (sceneEl)
 		{
@@ -901,13 +906,14 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 		}
 
 		// Output
-		error = OutputMesh(outputName, finalVertices, finalIndices);
+		error = OutputMesh(outputName, finalVertices, finalIndices, materialFile);
 		if (error != ERROR_OK)
 			return error;
 	} break;
 	case METATYPE_SKINNED_MESH:
 	{
 		RawGeometry rawGeometry;
+		const char *materialFile = nullptr;
 		{
 			XMLElement *geometryEl = rootEl->FirstChildElement("geometry");
 			if (!geometryEl)
@@ -915,6 +921,10 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 				Log("ERROR! No geometries specified on mesh meta!\n");
 				return ERROR_META_MISSING_MESH;
 			}
+
+			XMLElement *materialEl = rootEl->FirstChildElement("material");
+			if (materialEl)
+				materialFile = materialEl->FirstChild()->ToText()->Value();
 
 			const char *geomFile = geometryEl->FirstChild()->ToText()->Value();
 
@@ -1006,7 +1016,7 @@ ErrorCode ProcessMetaFileCollada(MetaType type, XMLElement *rootEl, const char *
 			return error;
 
 		// Output
-		error = OutputSkinnedMesh(outputName, finalVertices, finalIndices, skeleton, animations);
+		error = OutputSkinnedMesh(outputName, finalVertices, finalIndices, skeleton, animations, materialFile);
 		if (error != ERROR_OK)
 			return error;
 	} break;

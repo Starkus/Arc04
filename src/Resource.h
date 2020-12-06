@@ -5,17 +5,22 @@ enum ResourceType
 	RESOURCETYPE_LEVELGEOMETRYGRID,
 	RESOURCETYPE_COLLISIONMESH,
 	RESOURCETYPE_SHADER,
-	RESOURCETYPE_TEXTURE
+	RESOURCETYPE_TEXTURE,
+	RESOURCETYPE_MATERIAL
 };
+
+struct Resource;
 
 struct ResourceMesh
 {
 	DeviceMesh deviceMesh;
+	const Resource *materialRes;
 };
 
 struct ResourceSkinnedMesh
 {
 	DeviceMesh deviceMesh;
+	const Resource *materialRes;
 	u8 jointCount;
 	Transform *bindPoses;
 	u8 *jointParents;
@@ -56,6 +61,13 @@ struct ResourceTexture
 	DeviceTexture deviceTexture;
 };
 
+struct ResourceMaterial
+{
+	const Resource *shaderRes;
+	u8 textureCount;
+	const Resource *textures[8];
+};
+
 struct Resource
 {
 	ResourceType type;
@@ -68,5 +80,6 @@ struct Resource
 		ResourceCollisionMesh collisionMesh;
 		ResourceShader shader;
 		ResourceTexture texture;
+		ResourceMaterial material;
 	};
 };

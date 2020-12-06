@@ -1,3 +1,4 @@
 <meta type="MESH">
   <geometry>anvil.dae</geometry>
+  <material>important_material.b</material>
 </meta>

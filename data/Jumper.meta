@@ -2,4 +2,5 @@
   <geometry>Jumper.dae</geometry>
   <controller>Jumper.dae</controller>
   <animation loop="1">Jumper.dae</animation>
+  <material>material_jumper.b</material>
 </meta>

@@ -112,6 +112,11 @@ GAMEDLL GAME_RESOURCE_POST_LOAD(GameResourcePostLoad)
 		ResourceLoadShader(resource, fileBuffer, initialize);
 		return true;
 	} break;
+	case RESOURCETYPE_MATERIAL:
+	{
+		ResourceLoadMaterial(resource, fileBuffer, initialize);
+		return true;
+	} break;
 	}
 	return false;
 }
@@ -153,31 +158,34 @@ GAMEDLL START_GAME(StartGame)
 					gameState->frameBufferDepthTex);
 		}
 
-		LoadResource(RESOURCETYPE_MESH, "data/anvil.b");
-		LoadResource(RESOURCETYPE_MESH, "data/cube.b");
-		LoadResource(RESOURCETYPE_MESH, "data/sphere.b");
-		LoadResource(RESOURCETYPE_MESH, "data/cylinder.b");
-		LoadResource(RESOURCETYPE_MESH, "data/capsule.b");
-		LoadResource(RESOURCETYPE_MESH, "data/level_graphics.b");
-		LoadResource(RESOURCETYPE_SKINNEDMESH, "data/Sparkus.b");
-		LoadResource(RESOURCETYPE_SKINNEDMESH, "data/Jumper.b");
-		LoadResource(RESOURCETYPE_LEVELGEOMETRYGRID, "data/level.b");
-		LoadResource(RESOURCETYPE_COLLISIONMESH, "data/anvil_collision.b");
-		LoadResource(RESOURCETYPE_TEXTURE, "data/particle_atlas.b");
+		LoadResource(RESOURCETYPE_MESH, "anvil.b");
+		LoadResource(RESOURCETYPE_MESH, "cube.b");
+		LoadResource(RESOURCETYPE_MESH, "sphere.b");
+		LoadResource(RESOURCETYPE_MESH, "cylinder.b");
+		LoadResource(RESOURCETYPE_MESH, "capsule.b");
+		LoadResource(RESOURCETYPE_MESH, "level_graphics.b");
+		LoadResource(RESOURCETYPE_SKINNEDMESH, "Sparkus.b");
+		LoadResource(RESOURCETYPE_SKINNEDMESH, "Jumper.b");
+		LoadResource(RESOURCETYPE_LEVELGEOMETRYGRID, "level.b");
+		LoadResource(RESOURCETYPE_COLLISIONMESH, "anvil_collision.b");
+		LoadResource(RESOURCETYPE_TEXTURE, "particle_atlas.b");
 
-		const Resource *texAlb = LoadResource(RESOURCETYPE_TEXTURE, "data/sparkus_albedo.b");
-		const Resource *texNor = LoadResource(RESOURCETYPE_TEXTURE, "data/sparkus_normal.b");
+		const Resource *texAlb = LoadResource(RESOURCETYPE_TEXTURE, "sparkus_albedo.b");
+		const Resource *texNor = LoadResource(RESOURCETYPE_TEXTURE, "sparkus_normal.b");
 		BindTexture(texAlb->texture.deviceTexture, 0);
 		BindTexture(texNor->texture.deviceTexture, 1);
 
-		LoadResource(RESOURCETYPE_TEXTURE, "data/grid.b");
-		LoadResource(RESOURCETYPE_TEXTURE, "data/normal_plain.b");
+		LoadResource(RESOURCETYPE_TEXTURE, "grid.b");
+		LoadResource(RESOURCETYPE_TEXTURE, "normal_plain.b");
+
+		LoadResource(RESOURCETYPE_MATERIAL, "material_default.b");
+		LoadResource(RESOURCETYPE_MATERIAL, "material_default_skinned.b");
 
 #if EDITOR_PRESENT
-		LoadResource(RESOURCETYPE_MESH, "data/editor_arrow.b");
-		LoadResource(RESOURCETYPE_COLLISIONMESH, "data/editor_arrow_collision.b");
-		LoadResource(RESOURCETYPE_MESH, "data/editor_circle.b");
-		LoadResource(RESOURCETYPE_COLLISIONMESH, "data/editor_circle_collision.b");
+		LoadResource(RESOURCETYPE_MESH, "editor_arrow.b");
+		LoadResource(RESOURCETYPE_COLLISIONMESH, "editor_arrow_collision.b");
+		LoadResource(RESOURCETYPE_MESH, "editor_circle.b");
+		LoadResource(RESOURCETYPE_COLLISIONMESH, "editor_circle_collision.b");
 #endif
 
 #if DEBUG_BUILD
@@ -206,7 +214,8 @@ GAMEDLL START_GAME(StartGame)
 			u16 *indexData;
 			u32 vertexCount;
 			u32 indexCount;
-			ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount);
+			const char *materialName;
+			ReadMesh(fileBuffer, &vertexData, &indexData, &vertexCount, &indexCount, &materialName);
 
 			// Keep only positions
 			v3 *positionBuffer = (v3 *)FrameAlloc(sizeof(v3) * vertexCount);
@@ -223,31 +232,31 @@ GAMEDLL START_GAME(StartGame)
 #endif
 
 		// Shaders
-		const Resource *shaderRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_general.b");
+		const Resource *shaderRes = LoadResource(RESOURCETYPE_SHADER, "shaders/shader_general.b");
 		gameState->program = shaderRes->shader.programHandle;
 
-		const Resource *shaderSkinnedRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_skinned.b");
+		const Resource *shaderSkinnedRes = LoadResource(RESOURCETYPE_SHADER, "shaders/shader_skinned.b");
 		gameState->skinnedMeshProgram = shaderSkinnedRes->shader.programHandle;
 
-		const Resource *shaderParticleRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_particles.b");
+		const Resource *shaderParticleRes = LoadResource(RESOURCETYPE_SHADER, "shaders/shader_particles.b");
 		gameState->particleSystemProgram = shaderParticleRes->shader.programHandle;
 
-		const Resource *shaderFrameBufferRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_framebuffer.b");
+		const Resource *shaderFrameBufferRes = LoadResource(RESOURCETYPE_SHADER, "shaders/shader_framebuffer.b");
 		gameState->frameBufferProgram = shaderFrameBufferRes->shader.programHandle;
 
 #if DEBUG_BUILD
-		const Resource *shaderDebugRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_debug.b");
+		const Resource *shaderDebugRes = LoadResource(RESOURCETYPE_SHADER, "shaders/shader_debug.b");
 		g_debugContext->debugDrawProgram = shaderDebugRes->shader.programHandle;
 
-		const Resource *shaderDebugCubesRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_debug_cubes.b");
+		const Resource *shaderDebugCubesRes = LoadResource(RESOURCETYPE_SHADER, "shaders/shader_debug_cubes.b");
 		g_debugContext->debugCubesProgram = shaderDebugCubesRes->shader.programHandle;
 #endif
 
 #if EDITOR_PRESENT
-		const Resource *shaderEditorSelectedRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_editor_selected.b");
+		const Resource *shaderEditorSelectedRes = LoadResource(RESOURCETYPE_SHADER, "shaders/shader_editor_selected.b");
 		g_debugContext->editorSelectedProgram = shaderEditorSelectedRes->shader.programHandle;
 
-		const Resource *shaderEditorGizmoRes = LoadResource(RESOURCETYPE_SHADER, "data/shaders/shader_editor_gizmo.b");
+		const Resource *shaderEditorGizmoRes = LoadResource(RESOURCETYPE_SHADER, "shaders/shader_editor_gizmo.b");
 		g_debugContext->editorGizmoProgram = shaderEditorGizmoRes->shader.programHandle;
 #endif
 	}
@@ -265,10 +274,10 @@ GAMEDLL START_GAME(StartGame)
 
 	// Init level
 	{
-		const Resource *levelGraphicsRes = GetResource("data/level_graphics.b");
+		const Resource *levelGraphicsRes = GetResource("level_graphics.b");
 		gameState->levelGeometry.renderMesh = levelGraphicsRes;
 
-		const Resource *levelCollisionRes = GetResource("data/level.b");
+		const Resource *levelCollisionRes = GetResource("level.b");
 		gameState->levelGeometry.geometryGrid = levelCollisionRes;
 	}
 
@@ -290,7 +299,7 @@ GAMEDLL START_GAME(StartGame)
 
 		SkinnedMeshInstance *skinnedMeshInstance =
 			ArrayAdd_SkinnedMeshInstance(&gameState->skinnedMeshInstances);
-		skinnedMeshInstance->meshRes = GetResource("data/Sparkus.b");
+		skinnedMeshInstance->meshRes = GetResource("Sparkus.b");
 		skinnedMeshInstance->animationIdx = PLAYERANIM_IDLE;
 		skinnedMeshInstance->animationTime = 0;
 		EntityAssignSkinnedMesh(gameState, playerEntityHandle, skinnedMeshInstance);
@@ -306,14 +315,14 @@ GAMEDLL START_GAME(StartGame)
 
 	// Test entities
 	{
-		const Resource *anvilRes = GetResource("data/anvil.b");
+		const Resource *anvilRes = GetResource("anvil.b");
 		MeshInstance anvilMesh;
 		anvilMesh.meshRes = anvilRes;
 
 		Collider anvilCollider;
 		anvilCollider.type = COLLIDER_CONVEX_HULL;
 
-		const Resource *collMeshRes = GetResource("data/anvil_collision.b");
+		const Resource *collMeshRes = GetResource("anvil_collision.b");
 		anvilCollider.convexHull.meshRes = collMeshRes;
 
 		Transform *transform;
@@ -357,7 +366,7 @@ GAMEDLL START_GAME(StartGame)
 		*collider = anvilCollider;
 		EntityAssignCollider(gameState, testEntityHandle, collider);
 
-		const Resource *sphereRes = GetResource("data/sphere.b");
+		const Resource *sphereRes = GetResource("sphere.b");
 		testEntityHandle = AddEntity(gameState, &transform);
 		transform->translation = { -6.0f, 7.0f, 1.0f };
 		transform->rotation = QUATERNION_IDENTITY;
@@ -370,7 +379,7 @@ GAMEDLL START_GAME(StartGame)
 		collider->sphere.offset = {};
 		EntityAssignCollider(gameState, testEntityHandle, collider);
 
-		const Resource *cylinderRes = GetResource("data/cylinder.b");
+		const Resource *cylinderRes = GetResource("cylinder.b");
 		testEntityHandle = AddEntity(gameState, &transform);
 		transform->translation = { -3.0f, 7.0f, 1.0f };
 		transform->rotation = QUATERNION_IDENTITY;
@@ -384,7 +393,7 @@ GAMEDLL START_GAME(StartGame)
 		collider->cylinder.offset = {};
 		EntityAssignCollider(gameState, testEntityHandle, collider);
 
-		const Resource *capsuleRes = GetResource("data/capsule.b");
+		const Resource *capsuleRes = GetResource("capsule.b");
 		testEntityHandle = AddEntity(gameState, &transform);
 		transform->translation = { 0.0f, 7.0f, 2.0f };
 		transform->rotation = QUATERNION_IDENTITY;
@@ -408,7 +417,7 @@ GAMEDLL START_GAME(StartGame)
 		EntityAssignCollider(gameState, testEntityHandle, collider);
 		SkinnedMeshInstance *skinnedMeshInstance =
 			ArrayAdd_SkinnedMeshInstance(&gameState->skinnedMeshInstances);
-		skinnedMeshInstance->meshRes = GetResource("data/Jumper.b");
+		skinnedMeshInstance->meshRes = GetResource("Jumper.b");
 		skinnedMeshInstance->animationIdx = 0;
 		skinnedMeshInstance->animationTime = 0;
 		EntityAssignSkinnedMesh(gameState, testEntityHandle, skinnedMeshInstance);
@@ -445,6 +454,33 @@ void ChangeState(GameState *gameState, PlayerState newState, PlayerAnim newAnim)
 	}
 
 	gameState->player.state = newState;
+}
+
+DeviceProgram BindMaterial(GameState *gameState, const Resource *materialRes, const mat4 *modelMatrix)
+{
+	const Resource *shaderRes = materialRes->material.shaderRes;
+
+	DeviceProgram programHandle = shaderRes->shader.programHandle;
+	UseProgram(programHandle);
+	DeviceUniform viewUniform = GetUniform(programHandle, "view");
+	DeviceUniform projUniform = GetUniform(programHandle, "projection");
+	DeviceUniform modelUniform = GetUniform(programHandle, "model");
+	DeviceUniform albedoUniform = GetUniform(programHandle, "texAlbedo");
+	DeviceUniform normalUniform = GetUniform(programHandle, "texNormal");
+
+	UniformMat4Array(viewUniform, 1, gameState->viewMatrix.m);
+	UniformMat4Array(projUniform, 1, gameState->projMatrix.m);
+	UniformMat4Array(modelUniform, 1, modelMatrix->m);
+	UniformInt(albedoUniform, 0);
+	UniformInt(normalUniform, 1);
+
+	for (int i = 0; i < materialRes->material.textureCount; ++i)
+	{
+		const Resource *tex = materialRes->material.textures[i];
+		BindTexture(tex->texture.deviceTexture, i);
+	}
+
+	return programHandle;
 }
 
 GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
@@ -1020,7 +1056,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			{
 				Collider gizmoCollider = {};
 				gizmoCollider.type = COLLIDER_CONVEX_HULL;
-				gizmoCollider.convexHull.meshRes = GetResource("data/editor_arrow_collision.b");
+				gizmoCollider.convexHull.meshRes = GetResource("editor_arrow_collision.b");
 
 				Transform gizmoZT = *selectedEntity;
 				Transform gizmoXT = gizmoZT;
@@ -1059,7 +1095,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				}
 
 				gizmoCollider.type = COLLIDER_CONVEX_HULL;
-				gizmoCollider.convexHull.meshRes = GetResource("data/editor_circle_collision.b");
+				gizmoCollider.convexHull.meshRes = GetResource("editor_circle_collision.b");
 
 				if (RayColliderIntersection(origin, dir, true, &gizmoXT, &gizmoCollider, &hit, &hitNor))
 				{
@@ -1253,29 +1289,11 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			*view = Mat4Inverse(gameState->invViewMatrix);
 		}
 
-		UseProgram(gameState->program);
-		DeviceUniform viewUniform = GetUniform(gameState->program, "view");
-		UniformMat4Array(viewUniform, 1, view->m);
-		DeviceUniform projUniform = GetUniform(gameState->program, "projection");
-		UniformMat4Array(projUniform, 1, proj->m);
-
-		DeviceUniform albedoUniform = GetUniform(gameState->program, "texAlbedo");
-		UniformInt(albedoUniform, 0);
-		DeviceUniform normalUniform = GetUniform(gameState->program, "texNormal");
-		UniformInt(normalUniform, 1);
-
-		DeviceUniform modelUniform = GetUniform(gameState->program, "model");
-
 		const v4 clearColor = { 0.95f, 0.88f, 0.05f, 1.0f };
 		ClearColorBuffer(clearColor);
 		ClearDepthBuffer();
 
-		const Resource *texAlb = GetResource("data/grid.b");
-		const Resource *texNor = GetResource("data/normal_plain.b");
-		BindTexture(texAlb->texture.deviceTexture, 0);
-		BindTexture(texNor->texture.deviceTexture, 1);
-
-		// Entity
+		// Meshes
 		for (u32 meshInstanceIdx = 0; meshInstanceIdx < gameState->meshInstances.size;
 				++meshInstanceIdx)
 		{
@@ -1290,7 +1308,18 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				Transform *transform = GetEntityTransform(gameState, meshInstance->entityHandle);
 
 				const mat4 model = Mat4Compose(transform->translation, transform->rotation);
-				UniformMat4Array(modelUniform, 1, model.m);
+
+				// @Improve: don't rebind program, textures and all for every mesh! Maybe sort by
+				// material.
+				const Resource *materialRes = meshRes->mesh.materialRes;
+#if DEBUG_BUILD
+				if (!materialRes)
+				{
+					materialRes = GetResource("material_default.b");
+				}
+#endif
+
+				BindMaterial(gameState, materialRes, &model);
 
 				RenderIndexedMesh(meshRes->mesh.deviceMesh);
 			}
@@ -1300,33 +1329,20 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		{
 			LevelGeometry *level = &gameState->levelGeometry;
 
-			UniformMat4Array(modelUniform, 1, MAT4_IDENTITY.m);
+			const Resource *materialRes = level->renderMesh->mesh.materialRes;
+#if DEBUG_BUILD
+			if (!materialRes)
+			{
+				materialRes = GetResource("material_default.b");
+			}
+#endif
+			BindMaterial(gameState, materialRes, &MAT4_IDENTITY);
+
 			RenderIndexedMesh(level->renderMesh->mesh.deviceMesh);
 		}
 
 		// Draw skinned meshes
 		{
-			UseProgram(gameState->skinnedMeshProgram);
-			viewUniform = GetUniform(gameState->skinnedMeshProgram, "view");
-			modelUniform = GetUniform(gameState->skinnedMeshProgram, "model");
-			projUniform = GetUniform(gameState->skinnedMeshProgram, "projection");
-			UniformMat4Array(projUniform, 1, proj->m);
-
-			const Resource *sparkusAlb = GetResource("data/sparkus_albedo.b");
-			const Resource *sparkusNor = GetResource("data/sparkus_normal.b");
-			BindTexture(sparkusAlb->texture.deviceTexture, 0);
-			BindTexture(sparkusNor->texture.deviceTexture, 1);
-
-			albedoUniform = GetUniform(gameState->skinnedMeshProgram, "texAlbedo");
-			UniformInt(albedoUniform, 0);
-			normalUniform = GetUniform(gameState->skinnedMeshProgram, "texNormal");
-			UniformInt(normalUniform, 1);
-
-			DeviceUniform jointTranslationsUniform = GetUniform(gameState->skinnedMeshProgram, "jointTranslations");
-			DeviceUniform jointRotationsUniform = GetUniform(gameState->skinnedMeshProgram, "jointRotations");
-			DeviceUniform jointScalesUniform = GetUniform(gameState->skinnedMeshProgram, "jointScales");
-			UniformMat4Array(viewUniform, 1, view->m);
-
 			for (u32 meshInstanceIdx = 0; meshInstanceIdx < gameState->skinnedMeshInstances.size;
 					++meshInstanceIdx)
 			{
@@ -1342,7 +1358,21 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 				Transform *transform = GetEntityTransform(gameState, skinnedMeshInstance->entityHandle);
 				const mat4 model = Mat4Compose(transform->translation, transform->rotation);
-				UniformMat4Array(modelUniform, 1, model.m);
+
+				// @Improve: don't rebind program, textures and all for every mesh! Maybe sort by
+				// material.
+				const Resource *materialRes = skinnedMesh->materialRes;
+#if DEBUG_BUILD
+				if (!materialRes)
+				{
+					materialRes = GetResource("material_default_skinned.b");
+				}
+#endif
+				DeviceProgram program = BindMaterial(gameState, materialRes, &model);
+
+				DeviceUniform jointTranslationsUniform = GetUniform(program, "jointTranslations");
+				DeviceUniform jointRotationsUniform = GetUniform(program, "jointRotations");
+				DeviceUniform jointScalesUniform = GetUniform(program, "jointScales");
 
 				UniformV3Array(jointTranslationsUniform, 128, skinnedMeshInstance->jointTranslations[0].v);
 				UniformV4Array(jointRotationsUniform, 128, skinnedMeshInstance->jointRotations[0].v);
@@ -1355,8 +1385,8 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		// Draw particles
 		{
 			UseProgram(gameState->particleSystemProgram);
-			viewUniform = GetUniform(gameState->particleSystemProgram, "view");
-			projUniform = GetUniform(gameState->particleSystemProgram, "projection");
+			DeviceUniform viewUniform = GetUniform(gameState->particleSystemProgram, "view");
+			DeviceUniform projUniform = GetUniform(gameState->particleSystemProgram, "projection");
 			UniformMat4Array(projUniform, 1, proj->m);
 			UniformMat4Array(viewUniform, 1, view->m);
 
@@ -1367,7 +1397,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 			DeviceUniform atlasIdxUniform = GetUniform(gameState->particleSystemProgram, "atlasIdx");
 
-			const Resource *tex = GetResource("data/particle_atlas.b");
+			const Resource *tex = GetResource("particle_atlas.b");
 			BindTexture(tex->texture.deviceTexture, 0);
 			BindTexture(gameState->frameBufferDepthTex, 1);
 
@@ -1421,8 +1451,8 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			DisableDepthTest();
 
 			UseProgram(g_debugContext->debugDrawProgram);
-			viewUniform = GetUniform(g_debugContext->debugDrawProgram, "view");
-			projUniform = GetUniform(g_debugContext->debugDrawProgram, "projection");
+			DeviceUniform viewUniform = GetUniform(g_debugContext->debugDrawProgram, "view");
+			DeviceUniform projUniform = GetUniform(g_debugContext->debugDrawProgram, "projection");
 			UniformMat4Array(projUniform, 1, proj->m);
 			UniformMat4Array(viewUniform, 1, view->m);
 
@@ -1472,11 +1502,11 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			SetFillMode(RENDER_LINE);
 
 			UseProgram(g_debugContext->editorSelectedProgram);
-			viewUniform = GetUniform(g_debugContext->editorSelectedProgram, "view");
+			DeviceUniform viewUniform = GetUniform(g_debugContext->editorSelectedProgram, "view");
 			UniformMat4Array(viewUniform, 1, view->m);
-			projUniform = GetUniform(g_debugContext->editorSelectedProgram, "projection");
+			DeviceUniform projUniform = GetUniform(g_debugContext->editorSelectedProgram, "projection");
 			UniformMat4Array(projUniform, 1, proj->m);
-			modelUniform = GetUniform(g_debugContext->editorSelectedProgram, "model");
+			DeviceUniform modelUniform = GetUniform(g_debugContext->editorSelectedProgram, "model");
 
 			DeviceUniform isSkinnedUniform = GetUniform(g_debugContext->editorSelectedProgram, "skinned");
 
@@ -1562,15 +1592,15 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				ClearDepthBuffer();
 
 				UseProgram(g_debugContext->editorGizmoProgram);
-				viewUniform = GetUniform(g_debugContext->editorGizmoProgram, "view");
+				DeviceUniform viewUniform = GetUniform(g_debugContext->editorGizmoProgram, "view");
 				UniformMat4Array(viewUniform, 1, view->m);
-				projUniform = GetUniform(g_debugContext->editorGizmoProgram, "projection");
+				DeviceUniform projUniform = GetUniform(g_debugContext->editorGizmoProgram, "projection");
 				UniformMat4Array(projUniform, 1, proj->m);
-				modelUniform = GetUniform(g_debugContext->editorGizmoProgram, "model");
+				DeviceUniform modelUniform = GetUniform(g_debugContext->editorGizmoProgram, "model");
 				colorUniform = GetUniform(g_debugContext->editorGizmoProgram, "color");
 
-				const Resource *arrowRes = GetResource("data/editor_arrow.b");
-				const Resource *circleRes = GetResource("data/editor_circle.b");
+				const Resource *arrowRes = GetResource("editor_arrow.b");
+				const Resource *circleRes = GetResource("editor_circle.b");
 
 				v3 pos = selectedEntity->translation;
 				v4 rot = selectedEntity->rotation;

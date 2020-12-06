@@ -41,6 +41,7 @@ enum MetaType
 	METATYPE_COLLISION_MESH,
 	METATYPE_SHADER,
 	METATYPE_IMAGE,
+	METATYPE_MATERIAL,
 	METATYPE_COUNT
 };
 
@@ -51,7 +52,8 @@ const char *MetaTypeNames[] =
 	"TRIANGLE_DATA",
 	"COLLISION_MESH",
 	"SHADER",
-	"IMAGE"
+	"IMAGE",
+	"MATERIAL"
 };
 
 struct SkinnedPosition
