@@ -133,11 +133,11 @@ GAMEDLL START_GAME(StartGame)
 	// Init game state
 	memset(gameState, 0, sizeof(GameState));
 	gameState->timeMultiplier = 1.0f;
-	ArrayInit_Transform(&gameState->transforms, 512, TransientAlloc);
-	ArrayInit_MeshInstance(&gameState->meshInstances, 512, TransientAlloc);
-	ArrayInit_SkinnedMeshInstance(&gameState->skinnedMeshInstances, 64, TransientAlloc);
-	ArrayInit_ParticleSystem(&gameState->particleSystems, 256, TransientAlloc);
-	ArrayInit_Collider(&gameState->colliders, 256, TransientAlloc);
+	ArrayInit_Transform(&gameState->transforms, 4096, TransientAlloc);
+	ArrayInit_MeshInstance(&gameState->meshInstances, 4096, TransientAlloc);
+	ArrayInit_SkinnedMeshInstance(&gameState->skinnedMeshInstances, 2048, TransientAlloc);
+	ArrayInit_ParticleSystem(&gameState->particleSystems, 1024, TransientAlloc);
+	ArrayInit_Collider(&gameState->colliders, 4096, TransientAlloc);
 
 	// Initialize
 	{
@@ -360,7 +360,7 @@ GAMEDLL START_GAME(StartGame)
 
 		const Resource *sphereRes = GetResource("sphere.b");
 		testEntityHandle = AddEntity(gameState, &transform);
-		transform->translation = { -6.0f, 7.0f, 1.0f };
+		transform->translation = { -6.0f + GetRandomF32(), 7.0f + GetRandomF32(), 1.0f };
 		transform->rotation = QUATERNION_IDENTITY;
 		meshInstance = ArrayAdd_MeshInstance(&gameState->meshInstances);
 		meshInstance->meshRes = sphereRes;
@@ -655,25 +655,23 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				v3 dir = { 0, 0, -groundRayDist };
 				v3 hit;
 				v3 hitNor;
-				if (RayColliderIntersection(origin, dir, false, transform,
-							collider, &hit, &hitNor))
+				if (RayColliderIntersection(origin, dir, false, transform, collider, &hit, &hitNor) &&
+						hitNor.z > 0.7f)
 				{
-					if (hitNor.z > 0.7f)
-					{
-						playerTransform->translation.z = hit.z;
-						touchedGround = true;
-						break;
-					}
+					playerTransform->translation.z = hit.z;
+					touchedGround = true;
 				}
-
-				GJKResult gjkResult = GJKTest(playerTransform, transform,
-						playerCollider, collider);
-				if (gjkResult.hit)
+				else
 				{
-					// @Improve: better collision against multiple colliders?
-					v3 depenetration = ComputeDepenetration(gjkResult, playerTransform,
-							transform, playerCollider, collider);
-					playerTransform->translation += depenetration;
+					GJKResult gjkResult = GJKTest(playerTransform, transform,
+							playerCollider, collider);
+					if (gjkResult.hit)
+					{
+						// @Improve: better collision against multiple colliders?
+						v3 depenetration = ComputeDepenetration(gjkResult, playerTransform,
+								transform, playerCollider, collider);
+						playerTransform->translation += depenetration;
+					}
 				}
 			}
 		}

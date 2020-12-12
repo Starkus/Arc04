@@ -92,7 +92,7 @@ EntityHandle AddEntity(GameState *gameState, Transform **outTransform)
 
 	EntityHandle newHandle = ENTITY_HANDLE_INVALID;
 
-	for (int entityId = 0; entityId < 256; ++entityId)
+	for (int entityId = 0; entityId < MAX_ENTITIES; ++entityId)
 	{
 		Transform *ptrInIdx = gameState->entityTransforms[entityId];
 		if (!ptrInIdx)

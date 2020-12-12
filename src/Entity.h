@@ -110,7 +110,7 @@ struct ParticleSystem
 };
 DECLARE_ARRAY(ParticleSystem);
 
-#define MAX_ENTITIES 256
+#define MAX_ENTITIES 4096
 struct EntityManager
 {
 	u8 entityGenerations[MAX_ENTITIES];
