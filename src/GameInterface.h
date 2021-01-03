@@ -22,16 +22,14 @@ struct Controller
 			Button camLeft;
 			Button camRight;
 
-#if DEBUG_BUILD
 			Button mouseLeft;
 			Button mouseMiddle;
 			Button mouseRight;
 
-			Button debugUp;
-			Button debugDown;
-			Button debugLeft;
-			Button debugRight;
-#endif
+			Button f1;
+			Button f2;
+			Button f3;
+			Button f4;
 		};
 		Button b[16];
 	};

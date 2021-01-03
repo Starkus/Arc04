@@ -3,11 +3,9 @@
 # Next up?
 - CHECK HANDEDNESS once and for all.
 - Implement some persistent state with save/load (option to reset easily)
-- Design how to link entities with 'components' (mesh to render, collider, etc.)
-- Materials... bind textures/programs depending on mesh.
+- Sort render calls by material/shader not to rebind everything for every call.
 - Raycast against AABBs/sphere before colliders.
 - BVH for entities
-- Non axis aligned colliders
 - Import scenes/levels from .dae? We already do geometry but should we import more things?
 
 # Low priority/later

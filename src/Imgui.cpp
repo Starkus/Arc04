@@ -229,14 +229,21 @@ bool ImguiMemberAsControl(GameState *gameState, void *object, const StructMember
 	case TYPE_ENUM:
 	{
 		bool changed = false;
-		i64 *value = (i64 *)object;
+		i64 value;
+		switch (memberInfo->size)
+		{
+			case 1:  value = *(i8  *)object; break;
+			case 2:  value = *(i16 *)object; break;
+			case 4:  value = *(i32 *)object; break;
+			default: value = *(i64 *)object; break;
+		}
 		const EnumInfo *enumInfo = (const EnumInfo *)memberInfo->typeInfo;
 
 		u32 currentValueIdx = 0;
 		for (u32 enumValueIdx = 0; enumValueIdx < enumInfo->valueCount; enumValueIdx++)
 		{
 			i64 v = enumInfo->values[enumValueIdx].value;
-			if (v == *value)
+			if (v == value)
 			{
 				currentValueIdx = enumValueIdx;
 				break;
@@ -248,11 +255,11 @@ bool ImguiMemberAsControl(GameState *gameState, void *object, const StructMember
 			for (u32 enumValueIdx = 0; enumValueIdx < enumInfo->valueCount; enumValueIdx++)
 			{
 				i64 v = enumInfo->values[enumValueIdx].value;
-				const bool isSelected = (v == *value);
+				const bool isSelected = (v == value);
 				if (ImGui::Selectable(enumInfo->values[enumValueIdx].name, isSelected))
 				{
-					changed = *value != v;
-					*value = v;
+					changed = value != v;
+					value = v;
 				}
 
 				// Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
@@ -408,12 +415,11 @@ void ImguiShowEditWindow(GameState *gameState)
 		ImguiStructAsControls(gameState, mesh, &typeInfo_MeshInstance);
 		if (ImGui::Button("Remove mesh"))
 		{
-			MeshInstance *last =
-				&gameState->meshInstances[--gameState->meshInstances.size];
-			gameState->entityMeshes[last->entityHandle.id] = mesh;
-			*mesh = *last;
+			ArrayRemove_MeshInstance(&gameState->meshInstances, mesh);
 
-			gameState->entityMeshes[selectedEntityHandle.id] = nullptr;
+			u32 idx = (u32)ArrayPointerToIndex_MeshInstance(&gameState->meshInstances, mesh);
+			gameState->entityMeshes[mesh->entityHandle.id] = idx;
+			gameState->entityMeshes[selectedEntityHandle.id] = ENTITY_ID_INVALID;
 		}
 	}
 	else
@@ -435,12 +441,12 @@ void ImguiShowEditWindow(GameState *gameState)
 		ImguiStructAsControls(gameState, skinnedMesh, &typeInfo_SkinnedMeshInstance);
 		if (ImGui::Button("Remove skinned mesh"))
 		{
-			SkinnedMeshInstance *last =
-				&gameState->skinnedMeshInstances[--gameState->skinnedMeshInstances.size];
-			gameState->entitySkinnedMeshes[last->entityHandle.id] = skinnedMesh;
-			*skinnedMesh = *last;
+			ArrayRemove_SkinnedMeshInstance(&gameState->skinnedMeshInstances, skinnedMesh);
 
-			gameState->entitySkinnedMeshes[selectedEntityHandle.id] = nullptr;
+			u32 idx = (u32)ArrayPointerToIndex_SkinnedMeshInstance(&gameState->skinnedMeshInstances,
+					skinnedMesh);
+			gameState->entitySkinnedMeshes[mesh->entityHandle.id] = idx;
+			gameState->entitySkinnedMeshes[selectedEntityHandle.id] = ENTITY_ID_INVALID;
 		}
 	}
 	else
@@ -474,11 +480,11 @@ void ImguiShowEditWindow(GameState *gameState)
 
 		if (ImGui::Button("Remove collider"))
 		{
-			Collider *last = &gameState->colliders[--gameState->colliders.size];
-			gameState->entityColliders[last->entityHandle.id] = collider;
-			*collider = *last;
+			ArrayRemove_Collider(&gameState->colliders, collider);
 
-			gameState->entityColliders[selectedEntityHandle.id] = nullptr;
+			u32 idx = (u32)ArrayPointerToIndex_Collider(&gameState->colliders, collider);
+			gameState->entityColliders[mesh->entityHandle.id] = idx;
+			gameState->entityColliders[selectedEntityHandle.id] = ENTITY_ID_INVALID;
 		}
 	}
 	else
@@ -502,11 +508,12 @@ void ImguiShowEditWindow(GameState *gameState)
 		{
 			DestroyDeviceMesh(particleSystem->deviceBuffer);
 
-			ParticleSystem *last = &gameState->particleSystems[--gameState->particleSystems.size];
-			gameState->entityParticleSystems[last->entityHandle.id] = particleSystem;
-			*particleSystem = *last;
+			ArrayRemove_ParticleSystem(&gameState->particleSystems, particleSystem);
 
-			gameState->entityParticleSystems[selectedEntityHandle.id] = nullptr;
+			u32 idx = (u32)ArrayPointerToIndex_ParticleSystem(&gameState->particleSystems,
+					particleSystem);
+			gameState->entityParticleSystems[mesh->entityHandle.id] = idx;
+			gameState->entityParticleSystems[selectedEntityHandle.id] = ENTITY_ID_INVALID;
 		}
 	}
 	else
@@ -522,8 +529,203 @@ void ImguiShowEditWindow(GameState *gameState)
 	}
 
 	ImGui::End();
+
 #else
 	(void)gameState;
 #endif
 }
 
+void Indent(i32 indentLevel)
+{
+	for (int i = 0; i < indentLevel; ++i)
+		Log("  ");
+}
+
+void PrintStruct(void *ptr, const StructInfo *structInfo, i32 indentLevel = 0);
+void PrintStructMember(void *ptr, const StructMember *memberInfo, i32 indentLevel = 0)
+{
+	u8 *memberPtr = (u8 *)ptr;
+
+	// Check for NoSerialize tag
+	for (u32 tagIdx = 0; tagIdx < memberInfo->tagCount; ++tagIdx)
+	{
+		if (strcmp(memberInfo->tags[tagIdx], "NoSerialize") == 0)
+		{
+			return;
+		}
+	}
+
+	Indent(indentLevel);
+	Log("%s = ", memberInfo->name);
+
+	// Pointer
+	if (memberInfo->pointerLevels != 0)
+	{
+		if (memberInfo->typeInfo == &typeInfo_Resource)
+		{
+			const Resource **resourcePtr = (const Resource**)memberPtr;
+			if (*resourcePtr)
+			{
+				Log("\"%s\"", (*resourcePtr)->filename);
+			}
+		}
+		else
+		{
+			Log("0x%llX", *(u64 *)memberPtr);
+		}
+	}
+	else switch (memberInfo->type)
+	{
+	case TYPE_U8:
+		Log("%hhu", *(u8 *)memberPtr); break;
+	case TYPE_U16:
+		Log("%hu", *(u16 *)memberPtr); break;
+	case TYPE_U32:
+		Log("%u", *(u32 *)memberPtr); break;
+	case TYPE_U64:
+		Log("%llu", *(u64 *)memberPtr); break;
+	case TYPE_I8:
+		Log("%hhd", *(i8 *)memberPtr); break;
+	case TYPE_I16:
+		Log("%hd", *(i16 *)memberPtr); break;
+	case TYPE_I32:
+		Log("%d", *(i32 *)memberPtr); break;
+	case TYPE_I64:
+		Log("%lld", *(i64 *)memberPtr); break;
+	case TYPE_F32:
+		Log("%f", *(f32 *)memberPtr); break;
+	case TYPE_F64:
+		Log("%Lf", *(f64 *)memberPtr); break;
+	case TYPE_BOOL:
+		Log("%s", *(i32 *)memberPtr == 0 ? "false" : "true"); break;
+	case TYPE_STRUCT:
+	{
+		if (memberInfo->typeInfo == &typeInfo_v2)
+		{
+			v2 *vec = (v2 *)memberPtr;
+			Log("{ %f, %f }", vec->x, vec->y); break;
+		}
+		else if (memberInfo->typeInfo == &typeInfo_v3)
+		{
+			v3 *vec = (v3 *)memberPtr;
+			Log("{ %f, %f, %f }", vec->x, vec->y, vec->z); break;
+		}
+		else if (memberInfo->typeInfo == &typeInfo_v4)
+		{
+			v4 *vec = (v4 *)memberPtr;
+			Log("{ %f, %f, %f, %f }", vec->x, vec->y, vec->z, vec->w); break;
+		}
+		else
+		{
+			Log("{\n");
+			const StructInfo *memberStructInfo = (StructInfo *)memberInfo->typeInfo;
+			PrintStruct(memberPtr, memberStructInfo, indentLevel + 1);
+			Indent(indentLevel); Log("}");
+		}
+	} break;
+	case TYPE_ENUM:
+	{
+		const EnumInfo *memberEnumInfo = (EnumInfo *)memberInfo->typeInfo;
+		i64 value;
+		switch (memberInfo->size)
+		{
+			case 1:  value = *(i8  *)memberPtr; break;
+			case 2:  value = *(i16 *)memberPtr; break;
+			case 4:  value = *(i32 *)memberPtr; break;
+			default: value = *(i64 *)memberPtr; break;
+		}
+		Log("%s", memberEnumInfo->values[value].name);
+	} break;
+	}
+
+	Log("\n");
+}
+
+void PrintStruct(void *ptr, const StructInfo *structInfo, i32 indentLevel)
+{
+	u8 *structPtr = (u8 *)ptr;
+
+	for (u32 i = 0; i < structInfo->memberCount; ++i)
+	{
+		const StructMember *memberInfo = &structInfo->members[i];
+		void *memberPtr = structPtr + memberInfo->offset;
+
+		PrintStructMember(memberPtr, memberInfo, indentLevel);
+	}
+}
+
+void ImguiShowSceneWindow(GameState *gameState)
+{
+	if (!ImGui::Begin("Scene"))
+	{
+		ImGui::End();
+		return;
+	}
+
+	ImGui::Button("Load");
+
+	ImGui::SameLine();
+
+	if (ImGui::Button("Save"))
+	{
+		FileHandle file = PlatformOpenForWrite("data/scene.scene");
+
+		i32 indentLevel = 0;
+
+		u32 entityCount = gameState->transforms.size;
+		for (u32 entityIdx = 0; entityIdx < entityCount; ++entityIdx)
+		{
+			Indent(indentLevel); Log("Entity {\n");
+			EntityHandle handle = { entityIdx, gameState->entityGenerations[entityIdx] };
+			++indentLevel;
+
+			Transform *transform = GetEntityTransform(gameState, handle);
+			Indent(indentLevel); Log("Transform {\n");
+			PrintStruct(transform, &typeInfo_Transform, indentLevel + 1);
+			Indent(indentLevel); Log("}\n");
+
+			MeshInstance *mesh = GetEntityMesh(gameState, handle);
+			if (mesh)
+			{
+				Indent(indentLevel); Log("Mesh {\n");
+				PrintStruct(mesh, &typeInfo_MeshInstance, indentLevel + 1);
+				Indent(indentLevel); Log("}\n");
+			}
+
+			SkinnedMeshInstance *skinnedMesh = GetEntitySkinnedMesh(gameState, handle);
+			if (skinnedMesh)
+			{
+				Indent(indentLevel); Log("SkinnedMesh {\n");
+				PrintStruct(skinnedMesh, &typeInfo_SkinnedMeshInstance, indentLevel + 1);
+				Indent(indentLevel); Log("}\n");
+			}
+
+			Collider *collider = GetEntityCollider(gameState, handle);
+			if (collider)
+			{
+				Indent(indentLevel); Log("Collider {\n");
+
+				PrintStructMember(&collider->type, &typeInfo_Collider.members[0], indentLevel + 1); // @Hardcoded
+				PrintStructMember(&collider->cube, &typeInfo_Collider.members[collider->type + 1],
+						indentLevel + 1); // @Hardcoded
+
+				Indent(indentLevel); Log("}\n");
+			}
+
+			ParticleSystem *particleSystem = GetEntityParticleSystem(gameState, handle);
+			if (particleSystem)
+			{
+				Indent(indentLevel); Log("ParticleSystem {\n");
+				PrintStruct(particleSystem, &typeInfo_ParticleSystem, indentLevel + 1);
+				Indent(indentLevel); Log("}\n");
+			}
+
+			--indentLevel;
+			Indent(indentLevel); Log("}\n");
+		}
+
+		PlatformCloseFile(file);
+	}
+
+	ImGui::End();
+}

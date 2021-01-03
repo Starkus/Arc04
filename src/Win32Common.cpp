@@ -21,7 +21,12 @@ struct Win32SearchHandle
 static_assert(sizeof(Win32SearchHandle) <= sizeof(PlatformSearchHandle),
 		"Win32SearchHandle doesn't fit in opaque handle!");
 
-typedef HANDLE FileHandle;
+struct Win32FileHandle
+{
+	HANDLE handle;
+};
+static_assert(sizeof(Win32FileHandle) <= sizeof(FileHandle),
+		"Win32FileHandle doesn't fit in opaque handle!");
 
 void Log(const char *format, ...)
 {
@@ -32,8 +37,9 @@ void Log(const char *format, ...)
 	StringCbVPrintfA(buffer, sizeof(buffer), format, args);
 	OutputDebugStringA(buffer);
 
-	DWORD bytesWritten;
-	WriteFile(g_hStdout, buffer, (DWORD)strlen(buffer), &bytesWritten, nullptr);
+	// Stdout
+	//DWORD bytesWritten;
+	//WriteFile(g_hStdout, buffer, (DWORD)strlen(buffer), &bytesWritten, nullptr);
 
 #if USING_IMGUI
 	// Imgui console
@@ -153,6 +159,9 @@ bool PlatformReadEntireFile(const char *filename, u8 **fileBuffer, u64 *fileSize
 
 FileHandle PlatformOpenForWrite(const char *filename)
 {
+	FileHandle result;
+	Win32FileHandle *win32Handle = (Win32FileHandle *)&result;
+
 	HANDLE file = CreateFileA(
 			filename,
 			GENERIC_WRITE,
@@ -164,19 +173,23 @@ FileHandle PlatformOpenForWrite(const char *filename)
 			);
 	ASSERT(file != INVALID_HANDLE_VALUE);
 
-	return file;
+	win32Handle->handle = file;
+	return result;
 }
 
 void PlatformCloseFile(FileHandle file)
 {
-	CloseHandle(file);
+	Win32FileHandle *win32Handle = (Win32FileHandle *)&file;
+	CloseHandle(win32Handle->handle);
 }
 
 u64 PlatformWriteToFile(FileHandle file, const void *buffer, u64 size)
 {
+	Win32FileHandle *win32Handle = (Win32FileHandle *)&file;
+
 	DWORD writtenBytes;
 	WriteFile(
-			file,
+			win32Handle->handle,
 			buffer,
 			(DWORD)size,
 			&writtenBytes,
@@ -189,11 +202,13 @@ u64 PlatformWriteToFile(FileHandle file, const void *buffer, u64 size)
 
 u64 PlatformFileSeek(FileHandle file, i64 shift, int mode)
 {
+	Win32FileHandle *win32Handle = (Win32FileHandle *)&file;
+
 	LARGE_INTEGER lInt;
 	LARGE_INTEGER lIntRes;
 	lInt.QuadPart = shift;
 
-	SetFilePointerEx(file, lInt, &lIntRes, mode);
+	SetFilePointerEx(win32Handle->handle, lInt, &lIntRes, mode);
 
 	return lIntRes.QuadPart;
 }

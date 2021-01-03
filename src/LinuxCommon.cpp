@@ -19,7 +19,13 @@ struct LinuxFindData
 static_assert(sizeof(LinuxFindData) <= sizeof(PlatformFindData),
 		"LinuxFindData doesn't fit in opaque handle!");
 
-typedef int FileHandle;
+struct LinuxFileHandle
+{
+	int handle;
+};
+static_assert(sizeof(LinuxFileHandle) <= sizeof(FileHandle),
+		"LinuxFileHandle doesn't fit in opaque handle!");
+
 #define Sleep(...) sleep(__VA_ARGS__)
 
 void Log(const char *format, ...)
@@ -95,30 +101,40 @@ bool PlatformFileExists(const char *filename)
 
 FileHandle PlatformOpenForWrite(const char *filename)
 {
+	FileHandle result;
+	LinuxFileHandle *linuxHandle = (LinuxFileHandle *)&result;
+
 	int file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 	if (file == -1)
 	{
 		Log("ERROR! Opening file \"%s\"\n", strerror(errno));
 		ASSERT(false);
 	}
-	return file;
+
+	linuxHandle->handle = file;
+	return result;
 }
 
 void PlatformCloseFile(int file)
 {
-	close(file);
+	LinuxFileHandle *linuxHandle = (LinuxFileHandle *)&file;
+	close(linuxHandle->handle);
 }
 
 u64 PlatformWriteToFile(FileHandle file, const void *buffer, u64 size)
 {
-	u64 writtenBytes = write(file, buffer, size);
+	LinuxFileHandle *linuxHandle = (LinuxFileHandle *)&file;
+
+	u64 writtenBytes = write(linuxHandle->handle, buffer, size);
 	ASSERT(writtenBytes == size);
 	return writtenBytes;
 }
 
 u64 PlatformFileSeek(FileHandle file, i64 shift, int mode)
 {
-	u64 result = lseek(file, shift, mode);
+	LinuxFileHandle *linuxHandle = (LinuxFileHandle *)&file;
+
+	u64 result = lseek(linuxHandle->handle, shift, mode);
 	return result;
 }
 

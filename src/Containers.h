@@ -31,6 +31,20 @@ inline _TYPE *ArrayAdd_##_TYPE(Array_##_TYPE *array) \
 { \
 	ASSERT(array->size < array->capacity_); \
 	return &array->data[array->size++]; \
+} \
+\
+inline void ArrayRemove_##_TYPE(Array_##_TYPE *array, _TYPE *ptr) \
+{ \
+	ASSERT(ptr >= array->data && ptr < array->data + array->size); \
+	_TYPE *last = &array->data[--array->size]; \
+	*ptr = *last; \
+} \
+\
+inline u64 ArrayPointerToIndex_##_TYPE(Array_##_TYPE *array, _TYPE *ptr) \
+{ \
+	ASSERT(ptr >= array->data && ptr < array->data + array->size); \
+	const u64 offset = (u64)ptr - (u64)array->data; \
+	return offset / sizeof(_TYPE); \
 }
 #endif
 

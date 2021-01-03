@@ -126,6 +126,7 @@ struct DebugContext
 	v3 epaNewPoint[epaMaxSteps];
 
 	// Editor
+	bool onFreeCam;
 	EntityHandle selectedEntity = ENTITY_HANDLE_INVALID;
 	EntityHandle hoveredEntity;
 	DeviceProgram editorSelectedProgram;

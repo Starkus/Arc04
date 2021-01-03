@@ -347,9 +347,9 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, bool infinite, const Trans
 			const IndexTriangle *indexTri = &collMeshRes->triangleData[triangleIdx];
 			Triangle tri =
 			{
-				positions[indexTri->a],
-				positions[indexTri->b],
-				positions[indexTri->c],
+				positions[indexTri->a] * c->convexHull.scale,
+				positions[indexTri->b] * c->convexHull.scale,
+				positions[indexTri->c] * c->convexHull.scale,
 				indexTri->normal
 			};
 
@@ -362,6 +362,44 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, bool infinite, const Trans
 				*hit = currHit;
 				*hitNor = tri.normal;
 				result = true;
+			}
+		}
+	} break;
+	case COLLIDER_CUBE:
+	{
+		v3 center = c->cube.offset;
+		f32 radius = c->cube.radius;
+
+		// Check once for each axis
+		for (int i = 0; i < 3; ++i)
+		{
+			// Use other two axes to check boundaries
+			int j = (i + 1) % 3;
+			int k = (i + 2) % 3;
+
+			// Check only face looking at ray origin
+			f32 top = center.v[i] - c->cube.radius * Sign(rayDir.v[i]);
+			f32 dist = top - rayOrigin.v[i];
+			if (dist * Sign(rayDir.v[i]) > 0)
+			{
+				// Check top/bottom face
+				f32 factor = dist / rayDir.v[i];
+				v3 proj = rayOrigin + rayDir * factor;
+
+				v3 opposite = proj - center;
+				if (opposite.v[j] >= center.v[j] - radius && opposite.v[j] <= center.v[j] + radius &&
+					opposite.v[k] >= center.v[k] - radius && opposite.v[k] <= center.v[k] + radius)
+				{
+					// Limit reach
+					if (factor < 0 || (!infinite && factor > 1))
+						return false;
+
+					*hit = proj;
+					*hitNor = {};
+					hitNor->v[i] = -Sign(rayDir.v[i]);
+					result = true;
+					break;
+				}
 			}
 		}
 	} break;
@@ -398,7 +436,7 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, bool infinite, const Trans
 		v3 towards = center - rayOrigin;
 		towards.z = 0;
 
-		f32 dirLat = Sqrt(unitDir.x * unitDir.x + unitDir.y * unitDir.y);
+		f32 dirLat = V2Length(unitDir.xy);
 		v3 dirNormXY = unitDir / dirLat;
 		v3 dirNormZ = unitDir / unitDir.z;
 		f32 radiusSqr = c->cylinder.radius * c->cylinder.radius;
@@ -412,8 +450,8 @@ bool RayColliderIntersection(v3 rayOrigin, v3 rayDir, bool infinite, const Trans
 			f32 factor = distZ / rayDir.z;
 			v3 proj = rayOrigin + rayDir * factor;
 
-			v3 opposite = proj - center;
-			f32 distSqr = (opposite.x * opposite.x) + (opposite.y * opposite.y);
+			v2 opposite = proj.xy - center.xy;
+			f32 distSqr = V2SqrLen(opposite);
 			if (distSqr <= radiusSqr)
 			{
 				// Limit reach
@@ -610,6 +648,15 @@ void GetAABB(Transform *transform, Collider *c, v3 *min, v3 *max)
 			if (v.y > max->y) max->y = v.y;
 			if (v.z > max->z) max->z = v.z;
 		}
+
+		*min *= c->convexHull.scale;
+		*max *= c->convexHull.scale;
+	} break;
+	case COLLIDER_CUBE:
+	{
+		f32 r = c->cube.radius;
+		*min = c->cube.offset - v3{ r, r, r };
+		*max = c->cube.offset + v3{ r, r, r };
 	} break;
 	case COLLIDER_SPHERE:
 	{
@@ -637,7 +684,7 @@ void GetAABB(Transform *transform, Collider *c, v3 *min, v3 *max)
 	}
 	}
 
-	if (type == COLLIDER_CYLINDER || type == COLLIDER_CAPSULE)
+	if (type != COLLIDER_SPHERE && type != COLLIDER_CONVEX_HULL)
 	{
 		v3 corners[] =
 		{
@@ -707,6 +754,23 @@ v3 FurthestInDirection(Transform *transform, Collider *c, v3 dir)
 				result = p;
 			}
 		}
+
+		result *= c->convexHull.scale;
+
+		// Transform point to world coordinates and return as result
+		result = QuaternionRotateVector(transform->rotation, result);
+		result += transform->translation;
+	} break;
+	case COLLIDER_CUBE:
+	{
+		f32 r = c->cube.radius;
+		result = c->cube.offset;
+		if (locDir.x)
+			result.x += Sign(locDir.x) * r;
+		if (locDir.y)
+			result.y += Sign(locDir.y) * r;
+		if (locDir.z)
+			result.z += Sign(locDir.z) * r;
 
 		// Transform point to world coordinates and return as result
 		result = QuaternionRotateVector(transform->rotation, result);
@@ -828,9 +892,9 @@ GJKResult GJKTest(Transform *tA, Transform *tB, Collider *cA, Collider *cB)
 		}
 #endif
 
-		if (iterations >= 30)
+		if (iterations >= 20)
 		{
-			Log("ERROR! GJK: Reached iteration limit!\n");
+			//Log("ERROR! GJK: Reached iteration limit!\n");
 			//ASSERT(false);
 #if DEBUG_BUILD
 			g_debugContext->freezeGJKGeom = true;

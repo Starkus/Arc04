@@ -1598,7 +1598,7 @@ void PostProcessSourceFile(ParsedFile *context, DynamicArray_Token &tokens, cons
 				char *buffer = (char *)malloc(bufferSize);
 				char *dst = buffer;
 				bool lastWasWhitespace = false;
-				for (char *src = begin; src < end; ++src)
+				for (char *src = begin; src < end;)
 				{
 					if (IsWhitespace(*src))
 					{
@@ -1607,10 +1607,22 @@ void PostProcessSourceFile(ParsedFile *context, DynamicArray_Token &tokens, cons
 						else
 							--bufferSize;
 						lastWasWhitespace = true;
+						++src;
+					}
+					// @Hack: remove tags
+					else if (*src == '@')
+					{
+						++src;
+						--bufferSize;
+						while (IsAlpha(*src) || IsNumeric(*src) || *src == '_')
+						{
+							++src;
+							--bufferSize;
+						}
 					}
 					else
 					{
-						*dst++ = *src;
+						*dst++ = *src++;
 						lastWasWhitespace = false;
 					}
 				}

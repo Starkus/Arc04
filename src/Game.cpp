@@ -139,6 +139,13 @@ GAMEDLL START_GAME(StartGame)
 	ArrayInit_ParticleSystem(&gameState->particleSystems, 1024, TransientAlloc);
 	ArrayInit_Collider(&gameState->colliders, 4096, TransientAlloc);
 
+	// @Hack: Hmmm
+	memset(gameState->entityTransforms, 0xFF, sizeof(gameState->entityTransforms));
+	memset(gameState->entityMeshes, 0xFF, sizeof(gameState->entityMeshes));
+	memset(gameState->entitySkinnedMeshes, 0xFF, sizeof(gameState->entitySkinnedMeshes));
+	memset(gameState->entityParticleSystems, 0xFF, sizeof(gameState->entityParticleSystems));
+	memset(gameState->entityColliders, 0xFF, sizeof(gameState->entityColliders));
+
 	// Initialize
 	{
 		SetUpDevice();
@@ -302,7 +309,7 @@ GAMEDLL START_GAME(StartGame)
 		Transform *playerTransform = GetEntityTransform(gameState,
 				gameState->player.entityHandle);
 		gameState->camPos = playerTransform->translation + v3{ 0, -3, 3};
-		gameState->camPitch = PI * 0.35f;
+		gameState->camPitch = PI * 0.6f;
 	}
 
 	// Test entities
@@ -316,6 +323,7 @@ GAMEDLL START_GAME(StartGame)
 
 		const Resource *collMeshRes = GetResource("anvil_collision.b");
 		anvilCollider.convexHull.meshRes = collMeshRes;
+		anvilCollider.convexHull.scale = 1.0f;
 
 		Transform *transform;
 		EntityHandle testEntityHandle = AddEntity(gameState, &transform);
@@ -358,9 +366,46 @@ GAMEDLL START_GAME(StartGame)
 		*collider = anvilCollider;
 		EntityAssignCollider(gameState, testEntityHandle, collider);
 
+		const Resource *cubeRes = GetResource("cube.b");
+		testEntityHandle = AddEntity(gameState, &transform);
+		transform->translation = { -3.0f, 5.0f, 1.0f };
+		transform->rotation = QUATERNION_IDENTITY;
+		meshInstance = ArrayAdd_MeshInstance(&gameState->meshInstances);
+		meshInstance->meshRes = cubeRes;
+		EntityAssignMesh(gameState, testEntityHandle, meshInstance);
+		collider = ArrayAdd_Collider(&gameState->colliders);
+		collider->type = COLLIDER_CUBE;
+		collider->cube.radius = 1;
+		collider->cube.offset = {};
+		EntityAssignCollider(gameState, testEntityHandle, collider);
+
+		testEntityHandle = AddEntity(gameState, &transform);
+		transform->translation = { 0.0f, 5.0f, 1.0f };
+		transform->rotation = QuaternionFromEulerZYX(v3{ 0, HALFPI, 0 });
+		meshInstance = ArrayAdd_MeshInstance(&gameState->meshInstances);
+		meshInstance->meshRes = cubeRes;
+		EntityAssignMesh(gameState, testEntityHandle, meshInstance);
+		collider = ArrayAdd_Collider(&gameState->colliders);
+		collider->type = COLLIDER_CUBE;
+		collider->cube.radius = 1;
+		collider->cube.offset = {};
+		EntityAssignCollider(gameState, testEntityHandle, collider);
+
+		testEntityHandle = AddEntity(gameState, &transform);
+		transform->translation = { 3.0f, 5.0f, 1.0f };
+		transform->rotation = QuaternionFromEulerZYX(v3{ HALFPI, 0, 0 });
+		meshInstance = ArrayAdd_MeshInstance(&gameState->meshInstances);
+		meshInstance->meshRes = cubeRes;
+		EntityAssignMesh(gameState, testEntityHandle, meshInstance);
+		collider = ArrayAdd_Collider(&gameState->colliders);
+		collider->type = COLLIDER_CUBE;
+		collider->cube.radius = 1;
+		collider->cube.offset = {};
+		EntityAssignCollider(gameState, testEntityHandle, collider);
+
 		const Resource *sphereRes = GetResource("sphere.b");
 		testEntityHandle = AddEntity(gameState, &transform);
-		transform->translation = { -6.0f + GetRandomF32(), 7.0f + GetRandomF32(), 1.0f };
+		transform->translation = { -6.0f, 7.0f, 1.0f };
 		transform->rotation = QUATERNION_IDENTITY;
 		meshInstance = ArrayAdd_MeshInstance(&gameState->meshInstances);
 		meshInstance->meshRes = sphereRes;
@@ -493,6 +538,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 	ImguiShowDebugWindow(gameState);
 	ImguiShowGameStateWindow(gameState);
 	ImguiShowEditWindow(gameState);
+	ImguiShowSceneWindow(gameState);
 #endif
 
 	if (deltaTime < 0 || deltaTime > 1)
@@ -557,6 +603,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				v4 rot = QuaternionFromEulerZYX(v3{ 0, 0, deltaYaw });
 				playerTransform->rotation = QuaternionMultiply(playerTransform->rotation, rot);
 			}
+			v3 playerFw = QuaternionRotateVector(playerTransform->rotation, v3{0,1,0});
 
 			// Move
 			bool moveInputNeutral = inputDir.x == 0 && inputDir.y == 0;
@@ -570,28 +617,29 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			}
 			else
 			{
+				f32 inputLen = V2Length(inputDir);
+
 				// On the ground
 				if (player->state != PLAYERSTATE_RUNNING && !moveInputNeutral)
 				{
 					ChangeState(gameState, PLAYERSTATE_RUNNING, PLAYERANIM_RUN);
-					player->speed = Max(player->speed, 1.0f);
+					player->speed = Max(player->speed, inputLen * 1.0f);
 				}
 				else
 				{
-					if (player->speed <= 0)
+					if (player->speed <= 0 && player->state != PLAYERSTATE_IDLE)
 					{
 						ChangeState(gameState, PLAYERSTATE_IDLE, PLAYERANIM_IDLE);
 						player->speed = 0;
 					}
 					else
 					{
-						const f32 inputLen = V2Length(inputDir);
 						// Acceleration
-						player->speed += deltaTime * 35.0f * inputLen;
+						player->speed += deltaTime * 45.0f * inputLen;
 
 						// Drag
-						player->speed *= Pow(0.018f, deltaTime);
-						player->speed -= deltaTime * 10.0f * (1.0f - inputLen);
+						player->speed *= Pow(0.014f, deltaTime);
+						player->speed -= deltaTime * 10.0f * (1.0f - inputLen) * Sign(player->speed);
 					}
 				}
 			}
@@ -602,7 +650,6 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			}
 			else
 			{
-				v3 playerFw = QuaternionRotateVector(playerTransform->rotation, v3{0,1,0});
 				player->vel.xy = playerFw.xy * player->speed;
 			}
 
@@ -740,6 +787,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		}
 
 		// Move camera
+		if (!g_debugContext->onFreeCam)
 		{
 			const f32 camRotSpeed = 4.0f;
 
@@ -779,6 +827,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		}
 
 		// Update enemies
+		if (0) // ANNOYING
 		{
 			Transform *jumper = GetEntityTransform(gameState, gameState->jumper.entityHandle);
 			if (gameState->jumper.state == JUMPERSTATE_IDLE)
@@ -1052,6 +1101,48 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		}
 
 #if EDITOR_PRESENT
+		// Free cam
+		if (controller->f1.endedDown && controller->f1.changed)
+		{
+			g_debugContext->onFreeCam = !g_debugContext->onFreeCam;
+		}
+		if (g_debugContext->onFreeCam)
+		{
+			if (controller->mouseRight.endedDown)
+			{
+				static v2 oldMousePos = controller->mousePos;
+
+				if (!controller->mouseRight.changed)
+				{
+					v2 delta = controller->mousePos - oldMousePos;
+					gameState->camYaw += delta.x;
+					gameState->camPitch -= delta.y;
+				}
+
+				oldMousePos = controller->mousePos;
+
+				v3 camFw = -Mat4ColumnV3(gameState->viewMatrix, 2);
+				if (controller->up.endedDown)
+				{
+					gameState->camPos += camFw * 8.0f * deltaTime;
+				}
+				else if (controller->down.endedDown)
+				{
+					gameState->camPos -= camFw * 8.0f * deltaTime;
+				}
+
+				v3 camRight = Mat4ColumnV3(gameState->viewMatrix, 0);
+				if (controller->right.endedDown)
+				{
+					gameState->camPos += camRight * 8.0f * deltaTime;
+				}
+				else if (controller->left.endedDown)
+				{
+					gameState->camPos -= camRight * 8.0f * deltaTime;
+				}
+			}
+		}
+
 		// Mouse picking
 		PickingResult pickingResult = PICKING_NOTHING;
 		{
@@ -1088,6 +1179,9 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				Collider gizmoCollider = {};
 				gizmoCollider.type = COLLIDER_CONVEX_HULL;
 				gizmoCollider.convexHull.meshRes = GetResource("editor_arrow_collision.b");
+
+				f32 dist = V3Length(gameState->camPos - selectedEntity->translation);
+				gizmoCollider.convexHull.scale = 0.2f * dist;
 
 				Transform gizmoZT = *selectedEntity;
 				Transform gizmoXT = gizmoZT;
@@ -1314,9 +1408,21 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			f32 yawCos = Cos(gameState->camYaw);
 			f32 pitchSin = Sin(gameState->camPitch);
 			f32 pitchCos = Cos(gameState->camPitch);
+			//Log("%f, %f\n", pitchSin, pitchCos);
 			// NOTE: 0 yaw means looking towards +Y!
-			v3 camFw = { yawSin * pitchCos, yawCos * pitchCos, pitchSin };
-			gameState->invViewMatrix = Mat4ChangeOfBases(camFw, v3{0,0,1}, gameState->camPos);
+			v3 camFw = { yawSin * pitchSin, yawCos * pitchSin, pitchCos };
+
+			const v3 right = V3Normalize(V3Cross(camFw, v3{0,0,1}));
+			const v3 up = V3Cross(right, camFw);
+			const v3 pos = gameState->camPos;
+			gameState->invViewMatrix =
+			{
+				right.x,	right.y,	right.z,	0.0f,
+				up.x,		up.y,		up.z,		0.0f,
+				-camFw.x,	-camFw.y,	-camFw.z,	0.0f,
+				pos.x,		pos.y,		pos.z,		1.0f
+			};
+
 			*view = Mat4Inverse(gameState->invViewMatrix);
 		}
 
@@ -1583,8 +1689,6 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			}
 
 			SetFillMode(RENDER_FILL);
-
-			// Gizmos were here
 		}
 #endif
 
@@ -1635,7 +1739,12 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 				v3 pos = selectedEntity->translation;
 				v4 rot = selectedEntity->rotation;
-				mat4 gizmoModel = Mat4Compose(pos, rot);
+
+				f32 gizmoSize = 0.2f;
+				f32 dist = V3Length(gameState->camPos - pos);
+				gizmoSize *= dist;
+
+				mat4 gizmoModel = Mat4Compose(pos, rot, gizmoSize);
 
 				UniformMat4Array(modelUniform, 1, gizmoModel.m);
 				UniformV4(colorUniform, { 0, 0, 1, 1 });
@@ -1643,14 +1752,14 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				RenderIndexedMesh(circleRes->mesh.deviceMesh);
 
 				v4 xRot = QuaternionMultiply(rot, QuaternionFromEulerZYX({ 0, HALFPI, 0 }));
-				gizmoModel = Mat4Compose(pos, xRot);
+				gizmoModel = Mat4Compose(pos, xRot, gizmoSize);
 				UniformMat4Array(modelUniform, 1, gizmoModel.m);
 				UniformV4(colorUniform, { 1, 0, 0, 1 });
 				RenderIndexedMesh(arrowRes->mesh.deviceMesh);
 				RenderIndexedMesh(circleRes->mesh.deviceMesh);
 
 				v4 yRot = QuaternionMultiply(rot, QuaternionFromEulerZYX({ -HALFPI, 0, 0 }));
-				gizmoModel = Mat4Compose(pos, yRot);
+				gizmoModel = Mat4Compose(pos, yRot, gizmoSize);
 				UniformMat4Array(modelUniform, 1, gizmoModel.m);
 				UniformV4(colorUniform, { 0, 1, 0, 1 });
 				RenderIndexedMesh(arrowRes->mesh.deviceMesh);

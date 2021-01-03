@@ -30,8 +30,8 @@
 #include "Render.h"
 #include "Geometry.h"
 #include "Resource.h"
-@Ignore #include "PlatformCode.h"
 #include "Platform.h"
+@Ignore #include "PlatformCode.h"
 #include "GameInterface.h"
 
 DECLARE_ARRAY(Resource);
@@ -70,6 +70,8 @@ void Log(const char *format, ...) @PlatformProc;
 bool PlatformCanReadMemory(const void *ptr) @PlatformProc;
 bool PlatformReadEntireFile(const char *filename, u8 **fileBuffer, u64 *fileSize,
 		void *(*allocFunc)(u64)) @PlatformProc;
+FileHandle PlatformOpenForWrite(const char *filename) @PlatformProc;
+void PlatformCloseFile(FileHandle file) @PlatformProc;
 
 #include "Win32Common.cpp"
 #include "RenderOpenGL.cpp"
@@ -81,13 +83,18 @@ void GetWindowSize(u32 *width, u32 *height) @PlatformProc
 	*height = g_windowHeight;
 }
 
+inline void GetResourceFullName(char *buffer, const char *filename)
+{
+	sprintf(buffer, "data/%s", filename);
+}
+
 Resource *CreateResource(const char *filename);
 const Resource *LoadResource(ResourceType type, const char *filename) @PlatformProc
 {
 	void *oldStackPtr = g_memory->stackPtr;
 
 	char fullname[MAX_PATH];
-	sprintf(fullname, "data/%s", filename);
+	GetResourceFullName(fullname, filename);
 	Resource *newResource = CreateResource(filename);
 
 	u8 *fileBuffer;
@@ -249,6 +256,19 @@ bool ProcessKeyboardAndMouse(Controller *c)
 					break;
 				case VK_RIGHT:
 					checkButton(c->camRight);
+					break;
+
+				case VK_F1:
+					checkButton(c->f1);
+					break;
+				case VK_F2:
+					checkButton(c->f2);
+					break;
+				case VK_F3:
+					checkButton(c->f3);
+					break;
+				case VK_F4:
+					checkButton(c->f4);
 					break;
 			}
 		} break;
@@ -421,9 +441,12 @@ Resource *CreateResource(const char *filename)
 
 bool ReloadResource(Resource *resource)
 {
+	char fullname[MAX_PATH];
+	GetResourceFullName(fullname, resource->filename);
+
 	u8 *fileBuffer;
 	DWORD fileSize;
-	DWORD error = Win32ReadEntireFile(resource->filename, &fileBuffer, &fileSize, FrameAlloc);
+	DWORD error = Win32ReadEntireFile(fullname, &fileBuffer, &fileSize, FrameAlloc);
 	if (error != ERROR_SUCCESS)
 		return false;
 
@@ -651,7 +674,9 @@ void Win32Start(HINSTANCE hInstance)
 		for (u32 i = 0; i < resourceBank.resources.size; ++i)
 		{
 			const char *filename = resourceBank.resources[i].filename;
-			FILETIME newWriteTime = Win32GetLastWriteTime(filename);
+			char fullname[MAX_PATH];
+			GetResourceFullName(fullname, filename);
+			FILETIME newWriteTime = Win32GetLastWriteTime(fullname);
 			if (CompareFileTime(&newWriteTime, &resourceBank.lastWriteTimes[i]) != 0)
 			{
 				bool reloaded = ReloadResource(&resourceBank.resources[i]);

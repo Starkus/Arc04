@@ -880,16 +880,32 @@ inline v4 QuaternionFromEulerZYX(const v3 &euler)
 struct Transform
 {
 	v3 translation;
-	v4 rotation;
-	v3 scale;
+	v4 rotation = QUATERNION_IDENTITY;
+	v3 scale = { 1, 1, 1 };
 };
 
-const Transform TRANSFORM_IDENTITY =
+const Transform TRANSFORM_IDENTITY = {};
+
+inline v3 Mat4ColumnV3(const mat4& m, i32 column)
 {
-	v3{},
-	QUATERNION_IDENTITY,
-	v3{ 1, 1, 1 }
-};
+	return v3
+	{
+		m.m[column],
+		m.m[column + 4],
+		m.m[column + 8]
+	};
+}
+
+inline v4 Mat4ColumnV4(const mat4& m, i32 column)
+{
+	return v4
+	{
+		m.m[column],
+		m.m[column + 4],
+		m.m[column + 8],
+		m.m[column + 12],
+	};
+}
 
 // NOTE: m is passed by copy on purpose here
 inline void Mat4Decompose(mat4 m, Transform *transform)
@@ -943,6 +959,12 @@ inline mat4 Mat4Compose(const Transform &t)
 	m.m31 = t.translation.y;
 	m.m32 = t.translation.z;
 	return m;
+}
+
+inline mat4 Mat4Compose(const v3 &translation, const v4 &rotation, const f32 scale)
+{
+	Transform t = { translation, rotation, v3{ scale, scale, scale } };
+	return Mat4Compose(t);
 }
 
 inline mat4 Mat4ChangeOfBases(const v3 &fw, const v3 &up, const v3 &pos)
