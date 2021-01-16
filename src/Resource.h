@@ -83,3 +83,9 @@ struct Resource
 		ResourceMaterial material;
 	};
 };
+
+struct ResourceVoucher
+{
+	ResourceType type;
+	String filename;
+};

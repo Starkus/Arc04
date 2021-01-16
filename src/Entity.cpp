@@ -16,9 +16,9 @@ Transform *GetEntityTransform(GameState *gameState, EntityHandle handle)
 	return &gameState->transforms[idx];
 }
 
-EntityHandle EntityHandleFromIndex(GameState *gameState, u32 index)
+EntityHandle EntityHandleFromTransformIndex(GameState *gameState, u32 index)
 {
-	for (u32 entityId = 0; entityId < gameState->transforms.size; ++entityId)
+	for (u32 entityId = 0; entityId < MAX_ENTITIES; ++entityId)
 	{
 		u32 currentIdx = gameState->entityTransforms[entityId];
 		if (currentIdx == index)
@@ -114,6 +114,7 @@ EntityHandle AddEntity(GameState *gameState, Transform **outTransform)
 
 	EntityHandle newHandle = ENTITY_HANDLE_INVALID;
 
+	bool slotFound = false;
 	for (int entityId = 0; entityId < MAX_ENTITIES; ++entityId)
 	{
 		u32 indexInId = gameState->entityTransforms[entityId];
@@ -127,9 +128,11 @@ EntityHandle AddEntity(GameState *gameState, Transform **outTransform)
 			// Advance generation by one
 			newHandle.generation = ++gameState->entityGenerations[entityId];
 
+			slotFound = true;
 			break;
 		}
 	}
+	ASSERT(slotFound);
 
 	*outTransform = newTransform;
 	return newHandle;
@@ -139,6 +142,7 @@ EntityHandle AddEntity(GameState *gameState, Transform **outTransform)
 void RemoveEntity(GameState *gameState, EntityHandle handle)
 {
 	// Check handle is valid
+	ASSERT(IsEntityHandleValid(gameState, handle));
 	if (!IsEntityHandleValid(gameState, handle))
 		return;
 
@@ -153,7 +157,7 @@ void RemoveEntity(GameState *gameState, EntityHandle handle)
 		u32 last = gameState->transforms.size - 1;
 		Transform *lastPtr = &gameState->transforms[last];
 		// Retarget moved component's entity to the new pointer.
-		EntityHandle handleOfLast = EntityHandleFromIndex(gameState, last); // @Improve
+		EntityHandle handleOfLast = EntityHandleFromTransformIndex(gameState, last); // @Improve
 		gameState->entityTransforms[handleOfLast.id] = transformIdx;
 		*transformPtr = *lastPtr;
 
@@ -164,12 +168,13 @@ void RemoveEntity(GameState *gameState, EntityHandle handle)
 	MeshInstance *meshInstance = GetEntityMesh(gameState, handle);
 	if (meshInstance)
 	{
-		MeshInstance *last = &gameState->meshInstances[--gameState->meshInstances.size];
+		MeshInstance *last = &gameState->meshInstances[gameState->meshInstances.size - 1];
 		// Retarget moved component's entity to the new pointer.
 		u32 idx = (u32)ArrayPointerToIndex_MeshInstance(&gameState->meshInstances, meshInstance);
 		gameState->entityMeshes[last->entityHandle.id] = idx;
 		*meshInstance = *last;
 
+		--gameState->meshInstances.size;
 		gameState->entityMeshes[handle.id] = ENTITY_ID_INVALID;
 	}
 
@@ -177,13 +182,14 @@ void RemoveEntity(GameState *gameState, EntityHandle handle)
 	if (skinnedMeshInstance)
 	{
 		SkinnedMeshInstance *last =
-			&gameState->skinnedMeshInstances[--gameState->skinnedMeshInstances.size];
+			&gameState->skinnedMeshInstances[gameState->skinnedMeshInstances.size - 1];
 		// Retarget moved component's entity to the new pointer.
 		u32 idx = (u32)ArrayPointerToIndex_SkinnedMeshInstance(&gameState->skinnedMeshInstances,
 				skinnedMeshInstance);
 		gameState->entitySkinnedMeshes[last->entityHandle.id] = idx;
 		*skinnedMeshInstance = *last;
 
+		--gameState->skinnedMeshInstances.size;
 		gameState->entitySkinnedMeshes[handle.id] = ENTITY_ID_INVALID;
 	}
 
@@ -194,24 +200,26 @@ void RemoveEntity(GameState *gameState, EntityHandle handle)
 		// them?
 		DestroyDeviceMesh(particleSystem->deviceBuffer);
 
-		ParticleSystem *last = &gameState->particleSystems[--gameState->particleSystems.size];
+		ParticleSystem *last = &gameState->particleSystems[gameState->particleSystems.size - 1];
 		// Retarget moved component's entity to the new pointer.
 		u32 idx = (u32)ArrayPointerToIndex_ParticleSystem(&gameState->particleSystems, particleSystem);
 		gameState->entityParticleSystems[last->entityHandle.id] = idx;
 		*particleSystem = *last;
 
+		--gameState->particleSystems.size;
 		gameState->entityParticleSystems[handle.id] = ENTITY_ID_INVALID;
 	}
 
 	Collider *collider = GetEntityCollider(gameState, handle);
 	if (collider)
 	{
-		Collider *last = &gameState->colliders[--gameState->colliders.size];
+		Collider *last = &gameState->colliders[gameState->colliders.size - 1];
 		// Retarget moved component's entity to the new pointer.
 		u32 idx = (u32)ArrayPointerToIndex_Collider(&gameState->colliders, collider);
 		gameState->entityColliders[last->entityHandle.id] = idx;
 		*collider = *last;
 
+		--gameState->colliders.size;
 		gameState->entityColliders[handle.id] = ENTITY_ID_INVALID;
 	}
 }

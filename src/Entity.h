@@ -55,7 +55,7 @@ struct Collider
 			v3 offset;
 		} cylinder, capsule;
 	};
-	EntityHandle entityHandle; @NoSerialize
+	EntityHandle entityHandle @NoSerialize;
 };
 DECLARE_ARRAY(Collider);
 

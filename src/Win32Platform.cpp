@@ -72,6 +72,7 @@ bool PlatformReadEntireFile(const char *filename, u8 **fileBuffer, u64 *fileSize
 		void *(*allocFunc)(u64)) @PlatformProc;
 FileHandle PlatformOpenForWrite(const char *filename) @PlatformProc;
 void PlatformCloseFile(FileHandle file) @PlatformProc;
+u64 PlatformWriteToFile(FileHandle file, const void *buffer, u64 size) @PlatformProc;
 
 #include "Win32Common.cpp"
 #include "RenderOpenGL.cpp"

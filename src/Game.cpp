@@ -30,6 +30,8 @@
 #include "Render.h"
 #include "Geometry.h"
 #include "Platform.h"
+#include "Strings.h"
+#include "StringStream.h"
 #include "Resource.h"
 @Ignore #include "PlatformCode.h"
 #include "Containers.h"
@@ -51,6 +53,8 @@ DECLARE_ARRAY(u32);
 #include "BakeryInterop.cpp"
 #include "Resource.cpp"
 #include "Entity.cpp"
+#include "Parsing.cpp"
+#include "Serialize.cpp"
 
 #if TARGET_WINDOWS
 #define GAMEDLL NOMANGLE __declspec(dllexport)
@@ -552,6 +556,9 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		// Move player
 		Player *player = &gameState->player;
 		Transform *playerTransform = GetEntityTransform(gameState, player->entityHandle);
+#if EDITOR_PRESENT
+		if (!g_debugContext->onFreeCam) // @Improve: change for editorTakingInput?
+#endif
 		{
 			v2 inputDir = {};
 			if (controller->up.endedDown)
@@ -1158,6 +1165,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			v3 origin = camPos;
 			v3 dir = cursorXYZ - origin;
 			g_debugContext->hoveredEntity = ENTITY_HANDLE_INVALID;
+			f32 closestDistance = INFINITY;
 			for (u32 colliderIdx = 0; colliderIdx < gameState->colliders.size; ++colliderIdx)
 			{
 				Collider *collider = &gameState->colliders[colliderIdx];
@@ -1168,8 +1176,13 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				if (RayColliderIntersection(origin, dir, true, transform,
 							collider, &hit, &hitNor))
 				{
-					g_debugContext->hoveredEntity = collider->entityHandle;
-					pickingResult = PICKING_ENTITY;
+					f32 dist = V3SqrLen(hit - camPos);
+					if (dist < closestDistance)
+					{
+						closestDistance = dist;
+						g_debugContext->hoveredEntity = collider->entityHandle;
+						pickingResult = PICKING_ENTITY;
+					}
 				}
 			}
 

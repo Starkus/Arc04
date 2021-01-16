@@ -20,35 +20,7 @@
 #endif
 
 #include "Strings.h"
-
-enum //TokenType
-{
-	TOKEN_INVALID,
-	TOKEN_IDENTIFIER,
-	TOKEN_LITERAL_NUMBER,
-	TOKEN_LITERAL_STRING,
-	TOKEN_PREPROCESSOR_DIRECTIVE,
-	TOKEN_ASCII_BEGIN = '!',
-	TOKEN_ASCII_END = '~' + 1,
-	TOKEN_END_OF_FILE
-};
-
-struct Token
-{
-	int type;
-	char *begin;
-	int size;
-
-	const char *file;
-	int line;
-};
-DECLARE_DYNAMIC_ARRAY(Token);
-
-struct Tokenizer
-{
-	char *cursor;
-	int line;
-};
+#include "Parsing.cpp"
 
 enum Type
 {
@@ -188,207 +160,6 @@ struct ParsedFile
 	Array_Procedure procedures;
 };
 
-inline bool IsAlpha(char c)
-{
-	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
-}
-
-inline bool IsNumeric(char c)
-{
-	return c >= '0' && c <= '9';
-}
-
-inline bool IsNumericHex(char c)
-{
-	return (c >= '0' && c <= '9') ||
-		(c >= 'a' && c <= 'f') ||
-		(c >= 'A' && c <= 'F');
-}
-
-inline bool IsWhitespace(char c)
-{
-	return c == ' ' ||
-		c == '\t' ||
-		c == '\n' ||
-		c == '\r';
-}
-
-int EatWhitespace(Tokenizer *tokenizer)
-{
-	int nAdvanced = 0;
-	while (*tokenizer->cursor && IsWhitespace(*tokenizer->cursor))
-	{
-		if (*tokenizer->cursor == '\n')
-			++tokenizer->line;
-		++tokenizer->cursor;
-		++nAdvanced;
-	}
-	return nAdvanced;
-}
-
-int EatRestOfLine(Tokenizer *tokenizer)
-{
-	int nAdvanced = 0;
-	for (;; ++tokenizer->cursor)
-	{
-		char c = *tokenizer->cursor;
-		if (!c)
-			break;
-
-		if (c == '\\')
-		{
-			++tokenizer->cursor;
-		}
-		else if (c == '\n')
-		{
-			++tokenizer->cursor;
-			++tokenizer->line;
-			break;
-		}
-		++nAdvanced;
-	}
-	return nAdvanced;
-}
-
-void ProcessCppComment(Tokenizer *tokenizer)
-{
-	EatRestOfLine(tokenizer);
-}
-
-void ProcessCComment(Tokenizer *tokenizer)
-{
-	tokenizer->cursor += 2;
-	for (;; ++tokenizer->cursor)
-	{
-		if (!*tokenizer->cursor)
-			break;
-
-		if (*tokenizer->cursor == '*' && *(tokenizer->cursor + 1) == '/')
-		{
-			tokenizer->cursor += 2;
-			break;
-		}
-	}
-}
-
-Token ReadTokenAndAdvance(Tokenizer *tokenizer)
-{
-	Token result = {};
-	result.line = tokenizer->line;
-
-	EatWhitespace(tokenizer);
-
-	while (*tokenizer->cursor == '/')
-	{
-		if (*(tokenizer->cursor + 1) == '/')
-		{
-			ProcessCppComment(tokenizer);
-			EatWhitespace(tokenizer);
-		}
-		else if (*(tokenizer->cursor + 1) == '*')
-		{
-			ProcessCComment(tokenizer);
-			EatWhitespace(tokenizer);
-		}
-		else
-			break;
-	}
-
-	result.begin = tokenizer->cursor;
-
-	if (!*tokenizer->cursor)
-	{
-		result.type = TOKEN_END_OF_FILE;
-		return result;
-	}
-
-	if (*tokenizer->cursor == '"')
-	{
-		result.type = TOKEN_LITERAL_STRING;
-		++result.size;
-		++tokenizer->cursor;
-		result.begin = tokenizer->cursor;
-
-		while (*tokenizer->cursor && *tokenizer->cursor != '"')
-		{
-			if (*tokenizer->cursor == '\\')
-			{
-				++result.size;
-				++tokenizer->cursor;
-			}
-			++result.size;
-			++tokenizer->cursor;
-		}
-		++tokenizer->cursor;
-		//Log("String literal: \"%.*s\"\n", result.size, result.begin);
-	}
-	else if (IsAlpha(*tokenizer->cursor) || *tokenizer->cursor == '_')
-	{
-		result.type = TOKEN_IDENTIFIER;
-		while (IsAlpha(*tokenizer->cursor) || IsNumeric(*tokenizer->cursor) || *tokenizer->cursor == '_')
-		{
-			++result.size;
-			++tokenizer->cursor;
-		}
-		//Log("Identifier: %.*s\n", result.size, result.begin);
-	}
-	else if (IsNumeric(*tokenizer->cursor))
-	{
-		result.type = TOKEN_LITERAL_NUMBER;
-		bool done = false;
-		if (*tokenizer->cursor == '0')
-		{
-			done = true;
-			++result.size;
-			++tokenizer->cursor;
-			ASSERT(!IsNumeric(*tokenizer->cursor));
-			if (*tokenizer->cursor == 'x' ||
-					*tokenizer->cursor == 'X' ||
-					*tokenizer->cursor == 'b' ||
-					*tokenizer->cursor == '.')
-			{
-				done = false;
-				++result.size;
-				++tokenizer->cursor;
-			}
-		}
-		if (!done)
-		{
-			while (IsNumericHex(*tokenizer->cursor) || *tokenizer->cursor == '.')
-			{
-				++result.size;
-				++tokenizer->cursor;
-			}
-			if (*tokenizer->cursor == 'f')
-			{
-				++result.size;
-				++tokenizer->cursor;
-			}
-		}
-		//Log("Number: %.*s\n", result.size, result.begin);
-	}
-	else if (*tokenizer->cursor == '#')
-	{
-		result.type = TOKEN_PREPROCESSOR_DIRECTIVE;
-		result.size = EatRestOfLine(tokenizer);
-		//Log("Preprocessor directive: %.*s\n", result.size, result.begin);
-	}
-	else if (*tokenizer->cursor >= TOKEN_ASCII_BEGIN && *tokenizer->cursor < TOKEN_ASCII_END)
-	{
-		result.type = *tokenizer->cursor;
-		++tokenizer->cursor;
-	}
-	else
-	{
-		result.type = TOKEN_INVALID;
-		result.begin = tokenizer->cursor;
-		result.size = 1;
-		++tokenizer->cursor;
-	}
-
-	return result;
-}
-
 void PrintTypeInfo(char *buffer, const TypeInfo *typeInfo)
 {
 	char stars[8] = {};
@@ -420,45 +191,6 @@ void PrintTypeInfo(char *buffer, const TypeInfo *typeInfo)
 			typeInfo->isConst ? "const " : "",
 			basicTypeStrings[typeInfo->type],
 			stars);
-	}
-}
-
-inline bool TokenIsStr(Token *token, const char *str)
-{
-	return token->type == TOKEN_IDENTIFIER &&
-		token->size == strlen(str) &&
-		strncmp(token->begin, str, token->size) == 0;
-}
-
-inline bool TokenIsEqual(Token *a, Token *b)
-{
-	if (a->type != b->type)
-		return false;
-	if (a->type == TOKEN_IDENTIFIER)
-		return a->size == b->size && strncmp(a->begin, b->begin, a->size) == 0;
-	return true;
-}
-
-void TokenizeFile(const char *filename, DynamicArray_Token &tokens)
-{
-	auto MallocPlus1 = [](u64 size) { return malloc(size + 1); };
-	char *fileBuffer;
-	u64 fileSize;
-	PlatformReadEntireFile(filename, (u8 **)&fileBuffer, &fileSize, MallocPlus1);
-	fileBuffer[fileSize] = 0;
-
-	Tokenizer tokenizer = {};
-	tokenizer.cursor = fileBuffer;
-	while (true)
-	{
-		Token newToken = ReadTokenAndAdvance(&tokenizer);
-		newToken.file = filename;
-
-		if (newToken.type != TOKEN_PREPROCESSOR_DIRECTIVE)
-			*DynamicArrayAdd_Token(&tokens, realloc) = newToken;
-
-		if (newToken.type == TOKEN_END_OF_FILE)
-			break;
 	}
 }
 
@@ -1070,11 +802,6 @@ ParsedFile ParseFile(DynamicArray_Token &tokens)
 					++token;
 				}
 
-				if (token->type != TOKEN_IDENTIFIER)
-				{
-					Log("ERROR! Expected identifier\n");
-				}
-
 				while (true)
 				{
 					TypeInfo varTypeInfo = typeInfo;
@@ -1532,7 +1259,7 @@ void PostProcessSourceFile(ParsedFile *context, DynamicArray_Token &tokens, cons
 	FileHandle file = PlatformOpenForWrite(outputFile);
 
 	Token *token = &tokens[0];
-	char *begin = token->begin;
+	const char *begin = token->begin;
 	while (token->type != TOKEN_END_OF_FILE)
 	{
 		if (token->type == '@')
@@ -1576,7 +1303,7 @@ void PostProcessSourceFile(ParsedFile *context, DynamicArray_Token &tokens, cons
 				}
 
 				// Write up to this statement
-				char *end = typeToken->begin;
+				const char *end = typeToken->begin;
 				PlatformWriteToFile(file, begin, end - begin);
 
 				// Preamble
@@ -1598,7 +1325,7 @@ void PostProcessSourceFile(ParsedFile *context, DynamicArray_Token &tokens, cons
 				char *buffer = (char *)malloc(bufferSize);
 				char *dst = buffer;
 				bool lastWasWhitespace = false;
-				for (char *src = begin; src < end;)
+				for (const char *src = begin; src < end;)
 				{
 					if (IsWhitespace(*src))
 					{
@@ -1636,7 +1363,7 @@ void PostProcessSourceFile(ParsedFile *context, DynamicArray_Token &tokens, cons
 			else
 			{
 				//Just remove tag
-				char *end = token->begin;
+				const char *end = token->begin;
 				PlatformWriteToFile(file, begin, end - begin);
 
 				++token;
@@ -1649,7 +1376,7 @@ void PostProcessSourceFile(ParsedFile *context, DynamicArray_Token &tokens, cons
 		}
 		++token;
 	}
-	char *end = token->begin;
+	const char *end = token->begin;
 	PlatformWriteToFile(file, begin, end - begin);
 
 	PlatformCloseFile(file);
@@ -1695,9 +1422,13 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	u8 *fileBuffer;
+	u64 fileSize;
+	PlatformReadEntireFile(srcFile, &fileBuffer, &fileSize, malloc);
+
 	DynamicArray_Token tokens;
 	DynamicArrayInit_Token(&tokens, 4096, malloc);
-	TokenizeFile(srcFile, tokens);
+	TokenizeFile((char *)fileBuffer, fileSize, tokens);
 
 	ParsedFile parsedFile = ParseFile(tokens);
 

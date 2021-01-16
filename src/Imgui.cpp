@@ -535,125 +535,6 @@ void ImguiShowEditWindow(GameState *gameState)
 #endif
 }
 
-void Indent(i32 indentLevel)
-{
-	for (int i = 0; i < indentLevel; ++i)
-		Log("  ");
-}
-
-void PrintStruct(void *ptr, const StructInfo *structInfo, i32 indentLevel = 0);
-void PrintStructMember(void *ptr, const StructMember *memberInfo, i32 indentLevel = 0)
-{
-	u8 *memberPtr = (u8 *)ptr;
-
-	// Check for NoSerialize tag
-	for (u32 tagIdx = 0; tagIdx < memberInfo->tagCount; ++tagIdx)
-	{
-		if (strcmp(memberInfo->tags[tagIdx], "NoSerialize") == 0)
-		{
-			return;
-		}
-	}
-
-	Indent(indentLevel);
-	Log("%s = ", memberInfo->name);
-
-	// Pointer
-	if (memberInfo->pointerLevels != 0)
-	{
-		if (memberInfo->typeInfo == &typeInfo_Resource)
-		{
-			const Resource **resourcePtr = (const Resource**)memberPtr;
-			if (*resourcePtr)
-			{
-				Log("\"%s\"", (*resourcePtr)->filename);
-			}
-		}
-		else
-		{
-			Log("0x%llX", *(u64 *)memberPtr);
-		}
-	}
-	else switch (memberInfo->type)
-	{
-	case TYPE_U8:
-		Log("%hhu", *(u8 *)memberPtr); break;
-	case TYPE_U16:
-		Log("%hu", *(u16 *)memberPtr); break;
-	case TYPE_U32:
-		Log("%u", *(u32 *)memberPtr); break;
-	case TYPE_U64:
-		Log("%llu", *(u64 *)memberPtr); break;
-	case TYPE_I8:
-		Log("%hhd", *(i8 *)memberPtr); break;
-	case TYPE_I16:
-		Log("%hd", *(i16 *)memberPtr); break;
-	case TYPE_I32:
-		Log("%d", *(i32 *)memberPtr); break;
-	case TYPE_I64:
-		Log("%lld", *(i64 *)memberPtr); break;
-	case TYPE_F32:
-		Log("%f", *(f32 *)memberPtr); break;
-	case TYPE_F64:
-		Log("%Lf", *(f64 *)memberPtr); break;
-	case TYPE_BOOL:
-		Log("%s", *(i32 *)memberPtr == 0 ? "false" : "true"); break;
-	case TYPE_STRUCT:
-	{
-		if (memberInfo->typeInfo == &typeInfo_v2)
-		{
-			v2 *vec = (v2 *)memberPtr;
-			Log("{ %f, %f }", vec->x, vec->y); break;
-		}
-		else if (memberInfo->typeInfo == &typeInfo_v3)
-		{
-			v3 *vec = (v3 *)memberPtr;
-			Log("{ %f, %f, %f }", vec->x, vec->y, vec->z); break;
-		}
-		else if (memberInfo->typeInfo == &typeInfo_v4)
-		{
-			v4 *vec = (v4 *)memberPtr;
-			Log("{ %f, %f, %f, %f }", vec->x, vec->y, vec->z, vec->w); break;
-		}
-		else
-		{
-			Log("{\n");
-			const StructInfo *memberStructInfo = (StructInfo *)memberInfo->typeInfo;
-			PrintStruct(memberPtr, memberStructInfo, indentLevel + 1);
-			Indent(indentLevel); Log("}");
-		}
-	} break;
-	case TYPE_ENUM:
-	{
-		const EnumInfo *memberEnumInfo = (EnumInfo *)memberInfo->typeInfo;
-		i64 value;
-		switch (memberInfo->size)
-		{
-			case 1:  value = *(i8  *)memberPtr; break;
-			case 2:  value = *(i16 *)memberPtr; break;
-			case 4:  value = *(i32 *)memberPtr; break;
-			default: value = *(i64 *)memberPtr; break;
-		}
-		Log("%s", memberEnumInfo->values[value].name);
-	} break;
-	}
-
-	Log("\n");
-}
-
-void PrintStruct(void *ptr, const StructInfo *structInfo, i32 indentLevel)
-{
-	u8 *structPtr = (u8 *)ptr;
-
-	for (u32 i = 0; i < structInfo->memberCount; ++i)
-	{
-		const StructMember *memberInfo = &structInfo->members[i];
-		void *memberPtr = structPtr + memberInfo->offset;
-
-		PrintStructMember(memberPtr, memberInfo, indentLevel);
-	}
-}
-
 void ImguiShowSceneWindow(GameState *gameState)
 {
 	if (!ImGui::Begin("Scene"))
@@ -662,67 +543,46 @@ void ImguiShowSceneWindow(GameState *gameState)
 		return;
 	}
 
-	ImGui::Button("Load");
+	if (ImGui::Button("Load"))
+	{
+		// Delete all entities
+		u32 count = gameState->transforms.size;
+		for (u32 entityId = 0; entityId < count; )
+		{
+			//EntityHandle handle = { entityId, gameState->entityGenerations[entityId] };
+			EntityHandle handle = EntityHandleFromTransformIndex(gameState, entityId); // @Improve
+			if (handle.id != gameState->player.entityHandle.id &&
+				IsEntityHandleValid(gameState, handle))
+			{
+				RemoveEntity(gameState, handle);
+			}
+			else
+			{
+				++entityId;
+			}
+		}
+
+		u8 *fileBuffer;
+		u64 fileSize;
+		PlatformReadEntireFile("data/scene.scene", &fileBuffer, &fileSize, FrameAlloc);
+
+		DeserializeEntities(gameState, fileBuffer, fileSize);
+	}
 
 	ImGui::SameLine();
-
 	if (ImGui::Button("Save"))
 	{
 		FileHandle file = PlatformOpenForWrite("data/scene.scene");
 
-		i32 indentLevel = 0;
+		const u64 bufferSize = 8192;
+		StringStream stream;
+		stream.buffer = (char *)FrameAlloc(bufferSize);
+		stream.capacity = bufferSize;
+		stream.cursor = 0;
 
-		u32 entityCount = gameState->transforms.size;
-		for (u32 entityIdx = 0; entityIdx < entityCount; ++entityIdx)
-		{
-			Indent(indentLevel); Log("Entity {\n");
-			EntityHandle handle = { entityIdx, gameState->entityGenerations[entityIdx] };
-			++indentLevel;
+		SerializeEntities(gameState, &stream);
 
-			Transform *transform = GetEntityTransform(gameState, handle);
-			Indent(indentLevel); Log("Transform {\n");
-			PrintStruct(transform, &typeInfo_Transform, indentLevel + 1);
-			Indent(indentLevel); Log("}\n");
-
-			MeshInstance *mesh = GetEntityMesh(gameState, handle);
-			if (mesh)
-			{
-				Indent(indentLevel); Log("Mesh {\n");
-				PrintStruct(mesh, &typeInfo_MeshInstance, indentLevel + 1);
-				Indent(indentLevel); Log("}\n");
-			}
-
-			SkinnedMeshInstance *skinnedMesh = GetEntitySkinnedMesh(gameState, handle);
-			if (skinnedMesh)
-			{
-				Indent(indentLevel); Log("SkinnedMesh {\n");
-				PrintStruct(skinnedMesh, &typeInfo_SkinnedMeshInstance, indentLevel + 1);
-				Indent(indentLevel); Log("}\n");
-			}
-
-			Collider *collider = GetEntityCollider(gameState, handle);
-			if (collider)
-			{
-				Indent(indentLevel); Log("Collider {\n");
-
-				PrintStructMember(&collider->type, &typeInfo_Collider.members[0], indentLevel + 1); // @Hardcoded
-				PrintStructMember(&collider->cube, &typeInfo_Collider.members[collider->type + 1],
-						indentLevel + 1); // @Hardcoded
-
-				Indent(indentLevel); Log("}\n");
-			}
-
-			ParticleSystem *particleSystem = GetEntityParticleSystem(gameState, handle);
-			if (particleSystem)
-			{
-				Indent(indentLevel); Log("ParticleSystem {\n");
-				PrintStruct(particleSystem, &typeInfo_ParticleSystem, indentLevel + 1);
-				Indent(indentLevel); Log("}\n");
-			}
-
-			--indentLevel;
-			Indent(indentLevel); Log("}\n");
-		}
+		PlatformWriteToFile(file, stream.buffer, stream.cursor);
 
 		PlatformCloseFile(file);
 	}
