@@ -1153,7 +1153,7 @@ void WriteTypeInfoFiles(Array_Struct &structs, Array_Enum &enums)
 {
 	FileHandle file = PlatformOpenForWrite("gen/TypeInfo.h");
 
-	PrintToFile(file, "#if DEBUG_BUILD\n");
+	PrintToFile(file, "#if USING_TYPE_INFO\n");
 
 	PrintToFile(file, "enum Type\n{\n");
 	for (int i = 0; i < TYPE_COUNT; ++i)
@@ -1214,7 +1214,7 @@ void WriteTypeInfoFiles(Array_Struct &structs, Array_Enum &enums)
 	PlatformCloseFile(file);
 
 	file = PlatformOpenForWrite("gen/TypeInfo.cpp");
-	PrintToFile(file, "#if DEBUG_BUILD\n");
+	PrintToFile(file, "#if USING_TYPE_INFO\n");
 
 	// ENUMS
 	for (u32 enumIdx = 0; enumIdx < enums.size; ++enumIdx)

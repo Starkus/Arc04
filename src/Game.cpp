@@ -1,6 +1,8 @@
 @Ignore #include <stdlib.h>
 @Ignore #include <stddef.h>
 @Ignore #include <memory.h>
+@Ignore #include <string.h>
+@Ignore #include <stdarg.h>
 
 #include "General.h"
 
@@ -794,7 +796,9 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		}
 
 		// Move camera
+#if EDITOR_PRESENT
 		if (!g_debugContext->onFreeCam)
+#endif
 		{
 			const f32 camRotSpeed = 4.0f;
 
@@ -1025,13 +1029,83 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 			particle->size += particleSystem->sizeDelta * dt;
 		};
 
-		for (u32 partSysIdx = 0; partSysIdx < gameState->particleSystems.size;
-				++partSysIdx)
+		auto SpawnParticle = [](ParticleSystem *particleSystem, Transform *transform)
+		{
+			// Spawn particle
+			int newParticleIdx = -1;
+			const int maxCount = ArrayCount(particleSystem->particles);
+			for (int i = 0; i < maxCount; ++i)
+			{
+				if (!particleSystem->alive[i])
+				{
+					newParticleIdx = i;
+					break;
+				}
+			}
+
+			if (newParticleIdx != -1)
+			{
+				particleSystem->alive[newParticleIdx] = true;
+				Particle *p = &particleSystem->particles[newParticleIdx];
+				ParticleBookkeep *b = &particleSystem->bookkeeps[newParticleIdx];
+
+				b->lifeTime = 0;
+				b->duration = particleSystem->maxLife;
+
+				v3 spread =
+				{
+					GetRandomF32() - 0.5f,
+					GetRandomF32() - 0.5f,
+					GetRandomF32() - 0.5f
+				};
+				spread = V3Scale(spread, particleSystem->initialVelSpread);
+				b->velocity = particleSystem->initialVel + spread;
+				// @Speed: rotate velocity outside loop (might need fw, right, up vectors for spread)
+				b->velocity = QuaternionRotateVector(transform->rotation, b->velocity);
+
+				p->pos = transform->translation + particleSystem->offset;
+
+				p->size = particleSystem->initialSize +
+					(GetRandomF32() - 0.5f) * particleSystem->sizeSpread;
+
+				v4 colorSpread =
+				{
+					GetRandomF32() - 0.5f,
+					GetRandomF32() - 0.5f,
+					GetRandomF32() - 0.5f,
+					GetRandomF32() - 0.5f
+				};
+				colorSpread = V4Scale(colorSpread, particleSystem->colorSpread);
+				p->color = particleSystem->initialColor +
+					colorSpread;
+
+				// Simulate a bit to compensate spawn delay
+				//f32 t = particleSystem->timer;
+				//SimulateParticle(particleSystem, newParticleIdx, t);
+			}
+			return newParticleIdx;
+		};
+
+		for (u32 partSysIdx = 0; partSysIdx < gameState->particleSystems.size; ++partSysIdx)
 		{
 			ParticleSystem *particleSystem = &gameState->particleSystems[partSysIdx];
 			Transform *transform = GetEntityTransform(gameState, particleSystem->entityHandle);
 
 			const int maxCount = ArrayCount(particleSystem->particles);
+
+			if (particleSystem->timer == 0)
+			{
+				// Burst
+				i32 spawned = 0;
+				while (spawned < particleSystem->burstCount)
+				{
+					i32 newParticleIdx = SpawnParticle(particleSystem, transform);
+					if (newParticleIdx == -1)
+						break;
+					++spawned;
+				}
+			}
+
 			particleSystem->timer += deltaTime;
 			for (int i = 0; i < maxCount; ++i)
 			{
@@ -1051,57 +1125,13 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 
 			while (particleSystem->timer > particleSystem->spawnRate)
 			{
-				// Spawn particle
-				int newParticleIdx = -1;
-				for (int i = 0; i < maxCount; ++i)
-				{
-					if (!particleSystem->alive[i])
-					{
-						newParticleIdx = i;
-						break;
-					}
-				}
+				i32 newParticleIdx = SpawnParticle(particleSystem, transform);
+				if (newParticleIdx == -1)
+					break;
 
-				if (newParticleIdx != -1)
-				{
-					particleSystem->alive[newParticleIdx] = true;
-					Particle *p = &particleSystem->particles[newParticleIdx];
-					ParticleBookkeep *b = &particleSystem->bookkeeps[newParticleIdx];
-
-					b->lifeTime = 0;
-					b->duration = particleSystem->maxLife;
-
-					v3 spread =
-					{
-						GetRandomF32() - 0.5f,
-						GetRandomF32() - 0.5f,
-						GetRandomF32() - 0.5f
-					};
-					spread = V3Scale(spread, particleSystem->initialVelSpread);
-					b->velocity = particleSystem->initialVel + spread;
-					// @Speed: rotate velocity outside loop (might need fw, right, up vectors for spread)
-					b->velocity = QuaternionRotateVector(transform->rotation, b->velocity);
-
-					p->pos = transform->translation + particleSystem->offset;
-
-					p->size = particleSystem->initialSize +
-						(GetRandomF32() - 0.5f) * particleSystem->sizeSpread;
-
-					v4 colorSpread =
-					{
-						GetRandomF32() - 0.5f,
-						GetRandomF32() - 0.5f,
-						GetRandomF32() - 0.5f,
-						GetRandomF32() - 0.5f
-					};
-					colorSpread = V4Scale(colorSpread, particleSystem->colorSpread);
-					p->color = particleSystem->initialColor +
-						colorSpread;
-
-					// Simulate a bit to compensate spawn delay
-					f32 t = particleSystem->timer;
-					SimulateParticle(particleSystem, newParticleIdx, t);
-				}
+				// Simulate a bit to compensate spawn delay
+				f32 t = particleSystem->timer;
+				SimulateParticle(particleSystem, newParticleIdx, t);
 
 				particleSystem->timer -= particleSystem->spawnRate;
 			}
@@ -1734,6 +1764,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		EnableDepthTest();
 
 		// Gizmos
+#if EDITOR_PRESENT
 		{
 			if (Transform *selectedEntity = GetEntityTransform(gameState, g_debugContext->selectedEntity))
 			{
@@ -1779,6 +1810,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				RenderIndexedMesh(circleRes->mesh.deviceMesh);
 			}
 		}
+#endif
 	}
 }
 

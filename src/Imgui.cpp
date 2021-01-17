@@ -504,6 +504,11 @@ void ImguiShowEditWindow(GameState *gameState)
 	if (particleSystem)
 	{
 		ImguiStructAsControls(gameState, particleSystem, &typeInfo_ParticleSystem);
+		if (ImGui::Button("Reset timer"))
+		{
+			particleSystem->timer = 0;
+		}
+
 		if (ImGui::Button("Remove particle system"))
 		{
 			DestroyDeviceMesh(particleSystem->deviceBuffer);

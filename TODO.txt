@@ -1,6 +1,8 @@
 ## TODO
 
 # Next up?
+- Archetypes? Export/import entities as archetypes and be able to instance them in runtime.
+- Profiling
 - CHECK HANDEDNESS once and for all.
 - Implement some persistent state with save/load (option to reset easily)
 - Sort render calls by material/shader not to rebind everything for every call.

@@ -103,6 +103,7 @@ struct ParticleSystem
 	v3 offset;
 	f32 spawnRate = 0.1f;
 	f32 maxLife = 1.0f;
+	i32 burstCount;
 	f32 initialSize = 0.1f;
 	f32 sizeSpread;
 	f32 sizeDelta;

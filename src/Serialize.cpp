@@ -489,6 +489,7 @@ void DeserializeEntities(GameState *gameState, const u8 *fileBuffer, u64 fileSiz
 			else if (TokenIsStr(nameToken, "ParticleSystem"))
 			{
 				ParticleSystem *particleSystem = ArrayAdd_ParticleSystem(&gameState->particleSystems);
+				particleSystem->deviceBuffer = CreateDeviceMesh(0); // @Improve: centralize these required initializations?
 				token = DeserializeStruct(particleSystem, token, &typeInfo_ParticleSystem);
 				EntityAssignParticleSystem(gameState, entityHandle, particleSystem);
 			}

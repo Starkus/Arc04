@@ -21,12 +21,13 @@
 #define MAX_PATH PATH_MAX
 #endif
 
+#if PREPROCESSING
+@Ignore #define USING_TYPE_INFO 1
+#endif
+
 // I hate this programming language
 #undef near
 #undef far
-
-#define EPA_LOGGING 0
-#define EPA_ERROR_LOGGING 1
 
 #if DEBUG_BUILD
 #define DEBUG_ONLY(...) __VA_ARGS__

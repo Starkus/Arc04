@@ -1,3 +1,6 @@
+#define EPA_LOGGING 0
+#define EPA_ERROR_LOGGING 1
+
 #if DEBUG_BUILD && defined(USING_IMGUI)
 #define VERBOSE_LOG(...) if (g_debugContext->verboseCollisionLogging) Log(__VA_ARGS__)
 #else
