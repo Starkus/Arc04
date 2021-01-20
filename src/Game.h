@@ -51,6 +51,7 @@ struct Jumper
 	EntityHandle entityHandle;
 	JumperState state;
 	EntityHandle target = ENTITY_HANDLE_INVALID;
+	f32 zVel;
 };
 
 #if DEBUG_BUILD

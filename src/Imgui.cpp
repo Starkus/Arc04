@@ -121,6 +121,9 @@ bool ImguiMemberAsControl(GameState *gameState, void *object, const StructMember
 					ArrayCount(resInputName), ImGuiInputTextFlags_EnterReturnsTrue))
 		{
 			const Resource *res = GetResource(resInputName);
+			if (!res)
+				res = LoadResource((*resourcePtr)->type, resInputName);
+
 			if (res)
 				*resourcePtr = res;
 			else
@@ -556,8 +559,7 @@ void ImguiShowSceneWindow(GameState *gameState)
 		{
 			//EntityHandle handle = { entityId, gameState->entityGenerations[entityId] };
 			EntityHandle handle = EntityHandleFromTransformIndex(gameState, entityId); // @Improve
-			if (handle.id != gameState->player.entityHandle.id &&
-				IsEntityHandleValid(gameState, handle))
+			if (IsEntityHandleValid(gameState, handle))
 			{
 				RemoveEntity(gameState, handle);
 			}

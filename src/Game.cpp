@@ -838,13 +838,31 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 		}
 
 		// Update enemies
-		if (0) // ANNOYING
+		//if (0) // ANNOYING
 		{
 			Transform *jumper = GetEntityTransform(gameState, gameState->jumper.entityHandle);
+
+			// Ground detection
+			v3 origin = jumper->translation + v3{ 0, 0, 0.7f };
+			const f32 rayDist = 0.9f;
+			v3 rayDir = { 0, 0, -rayDist };
+			v3 hit;
+			Triangle triangle;
+			if (HitTest(gameState, origin, rayDir, false, &hit, &triangle))
+			{
+				jumper->translation.z = hit.z;
+				gameState->jumper.zVel = 0;
+			}
+			else
+			{
+				gameState->jumper.zVel -= 20.0f * deltaTime; // @Fix: not frame-independant
+				jumper->translation.z += gameState->jumper.zVel * deltaTime;
+			}
+
 			if (gameState->jumper.state == JUMPERSTATE_IDLE)
 			{
 				f32 dist = V3Length(playerTransform->translation - jumper->translation);
-				if (dist < 5.0f)
+				if (dist < 8.0f && dist > 1.0f)
 				{
 					gameState->jumper.target = gameState->player.entityHandle;
 					gameState->jumper.state = JUMPERSTATE_CHASING;
@@ -862,7 +880,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 					dist = V3Length(dir);
 				}
 
-				if (dist > 7.0f)
+				if (dist > 10.0f || dist < 0.8f)
 				{
 					gameState->jumper.target = ENTITY_HANDLE_INVALID;
 					gameState->jumper.state = JUMPERSTATE_IDLE;
@@ -870,7 +888,7 @@ GAMEDLL UPDATE_AND_RENDER_GAME(UpdateAndRenderGame)
 				else
 				{
 					dir /= dist;
-					jumper->translation += dir * 3.0f * deltaTime;
+					jumper->translation.xy += dir.xy * 3.0f * deltaTime;
 					jumper->rotation = QuaternionFromAxisAngle(v3{0,0,1}, -Atan2(dir.x, dir.y));
 				}
 			}

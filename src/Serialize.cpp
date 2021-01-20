@@ -384,15 +384,10 @@ void SerializeEntities(GameState *gameState, StringStream *stream)
 	{
 		EntityHandle handle = EntityHandleFromTransformIndex(gameState, entityIdx); // @Improve
 
-		// @Improve: don't skip player! Do something else like keep IDs not to break other people's
-		// entity handles.
-		if (handle.id == gameState->player.entityHandle.id)
-			continue;
-
 		Indent(stream, indentLevel); StreamWrite(stream, "Entity {\n");
 		++indentLevel;
 
-		//Indent(stream, indentLevel); StreamWrite(stream, "ID %d\n", handle.id);
+		Indent(stream, indentLevel); StreamWrite(stream, "ID %d\n", handle.id);
 
 		Transform *transform = GetEntityTransform(gameState, handle);
 		Indent(stream, indentLevel); StreamWrite(stream, "Transform {\n");
@@ -438,6 +433,25 @@ void SerializeEntities(GameState *gameState, StringStream *stream)
 		--indentLevel;
 		Indent(stream, indentLevel); StreamWrite(stream, "}\n");
 	}
+
+	// @Cleanup: move?
+	Indent(stream, indentLevel); StreamWrite(stream, "Player {\n");
+	++indentLevel;
+	Indent(stream, indentLevel); StreamWrite(stream, "ID %d\n", gameState->player.entityHandle.id);
+	--indentLevel;
+	Indent(stream, indentLevel); StreamWrite(stream, "}\n");
+
+	Indent(stream, indentLevel); StreamWrite(stream, "Jumper {\n");
+	++indentLevel;
+	Indent(stream, indentLevel); StreamWrite(stream, "ID %d\n", gameState->jumper.entityHandle.id);
+	--indentLevel;
+	Indent(stream, indentLevel); StreamWrite(stream, "}\n");
+
+	Indent(stream, indentLevel); StreamWrite(stream, "LevelGeometry {\n");
+	++indentLevel;
+	SerializeStruct(stream, &gameState->levelGeometry, &typeInfo_LevelGeometry, indentLevel + 1);
+	--indentLevel;
+	Indent(stream, indentLevel); StreamWrite(stream, "}\n");
 }
 
 void DeserializeEntities(GameState *gameState, const u8 *fileBuffer, u64 fileSize)
@@ -449,71 +463,131 @@ void DeserializeEntities(GameState *gameState, const u8 *fileBuffer, u64 fileSiz
 	Token *token = tokens.data;
 	while (token->type != TOKEN_END_OF_FILE)
 	{
-		ASSERT(TokenIsStr(token, "Entity"));
-		++token;
-		ASSERT(token->type == '{');
-		++token;
-
-		Transform *transform;
-		EntityHandle entityHandle = AddEntity(gameState, &transform);
-
-		// Read components
-		while (token->type != '}')
+		if (TokenIsStr(token, "Entity"))
 		{
-			ASSERT(token->type == TOKEN_IDENTIFIER);
-			Token *nameToken = token;
+			++token;
+			ASSERT(token->type == '{');
 			++token;
 
-			if (TokenIsStr(nameToken, "Transform"))
+			u32 id = U32_MAX;
+			if (TokenIsStr(token, "ID"))
 			{
-				token = DeserializeStruct(transform, token, &typeInfo_Transform);
+				++token;
+				id = (u32)ReadUint(&token);
 			}
-			else if (TokenIsStr(nameToken, "Collider"))
+
+			Transform *transform;
+			u32 newTransformIdx = gameState->transforms.size;
+			transform = ArrayAdd_Transform(&gameState->transforms);
+			EntityHandle entityHandle = { id, gameState->entityGenerations[id] };
+			gameState->entityTransforms[id] = newTransformIdx;
+
+			// Read components
+			while (token->type != '}')
 			{
-				Collider *collider = ArrayAdd_Collider(&gameState->colliders);
-				token = DeserializeStruct(collider, token, &typeInfo_Collider);
-				EntityAssignCollider(gameState, entityHandle, collider);
-			}
-			else if (TokenIsStr(nameToken, "Mesh"))
-			{
-				MeshInstance *meshInstance = ArrayAdd_MeshInstance(&gameState->meshInstances);
-				token = DeserializeStruct(meshInstance, token, &typeInfo_MeshInstance);
-				EntityAssignMesh(gameState, entityHandle, meshInstance);
-			}
-			else if (TokenIsStr(nameToken, "SkinnedMesh"))
-			{
-				SkinnedMeshInstance *skinnedMeshInstance = ArrayAdd_SkinnedMeshInstance(&gameState->skinnedMeshInstances);
-				token = DeserializeStruct(skinnedMeshInstance, token, &typeInfo_SkinnedMeshInstance);
-				EntityAssignSkinnedMesh(gameState, entityHandle, skinnedMeshInstance);
-			}
-			else if (TokenIsStr(nameToken, "ParticleSystem"))
-			{
-				ParticleSystem *particleSystem = ArrayAdd_ParticleSystem(&gameState->particleSystems);
-				particleSystem->deviceBuffer = CreateDeviceMesh(0); // @Improve: centralize these required initializations?
-				token = DeserializeStruct(particleSystem, token, &typeInfo_ParticleSystem);
-				EntityAssignParticleSystem(gameState, entityHandle, particleSystem);
-			}
-			else
-			{
-				// Unsupported/invalid component?
-				// @Todo: cry
-				ASSERT(token->type == '{');
-				int levels = 1;
-				while (levels)
+				ASSERT(token->type == TOKEN_IDENTIFIER);
+				Token *nameToken = token;
+				++token;
+
+				if (TokenIsStr(nameToken, "Transform"))
 				{
-					++token;
-					if (token->type == '{')
-						++levels;
-					else if (token->type == '}')
-						--levels;
+					token = DeserializeStruct(transform, token, &typeInfo_Transform);
 				}
+				else if (TokenIsStr(nameToken, "Collider"))
+				{
+					Collider *collider = ArrayAdd_Collider(&gameState->colliders);
+					token = DeserializeStruct(collider, token, &typeInfo_Collider);
+					EntityAssignCollider(gameState, entityHandle, collider);
+				}
+				else if (TokenIsStr(nameToken, "Mesh"))
+				{
+					MeshInstance *meshInstance = ArrayAdd_MeshInstance(&gameState->meshInstances);
+					token = DeserializeStruct(meshInstance, token, &typeInfo_MeshInstance);
+					EntityAssignMesh(gameState, entityHandle, meshInstance);
+				}
+				else if (TokenIsStr(nameToken, "SkinnedMesh"))
+				{
+					SkinnedMeshInstance *skinnedMeshInstance = ArrayAdd_SkinnedMeshInstance(&gameState->skinnedMeshInstances);
+					token = DeserializeStruct(skinnedMeshInstance, token, &typeInfo_SkinnedMeshInstance);
+					EntityAssignSkinnedMesh(gameState, entityHandle, skinnedMeshInstance);
+				}
+				else if (TokenIsStr(nameToken, "ParticleSystem"))
+				{
+					ParticleSystem *particleSystem = ArrayAdd_ParticleSystem(&gameState->particleSystems);
+					particleSystem->deviceBuffer = CreateDeviceMesh(0); // @Improve: centralize these required initializations?
+					token = DeserializeStruct(particleSystem, token, &typeInfo_ParticleSystem);
+					EntityAssignParticleSystem(gameState, entityHandle, particleSystem);
+				}
+				else
+				{
+					// Unsupported/invalid component?
+					// @Todo: cry
+					ASSERT(token->type == '{');
+					int levels = 1;
+					while (levels)
+					{
+						++token;
+						if (token->type == '{')
+							++levels;
+						else if (token->type == '}')
+							--levels;
+					}
+				}
+
+				ASSERT(token->type == '}');
+				++token;
 			}
 
 			ASSERT(token->type == '}');
 			++token;
 		}
+		else if (TokenIsStr(token, "Player"))
+		{
+			++token;
+			ASSERT(token->type == '{');
+			++token;
 
-		ASSERT(token->type == '}');
-		++token;
+			u32 id = U32_MAX;
+			if (TokenIsStr(token, "ID"))
+			{
+				++token;
+				id = (u32)ReadUint(&token);
+
+				EntityHandle playerEntity = { id, gameState->entityGenerations[id] };
+				gameState->player.entityHandle = playerEntity;
+			}
+
+			ASSERT(token->type == '}');
+			++token;
+		}
+		else if (TokenIsStr(token, "Jumper"))
+		{
+			++token;
+			ASSERT(token->type == '{');
+			++token;
+
+			u32 id = U32_MAX;
+			if (TokenIsStr(token, "ID"))
+			{
+				++token;
+				id = (u32)ReadUint(&token);
+
+				EntityHandle jumperEntity = { id, gameState->entityGenerations[id] };
+				gameState->jumper.entityHandle = jumperEntity;
+			}
+
+			ASSERT(token->type == '}');
+			++token;
+		}
+		else if (TokenIsStr(token, "LevelGeometry"))
+		{
+			++token;
+			ASSERT(token->type == '{');
+
+			token = DeserializeStruct(&gameState->levelGeometry, token, &typeInfo_LevelGeometry);
+
+			ASSERT(token->type == '}');
+			++token;
+		}
 	}
 }

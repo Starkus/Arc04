@@ -1,0 +1,287 @@
+Entity {
+  ID 0
+  Transform {
+    translation = { -14.054390, -13.547257, 12.606790 }
+    rotation = { 0.000000, 0.000000, 0.000000, 1.000000 }
+    scale = { 1.000000, 1.000000, 1.000000 }
+  }
+  SkinnedMesh {
+    meshInstance = {
+      meshRes = {
+        type = RESOURCETYPE_SKINNEDMESH
+        filename = "Sparkus.b"
+      }
+    }
+  }
+  Collider {
+    type = COLLIDER_CAPSULE
+    capsule = {
+      radius = 0.500000
+      height = 1.000000
+      offset = { 0.000000, 0.000000, 1.000000 }
+    }
+  }
+}
+Entity {
+  ID 1
+  Transform {
+    translation = { 13.098401, 3.000000, 1.000000 }
+    rotation = { 0.000000, 0.000000, 0.000000, 1.000000 }
+    scale = { 1.000000, 1.000000, 1.000000 }
+  }
+  Mesh {
+    meshRes = {
+      type = RESOURCETYPE_MESH
+      filename = "anvil.b"
+    }
+  }
+  Collider {
+    type = COLLIDER_CONVEX_HULL
+    convexHull = {
+      meshRes = {
+        type = RESOURCETYPE_COLLISIONMESH
+        filename = "anvil_collision.b"
+      }
+      scale = 1.000000
+    }
+  }
+}
+Entity {
+  ID 2
+  Transform {
+    translation = { 9.761490, 4.000000, 1.000000 }
+    rotation = { 0.000000, 0.000000, 0.000000, 1.000000 }
+    scale = { 1.000000, 1.000000, 1.000000 }
+  }
+  Mesh {
+    meshRes = {
+      type = RESOURCETYPE_MESH
+      filename = "anvil.b"
+    }
+  }
+  Collider {
+    type = COLLIDER_CONVEX_HULL
+    convexHull = {
+      meshRes = {
+        type = RESOURCETYPE_COLLISIONMESH
+        filename = "anvil_collision.b"
+      }
+      scale = 1.000000
+    }
+  }
+}
+Entity {
+  ID 3
+  Transform {
+    translation = { 12.303673, 5.303695, 1.000000 }
+    rotation = { 0.000000, 0.000000, -0.382683, 0.923880 }
+    scale = { 1.000000, 1.000000, 1.000000 }
+  }
+  Mesh {
+    meshRes = {
+      type = RESOURCETYPE_MESH
+      filename = "anvil.b"
+    }
+  }
+  Collider {
+    type = COLLIDER_CONVEX_HULL
+    convexHull = {
+      meshRes = {
+        type = RESOURCETYPE_COLLISIONMESH
+        filename = "anvil_collision.b"
+      }
+      scale = 1.000000
+    }
+  }
+}
+Entity {
+  ID 4
+  Transform {
+    translation = { -8.000000, 5.816517, 10.816496 }
+    rotation = { 0.382683, 0.000000, 0.000000, 0.923880 }
+    scale = { 1.000000, 1.000000, 1.000000 }
+  }
+  Mesh {
+    meshRes = {
+      type = RESOURCETYPE_MESH
+      filename = "anvil.b"
+    }
+  }
+  Collider {
+    type = COLLIDER_CONVEX_HULL
+    convexHull = {
+      meshRes = {
+        type = RESOURCETYPE_COLLISIONMESH
+        filename = "anvil_collision.b"
+      }
+      scale = 1.000000
+    }
+  }
+}
+Entity {
+  ID 5
+  Transform {
+    translation = { 5.873403, 5.000000, 1.000000 }
+    rotation = { 0.000000, 0.000000, 0.000000, 1.000000 }
+    scale = { 1.000000, 1.000000, 1.000000 }
+  }
+  Mesh {
+    meshRes = {
+      type = RESOURCETYPE_MESH
+      filename = "cube.b"
+    }
+  }
+  Collider {
+    type = COLLIDER_CUBE
+    cube = {
+      radius = 1.000000
+      offset = { 0.000000, 0.000000, 0.000000 }
+    }
+  }
+}
+Entity {
+  ID 6
+  Transform {
+    translation = { 4.672425, 5.000000, 2.895864 }
+    rotation = { -0.262040, 0.656761, 0.262040, 0.656761 }
+    scale = { 1.000000, 1.000000, 1.000000 }
+  }
+  Mesh {
+    meshRes = {
+      type = RESOURCETYPE_MESH
+      filename = "cube.b"
+    }
+  }
+  Collider {
+    type = COLLIDER_CUBE
+    cube = {
+      radius = 1.000000
+      offset = { 0.000000, 0.000000, 0.000000 }
+    }
+  }
+}
+Entity {
+  ID 7
+  Transform {
+    translation = { 3.000000, 5.000000, 1.000000 }
+    rotation = { 0.707107, 0.000000, 0.000000, 0.707107 }
+    scale = { 1.000000, 1.000000, 1.000000 }
+  }
+  Mesh {
+    meshRes = {
+      type = RESOURCETYPE_MESH
+      filename = "cube.b"
+    }
+  }
+  Collider {
+    type = COLLIDER_CUBE
+    cube = {
+      radius = 1.000000
+      offset = { 0.000000, 0.000000, 0.000000 }
+    }
+  }
+}
+Entity {
+  ID 8
+  Transform {
+    translation = { -6.000000, 7.000000, 4.751084 }
+    rotation = { 0.000000, 0.000000, 0.000000, 1.000000 }
+    scale = { 1.000000, 1.000000, 1.000000 }
+  }
+  Mesh {
+    meshRes = {
+      type = RESOURCETYPE_MESH
+      filename = "sphere.b"
+    }
+  }
+  Collider {
+    type = COLLIDER_SPHERE
+    sphere = {
+      radius = 1.000000
+      offset = { 0.000000, 0.000000, 0.000000 }
+    }
+  }
+}
+Entity {
+  ID 9
+  Transform {
+    translation = { -0.278141, -6.684939, 2.388738 }
+    rotation = { 0.000000, 0.000000, 0.000000, 1.000000 }
+    scale = { 1.000000, 1.000000, 1.000000 }
+  }
+  Mesh {
+    meshRes = {
+      type = RESOURCETYPE_MESH
+      filename = "cylinder.b"
+    }
+  }
+  Collider {
+    type = COLLIDER_CYLINDER
+    cylinder = {
+      radius = 1.000000
+      height = 2.000000
+      offset = { 0.000000, 0.000000, 0.000000 }
+    }
+  }
+}
+Entity {
+  ID 10
+  Transform {
+    translation = { -0.121265, 7.000000, 4.589380 }
+    rotation = { 0.000000, -0.651396, 0.000000, 0.758739 }
+    scale = { 1.000000, 1.000000, 1.000000 }
+  }
+  Mesh {
+    meshRes = {
+      type = RESOURCETYPE_MESH
+      filename = "capsule.b"
+    }
+  }
+  Collider {
+    type = COLLIDER_CAPSULE
+    capsule = {
+      radius = 1.000000
+      height = 2.000000
+      offset = { 0.000000, 0.000000, 0.000000 }
+    }
+  }
+}
+Entity {
+  ID 11
+  Transform {
+    translation = { 60.000000, 1.722966, 14.908493 }
+    rotation = { 0.000000, 0.000000, 0.728703, 0.684830 }
+    scale = { 1.000000, 1.000000, 1.000000 }
+  }
+  SkinnedMesh {
+    meshInstance = {
+      meshRes = {
+        type = RESOURCETYPE_SKINNEDMESH
+        filename = "Jumper.b"
+      }
+    }
+  }
+  Collider {
+    type = COLLIDER_SPHERE
+    sphere = {
+      radius = 0.300000
+      offset = { 0.000000, 0.000000, 1.000000 }
+    }
+  }
+}
+Player {
+  ID 0
+}
+Jumper {
+  ID 11
+}
+LevelGeometry {
+    renderMesh = {
+      type = RESOURCETYPE_MESH
+      filename = "level_another_graphics.b"
+    }
+    geometryGrid = {
+      type = RESOURCETYPE_LEVELGEOMETRYGRID
+      filename = "level_another.b"
+    }
+}
